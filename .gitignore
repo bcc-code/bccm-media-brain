@@ -1,0 +1,13 @@
+/bin/
+/coverage/
+.env
+*.test
+*.out
+.DS_Store
+.idea/
+.vscode/
+
+# web (Vue, later)
+/web/node_modules/
+/web/dist/
+/tmp/

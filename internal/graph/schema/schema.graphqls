@@ -1,0 +1,8 @@
+scalar Time
+
+type Query {
+  "Liveness check that also proves the GraphQL stack is wired."
+  ping: String!
+}
+
+type Mutation

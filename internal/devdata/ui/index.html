@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MediaBrain Debug</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #fff; --text: #1d2330; --muted: #667085; --border: #e3e6eb;
+    --accent: #3a5bd9; --accent-text: #fff; --danger: #c4372f; --ok: #1f8a4c; --code: #f0f2f5;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12151b; --panel: #1b1f27; --text: #e6e8ec; --muted: #98a1b2; --border: #2b313c;
+      --accent: #6d8bff; --accent-text: #0b0d12; --danger: #ff6b61; --ok: #4cc983; --code: #232833;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.45 system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); }
+  header { display: flex; align-items: center; gap: 16px; padding: 14px 20px; border-bottom: 1px solid var(--border); background: var(--panel); flex-wrap: wrap; }
+  header h1 { font-size: 16px; margin: 0; }
+  header .badge { font-size: 11px; padding: 2px 8px; border-radius: 99px; background: var(--danger); color: #fff; font-weight: 600; }
+  header nav { margin-left: auto; display: flex; gap: 14px; }
+  a { color: var(--accent); text-decoration: none; }
+  main { display: grid; grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr); gap: 20px; padding: 20px; max-width: 1200px; margin: 0 auto; }
+  @media (max-width: 800px) { main { grid-template-columns: 1fr; padding: 16px; } }
+  section h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 0 0 10px; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 14px; }
+  .card h3 { margin: 0 0 4px; font-size: 15px; font-family: ui-monospace, monospace; }
+  .card p { margin: 0 0 12px; color: var(--muted); }
+  .fields { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+  label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+  label.inline { flex-direction: row; align-items: center; gap: 6px; }
+  input[type=text], input[type=number] { background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; font: inherit; width: 140px; }
+  button { font: inherit; border: 0; border-radius: 6px; padding: 7px 14px; cursor: pointer; background: var(--accent); color: var(--accent-text); font-weight: 600; }
+  button.ghost { background: transparent; color: var(--accent); border: 1px solid var(--border); }
+  button.danger { background: var(--danger); color: #fff; }
+  button:disabled { opacity: .5; cursor: progress; }
+  table { width: 100%; border-collapse: collapse; }
+  td { padding: 6px 0; border-bottom: 1px solid var(--border); font-family: ui-monospace, monospace; }
+  td.n { text-align: right; font-variant-numeric: tabular-nums; }
+  .row { display: flex; gap: 8px; margin-top: 12px; }
+  #log { font: 12px/1.5 ui-monospace, monospace; background: var(--code); border-radius: 8px; padding: 10px; max-height: 420px; overflow: auto; white-space: pre-wrap; word-break: break-word; }
+  .ok { color: var(--ok); } .err { color: var(--danger); }
+  .always { font-size: 11px; color: var(--danger); margin-left: 6px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>MediaBrain debug</h1><span class="badge">DEV ONLY</span>
+  <nav><a href="/">GraphQL playground</a><a href="/healthz">healthz</a></nav>
+</header>
+<main>
+  <section>
+    <h2>Scenarios</h2>
+    <div id="scenarios">Loading…</div>
+  </section>
+  <aside>
+    <section class="card">
+      <h2>Data</h2>
+      <table id="stats"><tr><td>Loading…</td></tr></table>
+      <div class="row">
+        <button class="ghost" id="refresh">Refresh</button>
+        <button class="danger" id="reset">Reset all data</button>
+      </div>
+    </section>
+    <section>
+      <h2>Log</h2>
+      <div id="log"></div>
+    </section>
+  </aside>
+</main>
+<script>
+const api = (path, opts = {}) =>
+  fetch('api/' + path, { headers: { 'Content-Type': 'application/json' }, ...opts })
+    .then(async r => { const body = await r.json(); if (!r.ok) throw new Error(body.error || r.statusText); return body; });
+
+const el = (tag, attrs = {}, ...children) => {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) k in e ? (e[k] = v) : e.setAttribute(k, v);
+  e.append(...children);
+  return e;
+};
+
+function log(msg, cls) {
+  const line = el('div', { className: cls || '' }, `[${new Date().toLocaleTimeString()}] ${msg}`);
+  document.getElementById('log').prepend(line);
+}
+
+async function loadStats() {
+  const t = document.getElementById('stats');
+  try {
+    const stats = await api('stats');
+    t.replaceChildren(...(stats.length ? stats.map(s => el('tr', {}, el('td', {}, s.table), el('td', { className: 'n' }, String(s.rows))))
+                                       : [el('tr', {}, el('td', {}, 'No tables'))]));
+  } catch (e) { log('stats: ' + e.message, 'err'); }
+}
+
+function field(p) {
+  if (p.type === 'bool') {
+    return el('label', { className: 'inline', title: p.help || '' },
+      el('input', { type: 'checkbox', name: p.name, checked: p.default === 'true' }), p.label);
+  }
+  const input = el('input', { type: p.type === 'int' ? 'number' : 'text', name: p.name, value: p.default || '', placeholder: p.help || '' });
+  if (p.min != null) input.min = p.min;
+  if (p.max != null) input.max = p.max;
+  return el('label', { title: p.help || '' }, p.label, input);
+}
+
+function card(s) {
+  const form = el('form');
+  const params = el('div', { className: 'fields' }, ...(s.params || []).map(field));
+  const reset = el('input', { type: 'checkbox', name: '__reset', checked: s.alwaysReset, disabled: s.alwaysReset });
+  const seed = el('input', { type: 'number', name: '__seed', placeholder: 'random', min: 0 });
+  const btn = el('button', { type: 'submit' }, 'Run');
+  form.append(params, el('div', { className: 'fields', style: 'margin-top:12px' },
+    el('label', { className: 'inline' }, reset, 'Reset first'),
+    el('label', {}, 'Seed', seed), btn));
+  form.onsubmit = async ev => {
+    ev.preventDefault();
+    const body = { reset: reset.checked, seed: Number(seed.value || 0), params: {} };
+    for (const p of s.params || []) {
+      const i = form.elements[p.name];
+      body.params[p.name] = p.type === 'bool' ? String(i.checked) : i.value;
+    }
+    btn.disabled = true;
+    try {
+      const r = await api('scenarios/' + encodeURIComponent(s.name), { method: 'POST', body: JSON.stringify(body) });
+      log(`${r.scenario}: ${r.summary} (seed ${r.seed}${r.reset ? ', reset' : ''}, ${(r.durationNs / 1e6).toFixed(0)} ms)`, 'ok');
+      loadStats();
+    } catch (e) { log(`${s.name}: ${e.message}`, 'err'); }
+    finally { btn.disabled = false; }
+  };
+  return el('div', { className: 'card' },
+    el('h3', {}, s.name, ...(s.alwaysReset ? [el('span', { className: 'always' }, 'wipes data')] : [])),
+    el('p', {}, s.description), form);
+}
+
+async function loadScenarios() {
+  const box = document.getElementById('scenarios');
+  try { box.replaceChildren(...(await api('scenarios')).map(card)); }
+  catch (e) { box.textContent = 'Failed to load scenarios: ' + e.message; }
+}
+
+document.getElementById('refresh').onclick = loadStats;
+document.getElementById('reset').onclick = async () => {
+  if (!confirm('Delete ALL data in every table?')) return;
+  try { await api('reset', { method: 'POST' }); log('all data reset', 'ok'); loadStats(); }
+  catch (e) { log('reset: ' + e.message, 'err'); }
+};
+loadScenarios();
+loadStats();
+</script>
+</body>
+</html>

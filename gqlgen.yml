@@ -1,0 +1,33 @@
+schema:
+  - internal/graph/schema/*.graphqls
+
+exec:
+  package: generated
+  layout: single-file
+  filename: internal/graph/generated/generated.go
+
+model:
+  filename: internal/graph/model/models_gen.go
+  package: model
+
+resolver:
+  package: graph
+  layout: follow-schema
+  dir: internal/graph
+  filename_template: "{name}.resolvers.go"
+
+models:
+  ID:
+    model:
+      - github.com/99designs/gqlgen/graphql.ID
+  Int:
+    model:
+      - github.com/99designs/gqlgen/graphql.Int
+  Dummy:
+    model:
+      - github.com/bcc-media/mediabrain/internal/db/sqlc.Dummy
+    fields:
+      id:
+        resolver: true
+
+skip_mod_tidy: true

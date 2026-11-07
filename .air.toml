@@ -1,0 +1,29 @@
+# Live reload for `make dev` (https://github.com/air-verse/air).
+# On every change to Go, SQL, GraphQL schema, embedded HTML or codegen config:
+#   1. scripts/dev-codegen.sh re-runs sqlc/gqlgen only if their inputs changed
+#   2. the server is rebuilt and restarted (new migrations auto-apply on start)
+# If a build fails, the previous server keeps running until the error is fixed.
+root = "."
+tmp_dir = "tmp"
+
+[build]
+  cmd = "./scripts/dev-codegen.sh && go build -o ./tmp/mediabrain ./cmd/mediabrain"
+  entrypoint = ["./tmp/mediabrain", "serve"]
+  include_ext = ["go", "sql", "graphqls", "html", "yaml", "yml"]
+  exclude_dir = ["tmp", "bin", "coverage", "web", "e2e", "deploy", "scripts", ".git", ".claude",
+                 "internal/db/sqlc", "internal/graph/generated"]
+  exclude_regex = ["_test\\.go$", "models_gen\\.go$"]
+  delay = 300
+  stop_on_error = false
+  send_interrupt = true
+  kill_delay = "5s"
+
+[log]
+  time = false
+  main_only = false
+
+[misc]
+  clean_on_exit = true
+
+[screen]
+  clear_on_rebuild = false

@@ -1,0 +1,21 @@
+name: mediabrain
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: mediabrain
+      POSTGRES_PASSWORD: mediabrain
+      POSTGRES_DB: mediabrain
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mediabrain -d mediabrain"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  pgdata:
