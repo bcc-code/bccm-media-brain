@@ -31,7 +31,7 @@ func TestMain(m *testing.M) { os.Exit(run(m)) }
 func run(m *testing.M) int {
 	ctx := context.Background()
 
-	pg, err := tcpostgres.Run(ctx, "postgres:17-alpine",
+	pg, err := tcpostgres.Run(ctx, "pgvector/pgvector:pg17",
 		tcpostgres.WithDatabase("mediabrain"),
 		tcpostgres.WithUsername("mediabrain"),
 		tcpostgres.WithPassword("mediabrain"),

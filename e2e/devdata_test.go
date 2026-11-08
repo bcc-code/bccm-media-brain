@@ -185,8 +185,17 @@ func TestDebugAPI(t *testing.T) {
 	var stats []devdata.TableStat
 	_ = json.NewDecoder(res.Body).Decode(&stats)
 	res.Body.Close()
-	if len(stats) != 1 || stats[0].Table != "dummy" || stats[0].Rows != 7 {
-		t.Fatalf("stats = %+v", stats)
+	dummies := -1
+	for _, s := range stats {
+		switch {
+		case s.Table == "dummy":
+			dummies = int(s.Rows)
+		case s.Rows != 0:
+			t.Fatalf("table %s has %d rows after reset, want 0", s.Table, s.Rows)
+		}
+	}
+	if dummies != 7 {
+		t.Fatalf("dummy rows = %d, want 7 (stats = %+v)", dummies, stats)
 	}
 
 	// Data created via the debug API is visible through GraphQL.

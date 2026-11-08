@@ -5,11 +5,1503 @@
 package sqlc
 
 import (
+	"database/sql/driver"
+	"fmt"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/pgvector/pgvector-go"
 )
+
+type ClipKind string
+
+const (
+	ClipKindClip ClipKind = "clip"
+	ClipKindGap  ClipKind = "gap"
+)
+
+func (e *ClipKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ClipKind(s)
+	case string:
+		*e = ClipKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ClipKind: %T", src)
+	}
+	return nil
+}
+
+type NullClipKind struct {
+	ClipKind ClipKind `json:"clip_kind"`
+	Valid    bool     `json:"valid"` // Valid is true if ClipKind is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullClipKind) Scan(value interface{}) error {
+	if value == nil {
+		ns.ClipKind, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ClipKind.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullClipKind) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ClipKind), nil
+}
+
+type ClusterStatus string
+
+const (
+	ClusterStatusAuto      ClusterStatus = "auto"
+	ClusterStatusConfirmed ClusterStatus = "confirmed"
+)
+
+func (e *ClusterStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ClusterStatus(s)
+	case string:
+		*e = ClusterStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ClusterStatus: %T", src)
+	}
+	return nil
+}
+
+type NullClusterStatus struct {
+	ClusterStatus ClusterStatus `json:"cluster_status"`
+	Valid         bool          `json:"valid"` // Valid is true if ClusterStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullClusterStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.ClusterStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ClusterStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullClusterStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ClusterStatus), nil
+}
+
+type CopyStatus string
+
+const (
+	CopyStatusPresent  CopyStatus = "present"
+	CopyStatusMissing  CopyStatus = "missing"
+	CopyStatusMismatch CopyStatus = "mismatch"
+)
+
+func (e *CopyStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = CopyStatus(s)
+	case string:
+		*e = CopyStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for CopyStatus: %T", src)
+	}
+	return nil
+}
+
+type NullCopyStatus struct {
+	CopyStatus CopyStatus `json:"copy_status"`
+	Valid      bool       `json:"valid"` // Valid is true if CopyStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullCopyStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.CopyStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.CopyStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullCopyStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.CopyStatus), nil
+}
+
+type FileRole string
+
+const (
+	FileRoleVideo    FileRole = "video"
+	FileRoleAudio    FileRole = "audio"
+	FileRoleSubtitle FileRole = "subtitle"
+	FileRoleSidecar  FileRole = "sidecar"
+	FileRolePackage  FileRole = "package"
+)
+
+func (e *FileRole) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = FileRole(s)
+	case string:
+		*e = FileRole(s)
+	default:
+		return fmt.Errorf("unsupported scan type for FileRole: %T", src)
+	}
+	return nil
+}
+
+type NullFileRole struct {
+	FileRole FileRole `json:"file_role"`
+	Valid    bool     `json:"valid"` // Valid is true if FileRole is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullFileRole) Scan(value interface{}) error {
+	if value == nil {
+		ns.FileRole, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.FileRole.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullFileRole) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.FileRole), nil
+}
+
+type FolderRole string
+
+const (
+	FolderRoleWorking FolderRole = "working"
+	FolderRoleArchive FolderRole = "archive"
+)
+
+func (e *FolderRole) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = FolderRole(s)
+	case string:
+		*e = FolderRole(s)
+	default:
+		return fmt.Errorf("unsupported scan type for FolderRole: %T", src)
+	}
+	return nil
+}
+
+type NullFolderRole struct {
+	FolderRole FolderRole `json:"folder_role"`
+	Valid      bool       `json:"valid"` // Valid is true if FolderRole is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullFolderRole) Scan(value interface{}) error {
+	if value == nil {
+		ns.FolderRole, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.FolderRole.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullFolderRole) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.FolderRole), nil
+}
+
+type GrantScope string
+
+const (
+	GrantScopeProgram    GrantScope = "program"
+	GrantScopeProject    GrantScope = "project"
+	GrantScopeAssetGroup GrantScope = "asset_group"
+	GrantScopeAsset      GrantScope = "asset"
+)
+
+func (e *GrantScope) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = GrantScope(s)
+	case string:
+		*e = GrantScope(s)
+	default:
+		return fmt.Errorf("unsupported scan type for GrantScope: %T", src)
+	}
+	return nil
+}
+
+type NullGrantScope struct {
+	GrantScope GrantScope `json:"grant_scope"`
+	Valid      bool       `json:"valid"` // Valid is true if GrantScope is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullGrantScope) Scan(value interface{}) error {
+	if value == nil {
+		ns.GrantScope, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.GrantScope.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullGrantScope) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.GrantScope), nil
+}
+
+type GroupKind string
+
+const (
+	GroupKindShoot GroupKind = "shoot"
+	GroupKindCard  GroupKind = "card"
+	GroupKindDay   GroupKind = "day"
+	GroupKindOther GroupKind = "other"
+)
+
+func (e *GroupKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = GroupKind(s)
+	case string:
+		*e = GroupKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for GroupKind: %T", src)
+	}
+	return nil
+}
+
+type NullGroupKind struct {
+	GroupKind GroupKind `json:"group_kind"`
+	Valid     bool      `json:"valid"` // Valid is true if GroupKind is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullGroupKind) Scan(value interface{}) error {
+	if value == nil {
+		ns.GroupKind, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.GroupKind.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullGroupKind) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.GroupKind), nil
+}
+
+type GroupOrigin string
+
+const (
+	GroupOriginAuto   GroupOrigin = "auto"
+	GroupOriginManual GroupOrigin = "manual"
+)
+
+func (e *GroupOrigin) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = GroupOrigin(s)
+	case string:
+		*e = GroupOrigin(s)
+	default:
+		return fmt.Errorf("unsupported scan type for GroupOrigin: %T", src)
+	}
+	return nil
+}
+
+type NullGroupOrigin struct {
+	GroupOrigin GroupOrigin `json:"group_origin"`
+	Valid       bool        `json:"valid"` // Valid is true if GroupOrigin is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullGroupOrigin) Scan(value interface{}) error {
+	if value == nil {
+		ns.GroupOrigin, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.GroupOrigin.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullGroupOrigin) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.GroupOrigin), nil
+}
+
+type HashAlgo string
+
+const (
+	HashAlgoXxh3128 HashAlgo = "xxh3_128"
+	HashAlgoBlake3  HashAlgo = "blake3"
+	HashAlgoSha256  HashAlgo = "sha256"
+	HashAlgoMd5     HashAlgo = "md5"
+)
+
+func (e *HashAlgo) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = HashAlgo(s)
+	case string:
+		*e = HashAlgo(s)
+	default:
+		return fmt.Errorf("unsupported scan type for HashAlgo: %T", src)
+	}
+	return nil
+}
+
+type NullHashAlgo struct {
+	HashAlgo HashAlgo `json:"hash_algo"`
+	Valid    bool     `json:"valid"` // Valid is true if HashAlgo is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullHashAlgo) Scan(value interface{}) error {
+	if value == nil {
+		ns.HashAlgo, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.HashAlgo.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullHashAlgo) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.HashAlgo), nil
+}
+
+type LinkOrigin string
+
+const (
+	LinkOriginFolder LinkOrigin = "folder"
+	LinkOriginManual LinkOrigin = "manual"
+)
+
+func (e *LinkOrigin) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = LinkOrigin(s)
+	case string:
+		*e = LinkOrigin(s)
+	default:
+		return fmt.Errorf("unsupported scan type for LinkOrigin: %T", src)
+	}
+	return nil
+}
+
+type NullLinkOrigin struct {
+	LinkOrigin LinkOrigin `json:"link_origin"`
+	Valid      bool       `json:"valid"` // Valid is true if LinkOrigin is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullLinkOrigin) Scan(value interface{}) error {
+	if value == nil {
+		ns.LinkOrigin, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.LinkOrigin.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullLinkOrigin) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.LinkOrigin), nil
+}
+
+type LinkRole string
+
+const (
+	LinkRoleSource      LinkRole = "source"
+	LinkRoleDeliverable LinkRole = "deliverable"
+	LinkRoleReference   LinkRole = "reference"
+)
+
+func (e *LinkRole) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = LinkRole(s)
+	case string:
+		*e = LinkRole(s)
+	default:
+		return fmt.Errorf("unsupported scan type for LinkRole: %T", src)
+	}
+	return nil
+}
+
+type NullLinkRole struct {
+	LinkRole LinkRole `json:"link_role"`
+	Valid    bool     `json:"valid"` // Valid is true if LinkRole is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullLinkRole) Scan(value interface{}) error {
+	if value == nil {
+		ns.LinkRole, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.LinkRole.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullLinkRole) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.LinkRole), nil
+}
+
+type LocationKind string
+
+const (
+	LocationKindNas   LocationKind = "nas"
+	LocationKindLto   LocationKind = "lto"
+	LocationKindS3    LocationKind = "s3"
+	LocationKindLocal LocationKind = "local"
+)
+
+func (e *LocationKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = LocationKind(s)
+	case string:
+		*e = LocationKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for LocationKind: %T", src)
+	}
+	return nil
+}
+
+type NullLocationKind struct {
+	LocationKind LocationKind `json:"location_kind"`
+	Valid        bool         `json:"valid"` // Valid is true if LocationKind is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullLocationKind) Scan(value interface{}) error {
+	if value == nil {
+		ns.LocationKind, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.LocationKind.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullLocationKind) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.LocationKind), nil
+}
+
+type MemberOrigin string
+
+const (
+	MemberOriginRule   MemberOrigin = "rule"
+	MemberOriginPerson MemberOrigin = "person"
+)
+
+func (e *MemberOrigin) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = MemberOrigin(s)
+	case string:
+		*e = MemberOrigin(s)
+	default:
+		return fmt.Errorf("unsupported scan type for MemberOrigin: %T", src)
+	}
+	return nil
+}
+
+type NullMemberOrigin struct {
+	MemberOrigin MemberOrigin `json:"member_origin"`
+	Valid        bool         `json:"valid"` // Valid is true if MemberOrigin is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullMemberOrigin) Scan(value interface{}) error {
+	if value == nil {
+		ns.MemberOrigin, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.MemberOrigin.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullMemberOrigin) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.MemberOrigin), nil
+}
+
+type MembershipSource string
+
+const (
+	MembershipSourceSso    MembershipSource = "sso"
+	MembershipSourceManual MembershipSource = "manual"
+)
+
+func (e *MembershipSource) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = MembershipSource(s)
+	case string:
+		*e = MembershipSource(s)
+	default:
+		return fmt.Errorf("unsupported scan type for MembershipSource: %T", src)
+	}
+	return nil
+}
+
+type NullMembershipSource struct {
+	MembershipSource MembershipSource `json:"membership_source"`
+	Valid            bool             `json:"valid"` // Valid is true if MembershipSource is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullMembershipSource) Scan(value interface{}) error {
+	if value == nil {
+		ns.MembershipSource, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.MembershipSource.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullMembershipSource) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.MembershipSource), nil
+}
+
+type PermissionLevel string
+
+const (
+	PermissionLevelView             PermissionLevel = "view"
+	PermissionLevelDownloadOriginal PermissionLevel = "download_original"
+	PermissionLevelEdit             PermissionLevel = "edit"
+	PermissionLevelDelete           PermissionLevel = "delete"
+	PermissionLevelAdmin            PermissionLevel = "admin"
+)
+
+func (e *PermissionLevel) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = PermissionLevel(s)
+	case string:
+		*e = PermissionLevel(s)
+	default:
+		return fmt.Errorf("unsupported scan type for PermissionLevel: %T", src)
+	}
+	return nil
+}
+
+type NullPermissionLevel struct {
+	PermissionLevel PermissionLevel `json:"permission_level"`
+	Valid           bool            `json:"valid"` // Valid is true if PermissionLevel is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullPermissionLevel) Scan(value interface{}) error {
+	if value == nil {
+		ns.PermissionLevel, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.PermissionLevel.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullPermissionLevel) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.PermissionLevel), nil
+}
+
+type PersonKind string
+
+const (
+	PersonKindPerson       PersonKind = "person"
+	PersonKindOrganisation PersonKind = "organisation"
+)
+
+func (e *PersonKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = PersonKind(s)
+	case string:
+		*e = PersonKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for PersonKind: %T", src)
+	}
+	return nil
+}
+
+type NullPersonKind struct {
+	PersonKind PersonKind `json:"person_kind"`
+	Valid      bool       `json:"valid"` // Valid is true if PersonKind is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullPersonKind) Scan(value interface{}) error {
+	if value == nil {
+		ns.PersonKind, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.PersonKind.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullPersonKind) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.PersonKind), nil
+}
+
+type ProjectStatus string
+
+const (
+	ProjectStatusPlanned   ProjectStatus = "planned"
+	ProjectStatusActive    ProjectStatus = "active"
+	ProjectStatusDelivered ProjectStatus = "delivered"
+	ProjectStatusArchived  ProjectStatus = "archived"
+)
+
+func (e *ProjectStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ProjectStatus(s)
+	case string:
+		*e = ProjectStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ProjectStatus: %T", src)
+	}
+	return nil
+}
+
+type NullProjectStatus struct {
+	ProjectStatus ProjectStatus `json:"project_status"`
+	Valid         bool          `json:"valid"` // Valid is true if ProjectStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullProjectStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.ProjectStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ProjectStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullProjectStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ProjectStatus), nil
+}
+
+type RelationKind string
+
+const (
+	RelationKindDerivedFrom     RelationKind = "derived_from"
+	RelationKindTrailerOf       RelationKind = "trailer_of"
+	RelationKindUsesFootageFrom RelationKind = "uses_footage_from"
+	RelationKindReplaces        RelationKind = "replaces"
+)
+
+func (e *RelationKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = RelationKind(s)
+	case string:
+		*e = RelationKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for RelationKind: %T", src)
+	}
+	return nil
+}
+
+type NullRelationKind struct {
+	RelationKind RelationKind `json:"relation_kind"`
+	Valid        bool         `json:"valid"` // Valid is true if RelationKind is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullRelationKind) Scan(value interface{}) error {
+	if value == nil {
+		ns.RelationKind, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.RelationKind.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullRelationKind) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.RelationKind), nil
+}
+
+type RenditionKind string
+
+const (
+	RenditionKindMaster   RenditionKind = "master"
+	RenditionKindEncode   RenditionKind = "encode"
+	RenditionKindDub      RenditionKind = "dub"
+	RenditionKindSubtitle RenditionKind = "subtitle"
+	RenditionKindAudio    RenditionKind = "audio"
+	RenditionKindOther    RenditionKind = "other"
+)
+
+func (e *RenditionKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = RenditionKind(s)
+	case string:
+		*e = RenditionKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for RenditionKind: %T", src)
+	}
+	return nil
+}
+
+type NullRenditionKind struct {
+	RenditionKind RenditionKind `json:"rendition_kind"`
+	Valid         bool          `json:"valid"` // Valid is true if RenditionKind is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullRenditionKind) Scan(value interface{}) error {
+	if value == nil {
+		ns.RenditionKind, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.RenditionKind.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullRenditionKind) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.RenditionKind), nil
+}
+
+type SearchTarget string
+
+const (
+	SearchTargetAsset   SearchTarget = "asset"
+	SearchTargetProject SearchTarget = "project"
+)
+
+func (e *SearchTarget) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = SearchTarget(s)
+	case string:
+		*e = SearchTarget(s)
+	default:
+		return fmt.Errorf("unsupported scan type for SearchTarget: %T", src)
+	}
+	return nil
+}
+
+type NullSearchTarget struct {
+	SearchTarget SearchTarget `json:"search_target"`
+	Valid        bool         `json:"valid"` // Valid is true if SearchTarget is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullSearchTarget) Scan(value interface{}) error {
+	if value == nil {
+		ns.SearchTarget, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.SearchTarget.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullSearchTarget) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.SearchTarget), nil
+}
+
+type TagSource string
+
+const (
+	TagSourceFile   TagSource = "file"
+	TagSourceAi     TagSource = "ai"
+	TagSourcePerson TagSource = "person"
+)
+
+func (e *TagSource) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = TagSource(s)
+	case string:
+		*e = TagSource(s)
+	default:
+		return fmt.Errorf("unsupported scan type for TagSource: %T", src)
+	}
+	return nil
+}
+
+type NullTagSource struct {
+	TagSource TagSource `json:"tag_source"`
+	Valid     bool      `json:"valid"` // Valid is true if TagSource is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullTagSource) Scan(value interface{}) error {
+	if value == nil {
+		ns.TagSource, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.TagSource.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullTagSource) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.TagSource), nil
+}
+
+type TimelineOrigin string
+
+const (
+	TimelineOriginRca    TimelineOrigin = "rca"
+	TimelineOriginFcpxml TimelineOrigin = "fcpxml"
+	TimelineOriginOtio   TimelineOrigin = "otio"
+	TimelineOriginEdl    TimelineOrigin = "edl"
+)
+
+func (e *TimelineOrigin) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = TimelineOrigin(s)
+	case string:
+		*e = TimelineOrigin(s)
+	default:
+		return fmt.Errorf("unsupported scan type for TimelineOrigin: %T", src)
+	}
+	return nil
+}
+
+type NullTimelineOrigin struct {
+	TimelineOrigin TimelineOrigin `json:"timeline_origin"`
+	Valid          bool           `json:"valid"` // Valid is true if TimelineOrigin is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullTimelineOrigin) Scan(value interface{}) error {
+	if value == nil {
+		ns.TimelineOrigin, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.TimelineOrigin.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullTimelineOrigin) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.TimelineOrigin), nil
+}
+
+type TrackKind string
+
+const (
+	TrackKindSubtitle   TrackKind = "subtitle"
+	TrackKindCc         TrackKind = "cc"
+	TrackKindTranscript TrackKind = "transcript"
+)
+
+func (e *TrackKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = TrackKind(s)
+	case string:
+		*e = TrackKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for TrackKind: %T", src)
+	}
+	return nil
+}
+
+type NullTrackKind struct {
+	TrackKind TrackKind `json:"track_kind"`
+	Valid     bool      `json:"valid"` // Valid is true if TrackKind is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullTrackKind) Scan(value interface{}) error {
+	if value == nil {
+		ns.TrackKind, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.TrackKind.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullTrackKind) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.TrackKind), nil
+}
+
+type TrackMedia string
+
+const (
+	TrackMediaVideo TrackMedia = "video"
+	TrackMediaAudio TrackMedia = "audio"
+)
+
+func (e *TrackMedia) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = TrackMedia(s)
+	case string:
+		*e = TrackMedia(s)
+	default:
+		return fmt.Errorf("unsupported scan type for TrackMedia: %T", src)
+	}
+	return nil
+}
+
+type NullTrackMedia struct {
+	TrackMedia TrackMedia `json:"track_media"`
+	Valid      bool       `json:"valid"` // Valid is true if TrackMedia is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullTrackMedia) Scan(value interface{}) error {
+	if value == nil {
+		ns.TrackMedia, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.TrackMedia.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullTrackMedia) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.TrackMedia), nil
+}
+
+type TrackOrigin string
+
+const (
+	TrackOriginImport TrackOrigin = "import"
+	TrackOriginAsr    TrackOrigin = "asr"
+	TrackOriginManual TrackOrigin = "manual"
+)
+
+func (e *TrackOrigin) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = TrackOrigin(s)
+	case string:
+		*e = TrackOrigin(s)
+	default:
+		return fmt.Errorf("unsupported scan type for TrackOrigin: %T", src)
+	}
+	return nil
+}
+
+type NullTrackOrigin struct {
+	TrackOrigin TrackOrigin `json:"track_origin"`
+	Valid       bool        `json:"valid"` // Valid is true if TrackOrigin is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullTrackOrigin) Scan(value interface{}) error {
+	if value == nil {
+		ns.TrackOrigin, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.TrackOrigin.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullTrackOrigin) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.TrackOrigin), nil
+}
+
+type VersionStatus string
+
+const (
+	VersionStatusDraft    VersionStatus = "draft"
+	VersionStatusReview   VersionStatus = "review"
+	VersionStatusApproved VersionStatus = "approved"
+	VersionStatusFinal    VersionStatus = "final"
+)
+
+func (e *VersionStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = VersionStatus(s)
+	case string:
+		*e = VersionStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for VersionStatus: %T", src)
+	}
+	return nil
+}
+
+type NullVersionStatus struct {
+	VersionStatus VersionStatus `json:"version_status"`
+	Valid         bool          `json:"valid"` // Valid is true if VersionStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullVersionStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.VersionStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.VersionStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullVersionStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.VersionStatus), nil
+}
+
+type AppUser struct {
+	ID         string      `json:"id"`
+	ExternalID string      `json:"external_id"`
+	Email      pgtype.Text `json:"email"`
+	Name       pgtype.Text `json:"name"`
+	PersonID   pgtype.Text `json:"person_id"`
+	Active     bool        `json:"active"`
+	CreatedAt  time.Time   `json:"created_at"`
+}
+
+type Asset struct {
+	ID          string             `json:"id"`
+	TypeID      int16              `json:"type_id"`
+	Title       string             `json:"title"`
+	Description pgtype.Text        `json:"description"`
+	CapturedAt  pgtype.Timestamptz `json:"captured_at"`
+	Camera      pgtype.Text        `json:"camera"`
+	Reel        pgtype.Text        `json:"reel"`
+	Metadata    []byte             `json:"metadata"`
+	LegacyIds   []string           `json:"legacy_ids"`
+	CreatedAt   time.Time          `json:"created_at"`
+	UpdatedAt   time.Time          `json:"updated_at"`
+}
+
+type AssetAccess struct {
+	PrincipalID string          `json:"principal_id"`
+	AssetID     string          `json:"asset_id"`
+	Level       PermissionLevel `json:"level"`
+	RefreshedAt time.Time       `json:"refreshed_at"`
+}
+
+type AssetCredit struct {
+	ID            string      `json:"id"`
+	AssetID       string      `json:"asset_id"`
+	RenditionID   pgtype.Text `json:"rendition_id"`
+	PersonID      string      `json:"person_id"`
+	Role          string      `json:"role"`
+	BillingOrder  pgtype.Int4 `json:"billing_order"`
+	CharacterName pgtype.Text `json:"character_name"`
+}
+
+type AssetGroup struct {
+	ID        string      `json:"id"`
+	Kind      GroupKind   `json:"kind"`
+	Name      string      `json:"name"`
+	Origin    GroupOrigin `json:"origin"`
+	Rule      []byte      `json:"rule"`
+	ProjectID pgtype.Text `json:"project_id"`
+	CreatedAt time.Time   `json:"created_at"`
+}
+
+type AssetGroupMember struct {
+	GroupID string       `json:"group_id"`
+	AssetID string       `json:"asset_id"`
+	AddedBy MemberOrigin `json:"added_by"`
+	AddedAt time.Time    `json:"added_at"`
+}
+
+type AssetProject struct {
+	AssetID   string     `json:"asset_id"`
+	ProjectID string     `json:"project_id"`
+	Role      LinkRole   `json:"role"`
+	LinkedBy  LinkOrigin `json:"linked_by"`
+	CreatedAt time.Time  `json:"created_at"`
+}
+
+type AssetRelation struct {
+	FromAssetID string       `json:"from_asset_id"`
+	ToAssetID   string       `json:"to_asset_id"`
+	Kind        RelationKind `json:"kind"`
+	CreatedAt   time.Time    `json:"created_at"`
+}
+
+type AssetTag struct {
+	AssetID    string        `json:"asset_id"`
+	TagID      string        `json:"tag_id"`
+	Source     TagSource     `json:"source"`
+	Confidence pgtype.Float4 `json:"confidence"`
+	AddedBy    pgtype.Text   `json:"added_by"`
+	AddedAt    time.Time     `json:"added_at"`
+}
+
+type AssetType struct {
+	ID          int16       `json:"id"`
+	Name        string      `json:"name"`
+	Description pgtype.Text `json:"description"`
+}
+
+type AssetVersion struct {
+	ID        string        `json:"id"`
+	AssetID   string        `json:"asset_id"`
+	Number    int32         `json:"number"`
+	Label     pgtype.Text   `json:"label"`
+	Status    VersionStatus `json:"status"`
+	CreatedBy pgtype.Text   `json:"created_by"`
+	CreatedAt time.Time     `json:"created_at"`
+}
+
+type Collection struct {
+	ID        string    `json:"id"`
+	OwnerID   string    `json:"owner_id"`
+	Name      string    `json:"name"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type CollectionItem struct {
+	CollectionID string `json:"collection_id"`
+	AssetID      string `json:"asset_id"`
+	Position     int32  `json:"position"`
+}
+
+type CueEmbedding struct {
+	CueID     int64           `json:"cue_id"`
+	Model     string          `json:"model"`
+	AssetID   string          `json:"asset_id"`
+	Embedding pgvector.Vector `json:"embedding"`
+}
 
 type Dummy struct {
 	ID        int64     `json:"id"`
 	Name      string    `json:"name"`
 	CreatedAt time.Time `json:"created_at"`
+}
+
+type FaceCluster struct {
+	ID        string          `json:"id"`
+	PersonID  pgtype.Text     `json:"person_id"`
+	Centroid  pgvector.Vector `json:"centroid"`
+	Status    ClusterStatus   `json:"status"`
+	UpdatedAt time.Time       `json:"updated_at"`
+}
+
+type FaceDetection struct {
+	ID         string          `json:"id"`
+	FileID     string          `json:"file_id"`
+	StartMs    int32           `json:"start_ms"`
+	EndMs      int32           `json:"end_ms"`
+	Bbox       []byte          `json:"bbox"`
+	Embedding  pgvector.Vector `json:"embedding"`
+	Confidence pgtype.Float4   `json:"confidence"`
+	ClusterID  pgtype.Text     `json:"cluster_id"`
+}
+
+type File struct {
+	ID         string      `json:"id"`
+	SizeBytes  int64       `json:"size_bytes"`
+	MimeType   pgtype.Text `json:"mime_type"`
+	DurationMs pgtype.Int8 `json:"duration_ms"`
+	Codec      pgtype.Text `json:"codec"`
+	Width      pgtype.Int4 `json:"width"`
+	Height     pgtype.Int4 `json:"height"`
+	Probe      []byte      `json:"probe"`
+	CreatedAt  time.Time   `json:"created_at"`
+}
+
+type FileCopy struct {
+	ID             string             `json:"id"`
+	FileID         string             `json:"file_id"`
+	LocationID     string             `json:"location_id"`
+	Path           string             `json:"path"`
+	Status         CopyStatus         `json:"status"`
+	LastSeenAt     pgtype.Timestamptz `json:"last_seen_at"`
+	LastVerifiedAt pgtype.Timestamptz `json:"last_verified_at"`
+}
+
+type FileHash struct {
+	FileID     string    `json:"file_id"`
+	Algo       HashAlgo  `json:"algo"`
+	Value      []byte    `json:"value"`
+	ComputedAt time.Time `json:"computed_at"`
+}
+
+type PermissionGrant struct {
+	ID        string             `json:"id"`
+	UserID    pgtype.Text        `json:"user_id"`
+	GroupID   pgtype.Text        `json:"group_id"`
+	Scope     GrantScope         `json:"scope"`
+	ScopeID   string             `json:"scope_id"`
+	Level     PermissionLevel    `json:"level"`
+	GrantedBy pgtype.Text        `json:"granted_by"`
+	GrantedAt time.Time          `json:"granted_at"`
+	ExpiresAt pgtype.Timestamptz `json:"expires_at"`
+}
+
+type Person struct {
+	ID          string      `json:"id"`
+	Name        string      `json:"name"`
+	Kind        PersonKind  `json:"kind"`
+	ExternalIds []byte      `json:"external_ids"`
+	Notes       pgtype.Text `json:"notes"`
+	CreatedAt   time.Time   `json:"created_at"`
+	UpdatedAt   time.Time   `json:"updated_at"`
+}
+
+type Program struct {
+	ID          string      `json:"id"`
+	Code        string      `json:"code"`
+	Name        string      `json:"name"`
+	Description pgtype.Text `json:"description"`
+	Metadata    []byte      `json:"metadata"`
+	CreatedAt   time.Time   `json:"created_at"`
+	UpdatedAt   time.Time   `json:"updated_at"`
+}
+
+type Project struct {
+	ID        string        `json:"id"`
+	ProgramID string        `json:"program_id"`
+	Code      string        `json:"code"`
+	Name      string        `json:"name"`
+	Status    ProjectStatus `json:"status"`
+	StartsOn  pgtype.Date   `json:"starts_on"`
+	EndsOn    pgtype.Date   `json:"ends_on"`
+	Metadata  []byte        `json:"metadata"`
+	CreatedAt time.Time     `json:"created_at"`
+	UpdatedAt time.Time     `json:"updated_at"`
+}
+
+type ProjectFolder struct {
+	ID         string     `json:"id"`
+	ProjectID  string     `json:"project_id"`
+	LocationID string     `json:"location_id"`
+	Path       string     `json:"path"`
+	Role       FolderRole `json:"role"`
+}
+
+type Rendition struct {
+	ID        string        `json:"id"`
+	VersionID string        `json:"version_id"`
+	Kind      RenditionKind `json:"kind"`
+	Language  pgtype.Text   `json:"language"`
+	Purpose   pgtype.Text   `json:"purpose"`
+	Overrides []byte        `json:"overrides"`
+	Metadata  []byte        `json:"metadata"`
+	CreatedAt time.Time     `json:"created_at"`
+}
+
+type RenditionFile struct {
+	RenditionID string   `json:"rendition_id"`
+	FileID      string   `json:"file_id"`
+	Role        FileRole `json:"role"`
+	Position    int32    `json:"position"`
+}
+
+type Right struct {
+	ID          string      `json:"id"`
+	AssetID     string      `json:"asset_id"`
+	RenditionID pgtype.Text `json:"rendition_id"`
+	HolderID    pgtype.Text `json:"holder_id"`
+	LicenseType pgtype.Text `json:"license_type"`
+	Territories []string    `json:"territories"`
+	ValidFrom   pgtype.Date `json:"valid_from"`
+	ValidTo     pgtype.Date `json:"valid_to"`
+	Notes       pgtype.Text `json:"notes"`
+}
+
+type SavedSearch struct {
+	ID           string             `json:"id"`
+	OwnerID      string             `json:"owner_id"`
+	Name         string             `json:"name"`
+	Target       SearchTarget       `json:"target"`
+	Query        pgtype.Text        `json:"query"`
+	TypeID       pgtype.Int2        `json:"type_id"`
+	ProjectID    pgtype.Text        `json:"project_id"`
+	TagIds       []string           `json:"tag_ids"`
+	CapturedFrom pgtype.Timestamptz `json:"captured_from"`
+	CapturedTo   pgtype.Timestamptz `json:"captured_to"`
+	CreatedAt    time.Time          `json:"created_at"`
+}
+
+type StorageLocation struct {
+	ID        string       `json:"id"`
+	Name      string       `json:"name"`
+	Kind      LocationKind `json:"kind"`
+	BaseUri   string       `json:"base_uri"`
+	Online    bool         `json:"online"`
+	CreatedAt time.Time    `json:"created_at"`
+}
+
+type SubtitleCue struct {
+	ID      int64       `json:"id"`
+	TrackID string      `json:"track_id"`
+	AssetID string      `json:"asset_id"`
+	Seq     int32       `json:"seq"`
+	StartMs int32       `json:"start_ms"`
+	EndMs   int32       `json:"end_ms"`
+	Text    string      `json:"text"`
+	Speaker pgtype.Text `json:"speaker"`
+	Tsv     interface{} `json:"tsv"`
+}
+
+type SubtitleTrack struct {
+	ID           string      `json:"id"`
+	RenditionID  string      `json:"rendition_id"`
+	AssetID      string      `json:"asset_id"`
+	SourceFileID pgtype.Text `json:"source_file_id"`
+	Language     pgtype.Text `json:"language"`
+	Kind         TrackKind   `json:"kind"`
+	Origin       TrackOrigin `json:"origin"`
+	Revision     int32       `json:"revision"`
+	ParentID     pgtype.Text `json:"parent_id"`
+	CreatedBy    pgtype.Text `json:"created_by"`
+	CreatedAt    time.Time   `json:"created_at"`
+}
+
+type Tag struct {
+	ID        string `json:"id"`
+	Namespace string `json:"namespace"`
+	Name      string `json:"name"`
+}
+
+type Timeline struct {
+	ID           string         `json:"id"`
+	ProjectID    string         `json:"project_id"`
+	VersionID    pgtype.Text    `json:"version_id"`
+	Name         string         `json:"name"`
+	RateNum      int32          `json:"rate_num"`
+	RateDen      int32          `json:"rate_den"`
+	StartFrame   int64          `json:"start_frame"`
+	Origin       TimelineOrigin `json:"origin"`
+	SourceFileID pgtype.Text    `json:"source_file_id"`
+	Otio         []byte         `json:"otio"`
+	CreatedAt    time.Time      `json:"created_at"`
+	UpdatedAt    time.Time      `json:"updated_at"`
+}
+
+type TimelineClip struct {
+	ID         string      `json:"id"`
+	TrackID    string      `json:"track_id"`
+	Kind       ClipKind    `json:"kind"`
+	AssetID    pgtype.Text `json:"asset_id"`
+	FileID     pgtype.Text `json:"file_id"`
+	SourceIn   int64       `json:"source_in"`
+	SourceOut  int64       `json:"source_out"`
+	RecordIn   int64       `json:"record_in"`
+	Name       pgtype.Text `json:"name"`
+	Unresolved []byte      `json:"unresolved"`
+}
+
+type TimelineMarker struct {
+	ID             string      `json:"id"`
+	TimelineID     string      `json:"timeline_id"`
+	AtFrame        int64       `json:"at_frame"`
+	DurationFrames int64       `json:"duration_frames"`
+	Label          pgtype.Text `json:"label"`
+	Color          pgtype.Text `json:"color"`
+	Note           pgtype.Text `json:"note"`
+}
+
+type TimelineTrack struct {
+	ID         string      `json:"id"`
+	TimelineID string      `json:"timeline_id"`
+	Kind       TrackMedia  `json:"kind"`
+	Position   int32       `json:"position"`
+	Name       pgtype.Text `json:"name"`
+	Enabled    bool        `json:"enabled"`
+}
+
+type UserGroup struct {
+	ID          string      `json:"id"`
+	Name        string      `json:"name"`
+	ExternalID  pgtype.Text `json:"external_id"`
+	Description pgtype.Text `json:"description"`
+}
+
+type UserGroupMember struct {
+	GroupID string           `json:"group_id"`
+	UserID  string           `json:"user_id"`
+	Source  MembershipSource `json:"source"`
 }

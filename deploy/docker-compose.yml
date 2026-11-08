@@ -2,7 +2,7 @@ name: mediabrain
 
 services:
   postgres:
-    image: postgres:17-alpine
+    image: pgvector/pgvector:pg17
     environment:
       POSTGRES_USER: mediabrain
       POSTGRES_PASSWORD: mediabrain
