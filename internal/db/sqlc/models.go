@@ -230,10 +230,13 @@ func (ns NullFolderRole) Value() (driver.Value, error) {
 type GrantScope string
 
 const (
-	GrantScopeProgram    GrantScope = "program"
-	GrantScopeProject    GrantScope = "project"
-	GrantScopeAssetGroup GrantScope = "asset_group"
-	GrantScopeAsset      GrantScope = "asset"
+	GrantScopeProgram     GrantScope = "program"
+	GrantScopeProject     GrantScope = "project"
+	GrantScopeAssetGroup  GrantScope = "asset_group"
+	GrantScopeAsset       GrantScope = "asset"
+	GrantScopeCollection  GrantScope = "collection"
+	GrantScopeSavedSearch GrantScope = "saved_search"
+	GrantScopeNote        GrantScope = "note"
 )
 
 func (e *GrantScope) Scan(src interface{}) error {
@@ -399,6 +402,50 @@ func (ns NullHashAlgo) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.HashAlgo), nil
+}
+
+type LanguageModality string
+
+const (
+	LanguageModalitySpoken  LanguageModality = "spoken"
+	LanguageModalitySigned  LanguageModality = "signed"
+	LanguageModalityNone    LanguageModality = "none"
+	LanguageModalitySpecial LanguageModality = "special"
+)
+
+func (e *LanguageModality) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = LanguageModality(s)
+	case string:
+		*e = LanguageModality(s)
+	default:
+		return fmt.Errorf("unsupported scan type for LanguageModality: %T", src)
+	}
+	return nil
+}
+
+type NullLanguageModality struct {
+	LanguageModality LanguageModality `json:"language_modality"`
+	Valid            bool             `json:"valid"` // Valid is true if LanguageModality is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullLanguageModality) Scan(value interface{}) error {
+	if value == nil {
+		ns.LanguageModality, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.LanguageModality.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullLanguageModality) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.LanguageModality), nil
 }
 
 type LinkOrigin string
@@ -795,6 +842,7 @@ const (
 	RenditionKindMaster   RenditionKind = "master"
 	RenditionKindEncode   RenditionKind = "encode"
 	RenditionKindDub      RenditionKind = "dub"
+	RenditionKindSign     RenditionKind = "sign"
 	RenditionKindSubtitle RenditionKind = "subtitle"
 	RenditionKindAudio    RenditionKind = "audio"
 	RenditionKindOther    RenditionKind = "other"
@@ -1147,17 +1195,18 @@ type AppUser struct {
 }
 
 type Asset struct {
-	ID          string             `json:"id"`
-	TypeID      int16              `json:"type_id"`
-	Title       string             `json:"title"`
-	Description pgtype.Text        `json:"description"`
-	CapturedAt  pgtype.Timestamptz `json:"captured_at"`
-	Camera      pgtype.Text        `json:"camera"`
-	Reel        pgtype.Text        `json:"reel"`
-	Metadata    []byte             `json:"metadata"`
-	LegacyIds   []string           `json:"legacy_ids"`
-	CreatedAt   time.Time          `json:"created_at"`
-	UpdatedAt   time.Time          `json:"updated_at"`
+	ID               string             `json:"id"`
+	TypeID           int16              `json:"type_id"`
+	Title            string             `json:"title"`
+	Description      pgtype.Text        `json:"description"`
+	CapturedAt       pgtype.Timestamptz `json:"captured_at"`
+	Camera           pgtype.Text        `json:"camera"`
+	Reel             pgtype.Text        `json:"reel"`
+	Metadata         []byte             `json:"metadata"`
+	LegacyIds        []string           `json:"legacy_ids"`
+	CreatedAt        time.Time          `json:"created_at"`
+	UpdatedAt        time.Time          `json:"updated_at"`
+	OriginalLanguage pgtype.Text        `json:"original_language"`
 }
 
 type AssetAccess struct {
@@ -1308,6 +1357,25 @@ type FileHash struct {
 	ComputedAt time.Time `json:"computed_at"`
 }
 
+type Language struct {
+	Code       string           `json:"code"`
+	Name       string           `json:"name"`
+	NativeName pgtype.Text      `json:"native_name"`
+	Modality   LanguageModality `json:"modality"`
+	BaseCode   pgtype.Text      `json:"base_code"`
+	AltCodes   []string         `json:"alt_codes"`
+	Active     bool             `json:"active"`
+}
+
+type Note struct {
+	ID        string    `json:"id"`
+	AssetID   string    `json:"asset_id"`
+	AuthorID  string    `json:"author_id"`
+	Body      string    `json:"body"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
 type PermissionGrant struct {
 	ID        string             `json:"id"`
 	UserID    pgtype.Text        `json:"user_id"`
@@ -1365,11 +1433,12 @@ type Rendition struct {
 	ID        string        `json:"id"`
 	VersionID string        `json:"version_id"`
 	Kind      RenditionKind `json:"kind"`
-	Language  pgtype.Text   `json:"language"`
-	Purpose   pgtype.Text   `json:"purpose"`
-	Overrides []byte        `json:"overrides"`
-	Metadata  []byte        `json:"metadata"`
-	CreatedAt time.Time     `json:"created_at"`
+	// The language this rendition adds or changes: dub audio, subtitle or sign language. zxx for no-language versions.
+	Language  pgtype.Text `json:"language"`
+	Purpose   pgtype.Text `json:"purpose"`
+	Overrides []byte      `json:"overrides"`
+	Metadata  []byte      `json:"metadata"`
+	CreatedAt time.Time   `json:"created_at"`
 }
 
 type RenditionFile struct {
@@ -1392,17 +1461,14 @@ type Right struct {
 }
 
 type SavedSearch struct {
-	ID           string             `json:"id"`
-	OwnerID      string             `json:"owner_id"`
-	Name         string             `json:"name"`
-	Target       SearchTarget       `json:"target"`
-	Query        pgtype.Text        `json:"query"`
-	TypeID       pgtype.Int2        `json:"type_id"`
-	ProjectID    pgtype.Text        `json:"project_id"`
-	TagIds       []string           `json:"tag_ids"`
-	CapturedFrom pgtype.Timestamptz `json:"captured_from"`
-	CapturedTo   pgtype.Timestamptz `json:"captured_to"`
-	CreatedAt    time.Time          `json:"created_at"`
+	ID        string       `json:"id"`
+	OwnerID   string       `json:"owner_id"`
+	Name      string       `json:"name"`
+	Target    SearchTarget `json:"target"`
+	CreatedAt time.Time    `json:"created_at"`
+	// The SearchInput as sent, camelCase keys. Validated by the app; ids in it may point to deleted rows.
+	Filter    []byte    `json:"filter"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 type StorageLocation struct {
