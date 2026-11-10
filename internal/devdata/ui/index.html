@@ -91,7 +91,7 @@ async function loadStats() {
   const t = document.getElementById('stats');
   try {
     const stats = await api('stats');
-    t.replaceChildren(...(stats.length ? stats.map(s => el('tr', {}, el('td', {}, s.table), el('td', { className: 'n' }, String(s.rows))))
+    t.replaceChildren(...(stats.length ? stats.map(s => el('tr', {}, el('td', {}, s.table, ...(s.reference ? [el('span', { className: 'always' }, 'kept')] : [])), el('td', { className: 'n' }, String(s.rows))))
                                        : [el('tr', {}, el('td', {}, 'No tables'))]));
   } catch (e) { log('stats: ' + e.message, 'err'); }
 }

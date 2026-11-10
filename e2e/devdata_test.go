@@ -139,8 +139,14 @@ func TestStoreScenarios(t *testing.T) {
 		t.Fatal("failed apply must not reset data")
 	}
 
+	langs, types := rows(t, s, "language"), rows(t, s, "asset_type")
 	if err := s.Reset(ctx); err != nil || rows(t, s, "dummy") != 0 {
 		t.Fatalf("reset: %v", err)
+	}
+	// Seeded lookup data survives a reset.
+	if langs == 0 || rows(t, s, "language") != langs || rows(t, s, "asset_type") != types {
+		t.Fatalf("reset touched reference tables: language %d -> %d, asset_type %d -> %d",
+			langs, rows(t, s, "language"), types, rows(t, s, "asset_type"))
 	}
 }
 
@@ -190,6 +196,10 @@ func TestDebugAPI(t *testing.T) {
 		switch {
 		case s.Table == "dummy":
 			dummies = int(s.Rows)
+		case s.Reference:
+			if s.Rows == 0 {
+				t.Fatalf("reference table %s was emptied by reset", s.Table)
+			}
 		case s.Rows != 0:
 			t.Fatalf("table %s has %d rows after reset, want 0", s.Table, s.Rows)
 		}

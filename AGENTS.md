@@ -97,7 +97,9 @@ cases". Scenarios:
   respects invariants.
 
 Reset and stats work from the schema (they read every table in `public` except goose's), so they
-need no updates.
+need no updates. The one exception: reference tables that a migration seeds (`asset_type`,
+`language`) are kept by reset. When a migration seeds a new lookup table, add it to
+`referenceTables` in `internal/devdata/store.go`.
 
 ## Adding/changing data: checklist
 

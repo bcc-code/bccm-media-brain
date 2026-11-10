@@ -16,6 +16,20 @@ import (
 // migrationTable is never touched by Reset.
 const migrationTable = "goose_db_version"
 
+// referenceTables hold lookup data seeded by migrations (asset types, languages). Reset keeps
+// them, because no scenario recreates them. Add a table here when a migration seeds one.
+// They must not reference application tables, or TRUNCATE ... CASCADE would still empty them.
+var referenceTables = []string{"asset_type", "language"}
+
+func isReference(table string) bool {
+	for _, t := range referenceTables {
+		if t == table {
+			return true
+		}
+	}
+	return false
+}
+
 // ApplyRequest configures a scenario run.
 type ApplyRequest struct {
 	Reset  bool              `json:"reset"`  // wipe all data first
@@ -34,8 +48,9 @@ type Result struct {
 
 // TableStat is the row count of one table.
 type TableStat struct {
-	Table string `json:"table"`
-	Rows  int64  `json:"rows"`
+	Table     string `json:"table"`
+	Rows      int64  `json:"rows"`
+	Reference bool   `json:"reference,omitempty"` // seeded lookup data, kept by Reset
 }
 
 // Store runs scenarios and maintenance operations against the database.
@@ -80,7 +95,7 @@ func (s *Store) Apply(ctx context.Context, name string, req ApplyRequest) (Resul
 	return Result{Scenario: name, Seed: seed, Reset: reset, Summary: summary, Duration: time.Since(start)}, nil
 }
 
-// Reset truncates every application table.
+// Reset truncates every application table except the reference tables.
 func (s *Store) Reset(ctx context.Context) error {
 	return pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error { return truncateAll(ctx, tx) })
 }
@@ -97,7 +112,7 @@ func (s *Store) Stats(ctx context.Context) ([]TableStat, error) {
 		if err := s.pool.QueryRow(ctx, "SELECT count(*) FROM "+quote(t)).Scan(&n); err != nil {
 			return nil, fmt.Errorf("devdata: count %s: %w", t, err)
 		}
-		stats = append(stats, TableStat{Table: t, Rows: n})
+		stats = append(stats, TableStat{Table: t, Rows: n, Reference: isReference(t)})
 	}
 	return stats, nil
 }
@@ -126,12 +141,17 @@ func quote(table string) string { return pgx.Identifier{table}.Sanitize() }
 
 func truncateAll(ctx context.Context, tx pgx.Tx) error {
 	tables, err := appTables(ctx, tx)
-	if err != nil || len(tables) == 0 {
+	if err != nil {
 		return err
 	}
-	quoted := make([]string, len(tables))
-	for i, t := range tables {
-		quoted[i] = quote(t)
+	var quoted []string
+	for _, t := range tables {
+		if !isReference(t) {
+			quoted = append(quoted, quote(t))
+		}
+	}
+	if len(quoted) == 0 {
+		return nil
 	}
 	if _, err := tx.Exec(ctx, "TRUNCATE "+strings.Join(quoted, ", ")+" RESTART IDENTITY CASCADE"); err != nil {
 		return fmt.Errorf("devdata: truncate: %w", err)
