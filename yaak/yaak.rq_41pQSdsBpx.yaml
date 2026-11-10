@@ -1,0 +1,46 @@
+type: http_request
+model: http_request
+id: rq_41pQSdsBpx
+createdAt: 2026-11-10T23:30:00
+updatedAt: 2026-11-10T23:30:00
+workspaceId: wk_tPlK1TUEUQ
+folderId: fl_Xz143881TC
+authentication: {}
+authenticationType: null
+body:
+  query: |
+    mutation($id: ID!) { deleteRendition(id: $id) }
+  variables: |-
+    {
+      "id": "${[ rendition_id ]}"
+    }
+bodyType: graphql
+description: ''
+headers:
+- enabled: true
+  name: Content-Type
+  value: application/json
+  id: 5fDhu3iSo3
+method: POST
+name: Delete rendition
+sortPriority: 14000.0
+url: ${[ base_url ]}/query
+urlParameters: []
+settingSendCookies:
+  enabled: false
+  value: true
+settingStoreCookies:
+  enabled: false
+  value: true
+settingValidateCertificates:
+  enabled: false
+  value: true
+settingFollowRedirects:
+  enabled: false
+  value: true
+settingRequestTimeout:
+  enabled: false
+  value: 0
+settingHttpVersion:
+  enabled: false
+  value: auto

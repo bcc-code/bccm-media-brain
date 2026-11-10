@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+
+	"github.com/bcc-media/mediabrain/internal/domain"
 )
 
 //go:embed ui/index.html
@@ -16,6 +18,8 @@ type Backend interface {
 	Apply(ctx context.Context, name string, req ApplyRequest) (Result, error)
 	Reset(ctx context.Context) error
 	Stats(ctx context.Context) ([]TableStat, error)
+	Users(ctx context.Context) ([]User, error)
+	CreateUser(ctx context.Context, email string, admin bool) (User, error)
 }
 
 // Handler serves the debug UI and its JSON API. Mount it with
@@ -26,6 +30,8 @@ type Backend interface {
 //	POST /api/scenarios/{name}   run a scenario (body: ApplyRequest)
 //	GET  /api/stats              row count per table
 //	POST /api/reset              truncate all tables
+//	GET  /api/users              users to act as
+//	POST /api/users              create a user (body: {"email": ..., "admin": ...})
 func Handler(b Backend) http.Handler {
 	mux := http.NewServeMux()
 
@@ -75,6 +81,35 @@ func Handler(b Backend) http.Handler {
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+	})
+
+	mux.HandleFunc("GET /api/users", func(w http.ResponseWriter, r *http.Request) {
+		users, err := b.Users(r.Context())
+		if err != nil {
+			writeErr(w, http.StatusInternalServerError, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, users)
+	})
+
+	mux.HandleFunc("POST /api/users", func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Email string `json:"email"`
+			Admin bool   `json:"admin"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeErr(w, http.StatusBadRequest, err)
+			return
+		}
+		u, err := b.CreateUser(r.Context(), req.Email, req.Admin)
+		switch {
+		case errors.Is(err, domain.ErrInvalidInput), errors.Is(err, domain.ErrConflict):
+			writeErr(w, http.StatusBadRequest, err)
+		case err != nil:
+			writeErr(w, http.StatusInternalServerError, err)
+		default:
+			writeJSON(w, http.StatusOK, u)
+		}
 	})
 
 	return mux

@@ -1,0 +1,75 @@
+"Ordered: each level includes the ones before it."
+enum PermissionLevel {
+  VIEW
+  DOWNLOAD_ORIGINAL
+  EDIT
+  DELETE
+  ADMIN
+}
+
+enum GrantScope {
+  PROGRAM
+  PROJECT
+  ASSET
+}
+
+type User {
+  id: ID!
+  externalId: String!
+  email: String
+  name: String
+  active: Boolean!
+  "System administrators bypass all grant checks."
+  isAdmin: Boolean!
+  createdAt: Time!
+}
+
+type UserGroup {
+  id: ID!
+  name: String!
+  "Set for groups that come from the identity provider."
+  externalId: String
+  description: String
+}
+
+"Access given to one user or one group on a program, project or asset."
+type Grant {
+  id: ID!
+  scope: GrantScope!
+  scopeId: ID!
+  level: PermissionLevel!
+  userId: ID
+  groupId: ID
+  grantedBy: ID
+  grantedAt: Time!
+  expiresAt: Time
+}
+
+input GrantInput {
+  scope: GrantScope!
+  scopeId: ID!
+  "Exactly one of userId, userEmail and groupId."
+  userId: ID
+  userEmail: String
+  groupId: ID
+  level: PermissionLevel!
+  expiresAt: Time
+}
+
+extend type Query {
+  me: User!
+  "Administrators only."
+  users(limit: Int = 50, offset: Int = 0): [User!]!
+  "Administrators only."
+  userGroups: [UserGroup!]!
+  "Needs ADMIN on the object."
+  grants(scope: GrantScope!, scopeId: ID!): [Grant!]!
+}
+
+extend type Mutation {
+  "Needs ADMIN on the object."
+  grantAccess(input: GrantInput!): Grant!
+  revokeAccess(id: ID!): Boolean!
+  "Administrators only. user is a user id or email."
+  setUserAdmin(user: String!, admin: Boolean!): User!
+}

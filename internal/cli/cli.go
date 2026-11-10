@@ -5,6 +5,7 @@
 //	mediabrain seed list                       list dev-data scenarios
 //	mediabrain seed <scenario> [flags] [k=v]   run a scenario
 //	mediabrain reset-data                      truncate all tables
+//	mediabrain admin grant|revoke <user>       make a user a system administrator, or not
 //
 // Configuration comes from the environment and .env (see internal/config).
 package cli
@@ -19,10 +20,13 @@ import (
 	"os"
 	"strings"
 
+	"github.com/bcc-media/mediabrain/internal/access"
 	"github.com/bcc-media/mediabrain/internal/app"
 	"github.com/bcc-media/mediabrain/internal/config"
 	"github.com/bcc-media/mediabrain/internal/db"
+	"github.com/bcc-media/mediabrain/internal/db/sqlc"
 	"github.com/bcc-media/mediabrain/internal/devdata"
+	"github.com/bcc-media/mediabrain/internal/domain"
 	"github.com/bcc-media/mediabrain/internal/logging"
 )
 
@@ -35,6 +39,7 @@ const usage = `usage:
   mediabrain seed list                        list dev-data scenarios
   mediabrain seed <scenario> [-reset] [-seed N] [param=value ...]
   mediabrain reset-data                       truncate all application tables
+  mediabrain admin grant|revoke <email|id>    make a signed-in user a system administrator, or not
 `
 
 // Run executes the command line args (without the program name).
@@ -52,7 +57,7 @@ func Run(ctx context.Context, args []string, out io.Writer) error {
 			listScenarios(out)
 			return nil
 		}
-	case "serve", "migrate", "reset-data":
+	case "serve", "migrate", "reset-data", "admin":
 	default:
 		return usageErr("unknown command %q", cmd)
 	}
@@ -74,6 +79,8 @@ func Run(ctx context.Context, args []string, out io.Writer) error {
 		return migrate(ctx, cfg, args, out)
 	case "seed":
 		return seed(ctx, cfg, args, out)
+	case "admin":
+		return admin(ctx, cfg, args, out)
 	default: // reset-data
 		return withStore(ctx, cfg, func(s *devdata.Store) error {
 			if err := s.Reset(ctx); err != nil {
@@ -150,6 +157,27 @@ func seed(ctx context.Context, cfg config.Config, args []string, out io.Writer) 
 		fmt.Fprintf(out, "%s: %s (seed %d, reset %v, %s)\n", res.Scenario, res.Summary, res.Seed, res.Reset, res.Duration.Round(1e6))
 		return nil
 	})
+}
+
+func admin(ctx context.Context, cfg config.Config, args []string, out io.Writer) error {
+	if len(args) != 2 || (args[0] != "grant" && args[0] != "revoke") {
+		return usageErr("admin needs grant|revoke and a user email or id")
+	}
+	pool, err := db.Connect(ctx, cfg.DatabaseURL)
+	if err != nil {
+		return err
+	}
+	defer pool.Close()
+	svc := access.NewService(sqlc.New(pool), db.PoolTx(pool))
+	u, err := svc.SetAdmin(access.With(ctx, access.System()), args[1], args[0] == "grant")
+	if errors.Is(err, domain.ErrNotFound) {
+		return fmt.Errorf("no user %q: they must sign in once before they can be made an administrator", args[1])
+	}
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(out, "%s: administrator = %v\n", u.ID, u.IsAdmin)
+	return nil
 }
 
 func withStore(ctx context.Context, cfg config.Config, fn func(*devdata.Store) error) error {

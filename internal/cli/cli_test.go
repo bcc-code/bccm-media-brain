@@ -34,7 +34,7 @@ func TestHelpAndList(t *testing.T) {
 	}
 	out.Reset()
 	if err := Run(context.Background(), []string{"seed", "list"}, &out); err != nil ||
-		!strings.Contains(out.String(), "dummies") || !strings.Contains(out.String(), "count=<int>") {
+		!strings.Contains(out.String(), "catalog") || !strings.Contains(out.String(), "assets=<int>") {
 		t.Fatalf("seed list: %v %q", err, out.String())
 	}
 }
@@ -46,8 +46,11 @@ func TestUsageErrors(t *testing.T) {
 		{"migrate"},
 		{"migrate", "sideways"},
 		{"seed"},
-		{"seed", "dummies", "-nope"},
-		{"seed", "dummies", "notapair"},
+		{"seed", "catalog", "-nope"},
+		{"seed", "catalog", "notapair"},
+		{"admin"},
+		{"admin", "grant"},
+		{"admin", "promote", "a@example.test"},
 	}
 	for _, args := range cases {
 		if err := Run(context.Background(), args, &bytes.Buffer{}); !errors.Is(err, ErrUsage) {
@@ -74,7 +77,7 @@ func TestDBErrors(t *testing.T) {
 	unreachableDB(t)
 	for _, args := range [][]string{
 		{"migrate", "up"}, {"migrate", "down"}, {"migrate", "status"}, {"migrate", "reset"},
-		{"reset-data"}, {"seed", "dummies", "count=1"}, {"serve"},
+		{"reset-data"}, {"seed", "catalog", "assets=1"}, {"serve"}, {"admin", "grant", "a@example.test"},
 	} {
 		if err := Run(context.Background(), args, &bytes.Buffer{}); err == nil || errors.Is(err, ErrUsage) {
 			t.Errorf("%v: err = %v, want connection error", args, err)

@@ -1,12 +1,8 @@
 package devdata
 
 import (
-	"context"
 	"errors"
 	"testing"
-
-	"github.com/bcc-media/mediabrain/internal/db/sqlc"
-	"github.com/bcc-media/mediabrain/internal/fake"
 )
 
 func TestResolve(t *testing.T) {
@@ -45,65 +41,11 @@ func TestFind(t *testing.T) {
 		if s.Description == "" || s.Run == nil {
 			t.Errorf("scenario %q needs a description and Run", s.Name)
 		}
-		// Every scenario's defaults must be valid.
 		if _, err := s.Resolve(nil); err != nil {
 			t.Errorf("scenario %q defaults invalid: %v", s.Name, err)
 		}
 	}
 	if _, err := Find("nope"); !errors.Is(err, ErrUnknownScenario) {
 		t.Fatalf("err = %v", err)
-	}
-}
-
-// countingQuerier records created dummies; optionally fails.
-type countingQuerier struct {
-	sqlc.Querier
-	names []string
-	err   error
-}
-
-func (q *countingQuerier) CreateDummy(_ context.Context, name string) (sqlc.Dummy, error) {
-	if q.err != nil {
-		return sqlc.Dummy{}, q.err
-	}
-	q.names = append(q.names, name)
-	return sqlc.Dummy{ID: int64(len(q.names)), Name: name}, nil
-}
-
-// TestScenariosRun exercises every scenario's Run against an in-memory querier,
-// so new scenarios get basic coverage automatically.
-func TestScenariosRun(t *testing.T) {
-	ctx := context.Background()
-	for _, s := range Scenarios() {
-		v, _ := s.Resolve(nil)
-		q := &countingQuerier{}
-		summary, err := s.Run(ctx, Env{Q: q, Fake: fake.New(1)}, v)
-		if err != nil || summary == "" {
-			t.Errorf("%s: summary %q, err %v", s.Name, summary, err)
-		}
-		if !s.AlwaysReset && len(q.names) == 0 {
-			t.Errorf("%s created nothing", s.Name)
-		}
-		q.err = errors.New("boom")
-		if _, err := s.Run(ctx, Env{Q: q, Fake: fake.New(1)}, v); err == nil && !s.AlwaysReset {
-			t.Errorf("%s: expected error to propagate", s.Name)
-		}
-	}
-}
-
-func TestDummiesPrefix(t *testing.T) {
-	s, _ := Find("dummies")
-	v, _ := s.Resolve(map[string]string{"count": "3", "prefix": "TEST"})
-	q := &countingQuerier{}
-	if _, err := s.Run(context.Background(), Env{Q: q, Fake: fake.New(1)}, v); err != nil {
-		t.Fatal(err)
-	}
-	if len(q.names) != 3 {
-		t.Fatalf("created %d", len(q.names))
-	}
-	for _, n := range q.names {
-		if n[:5] != "TEST " {
-			t.Errorf("name %q lacks prefix", n)
-		}
 	}
 }

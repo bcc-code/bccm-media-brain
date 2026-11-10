@@ -1,0 +1,53 @@
+type: http_request
+model: http_request
+id: rq_Jp37usSwNF
+createdAt: 2026-11-10T23:30:00
+updatedAt: 2026-11-10T23:30:00
+workspaceId: wk_tPlK1TUEUQ
+folderId: fl_qi020BBQ4W
+authentication: {}
+authenticationType: null
+body:
+  query: |
+    query($programId: ID, $status: ProjectStatus, $limit: Int, $offset: Int) {
+      projects(programId: $programId, status: $status, limit: $limit, offset: $offset) {
+        id code name status startsOn endsOn program { id code }
+      }
+    }
+  variables: |-
+    {
+      "programId": "${[ program_id ]}",
+      "status": null,
+      "limit": 50,
+      "offset": 0
+    }
+bodyType: graphql
+description: ''
+headers:
+- enabled: true
+  name: Content-Type
+  value: application/json
+  id: GacihQi65z
+method: POST
+name: List projects
+sortPriority: 6000.0
+url: ${[ base_url ]}/query
+urlParameters: []
+settingSendCookies:
+  enabled: false
+  value: true
+settingStoreCookies:
+  enabled: false
+  value: true
+settingValidateCertificates:
+  enabled: false
+  value: true
+settingFollowRedirects:
+  enabled: false
+  value: true
+settingRequestTimeout:
+  enabled: false
+  value: 0
+settingHttpVersion:
+  enabled: false
+  value: auto

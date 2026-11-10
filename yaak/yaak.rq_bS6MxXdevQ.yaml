@@ -1,0 +1,46 @@
+type: http_request
+model: http_request
+id: rq_bS6MxXdevQ
+createdAt: 2026-11-10T23:30:00
+updatedAt: 2026-11-10T23:30:00
+workspaceId: wk_tPlK1TUEUQ
+folderId: fl_2bO5cZUFxn
+authentication: {}
+authenticationType: null
+body:
+  query: |
+    mutation($id: ID!) { removeFileCopy(id: $id) }
+  variables: |-
+    {
+      "id": "${[ copy_id ]}"
+    }
+bodyType: graphql
+description: ''
+headers:
+- enabled: true
+  name: Content-Type
+  value: application/json
+  id: QePm2v9tp4
+method: POST
+name: Remove file copy (admin)
+sortPriority: 11000.0
+url: ${[ base_url ]}/query
+urlParameters: []
+settingSendCookies:
+  enabled: false
+  value: true
+settingStoreCookies:
+  enabled: false
+  value: true
+settingValidateCertificates:
+  enabled: false
+  value: true
+settingFollowRedirects:
+  enabled: false
+  value: true
+settingRequestTimeout:
+  enabled: false
+  value: 0
+settingHttpVersion:
+  enabled: false
+  value: auto

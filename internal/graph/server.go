@@ -1,0 +1,88 @@
+package graph
+
+import (
+	"context"
+	"errors"
+	"log/slog"
+	"strings"
+
+	"github.com/99designs/gqlgen/graphql"
+	"github.com/99designs/gqlgen/graphql/handler"
+	"github.com/99designs/gqlgen/graphql/handler/extension"
+	"github.com/99designs/gqlgen/graphql/handler/transport"
+	"github.com/vektah/gqlparser/v2/gqlerror"
+
+	"github.com/bcc-media/mediabrain/internal/access"
+	"github.com/bcc-media/mediabrain/internal/domain"
+	"github.com/bcc-media/mediabrain/internal/graph/generated"
+)
+
+// ComplexityLimit caps how many fields one operation may select.
+const ComplexityLimit = 2000
+
+var errorCodes = []struct {
+	err  error
+	code string
+}{
+	{domain.ErrNotFound, "NOT_FOUND"},
+	{domain.ErrInvalidInput, "INVALID_INPUT"},
+	{domain.ErrConflict, "CONFLICT"},
+	{domain.ErrForbidden, "FORBIDDEN"},
+	{domain.ErrUnauthenticated, "UNAUTHENTICATED"},
+}
+
+// NewServer builds the GraphQL handler. Introspection is for development only.
+func NewServer(r *Resolver, introspection bool) *handler.Server {
+	srv := handler.New(generated.NewExecutableSchema(generated.Config{Resolvers: r}))
+	srv.AddTransport(transport.POST{})
+	srv.Use(extension.FixedComplexityLimit(ComplexityLimit))
+	if introspection {
+		srv.Use(extension.Introspection{})
+	}
+	srv.AroundOperations(func(ctx context.Context, next graphql.OperationHandler) graphql.ResponseHandler {
+		return next(withLoaders(ctx, r))
+	})
+	srv.AroundRootFields(auditMutations)
+	srv.SetErrorPresenter(presentError)
+	return srv
+}
+
+func userID(ctx context.Context) string {
+	p, _ := access.From(ctx)
+	return p.UserID
+}
+
+func auditMutations(ctx context.Context, next graphql.RootResolver) graphql.Marshaler {
+	// On a root field, the enclosing field context names the operation type.
+	rc, fc := graphql.GetRootFieldContext(ctx), graphql.GetFieldContext(ctx)
+	if rc != nil && fc != nil && fc.Object == "Mutation" {
+		attrs := []any{"user", userID(ctx), "mutation", rc.Field.Name}
+		for name, v := range rc.Field.ArgumentMap(graphql.GetOperationContext(ctx).Variables) {
+			if id, ok := v.(string); ok && (name == "id" || strings.HasSuffix(name, "Id")) {
+				attrs = append(attrs, name, id)
+			}
+		}
+		slog.InfoContext(ctx, "audit: mutation", attrs...)
+	}
+	return next(ctx)
+}
+
+// presentError gives domain errors a code and logs the cause of masked ones.
+func presentError(ctx context.Context, err error) *gqlerror.Error {
+	out := graphql.DefaultErrorPresenter(ctx, err)
+	for _, c := range errorCodes {
+		if errors.Is(err, c.err) {
+			if c.code == "FORBIDDEN" {
+				slog.WarnContext(ctx, "audit: denied", "user", userID(ctx), "path", out.Path.String())
+			}
+			out.Extensions = map[string]any{"code": c.code}
+			return out
+		}
+	}
+	var internal internalError
+	if errors.As(err, &internal) {
+		slog.ErrorContext(ctx, "graphql: internal error", "error", internal.cause.Error(), "path", out.Path.String())
+		out.Extensions = map[string]any{"code": "INTERNAL"}
+	}
+	return out
+}

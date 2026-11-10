@@ -13,10 +13,15 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/bcc-media/mediabrain/internal/app"
+	"github.com/bcc-media/mediabrain/internal/auth"
 	"github.com/bcc-media/mediabrain/internal/cli"
 	"github.com/bcc-media/mediabrain/internal/config"
 	"github.com/bcc-media/mediabrain/internal/db"
 	"github.com/bcc-media/mediabrain/internal/devdata"
+	"github.com/bcc-media/mediabrain/internal/domain"
 )
 
 // freshDB creates an empty, migrated database and returns its URL.
@@ -66,15 +71,18 @@ func rows(t *testing.T, s *devdata.Store, table string) int64 {
 	return 0
 }
 
-func dummyNames(t *testing.T, url string) []string {
+// titles lists the generated values that depend on the seed.
+func titles(t *testing.T, url string) []string {
 	t.Helper()
 	ctx := context.Background()
-	pool, err := db.Connect(ctx, url)
+	p, err := db.Connect(ctx, url)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer pool.Close()
-	r, err := pool.Query(ctx, `SELECT id::text || ':' || name FROM dummy ORDER BY id`)
+	defer p.Close()
+	r, err := p.Query(ctx, `SELECT title || '/' || coalesce(reel, '') FROM asset
+		UNION ALL SELECT code || '/' || name FROM project
+		UNION ALL SELECT text FROM subtitle_cue ORDER BY 1`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -102,29 +110,33 @@ func TestStoreScenarios(t *testing.T) {
 		}
 	}
 
-	res, err := s.Apply(ctx, "dummies", devdata.ApplyRequest{Reset: true, Params: map[string]string{"count": "15"}})
-	if err != nil || rows(t, s, "dummy") != 15 || res.Seed == 0 || !res.Reset {
-		t.Fatalf("dummies: %+v, %v", res, err)
+	small := map[string]string{"programs": "1", "projects": "2", "assets": "3", "users": "2"}
+	res, err := s.Apply(ctx, "catalog", devdata.ApplyRequest{Reset: true, Params: small})
+	if err != nil || rows(t, s, "asset") != 6 || rows(t, s, "project") != 2 || rows(t, s, "file") != 6 || res.Seed == 0 || !res.Reset {
+		t.Fatalf("catalog: %+v, %v", res, err)
+	}
+	if rows(t, s, "subtitle_cue") == 0 || rows(t, s, "file_copy") < 6 || rows(t, s, "permission_grant") != 2 || rows(t, s, "asset_access") == 0 {
+		t.Fatal("catalog should create subtitles, copies, grants and the access they give")
 	}
 	// Additive without reset.
-	if _, err := s.Apply(ctx, "dummies", devdata.ApplyRequest{Params: map[string]string{"count": "5"}}); err != nil || rows(t, s, "dummy") != 20 {
+	if _, err := s.Apply(ctx, "catalog", devdata.ApplyRequest{Params: small}); err != nil || rows(t, s, "asset") != 12 {
 		t.Fatalf("additive: %v", err)
 	}
 	// "empty" always resets.
-	if _, err := s.Apply(ctx, "empty", devdata.ApplyRequest{}); err != nil || rows(t, s, "dummy") != 0 {
+	if _, err := s.Apply(ctx, "empty", devdata.ApplyRequest{}); err != nil || rows(t, s, "asset") != 0 {
 		t.Fatalf("empty: %v", err)
 	}
 
-	// Same seed + reset → identical data (ids restart too).
-	req := devdata.ApplyRequest{Reset: true, Seed: 99, Params: map[string]string{"count": "5"}}
-	if _, err := s.Apply(ctx, "dummies", req); err != nil {
+	// Same seed + reset → identical data.
+	req := devdata.ApplyRequest{Reset: true, Seed: 99, Params: small}
+	if _, err := s.Apply(ctx, "catalog", req); err != nil {
 		t.Fatal(err)
 	}
-	first := dummyNames(t, url)
-	if _, err := s.Apply(ctx, "dummies", req); err != nil {
+	first := titles(t, url)
+	if _, err := s.Apply(ctx, "catalog", req); err != nil {
 		t.Fatal(err)
 	}
-	if second := dummyNames(t, url); strings.Join(first, "|") != strings.Join(second, "|") {
+	if second := titles(t, url); len(first) == 0 || strings.Join(first, "|") != strings.Join(second, "|") {
 		t.Fatalf("seeded runs differ:\n%v\n%v", first, second)
 	}
 
@@ -132,15 +144,41 @@ func TestStoreScenarios(t *testing.T) {
 	if _, err := s.Apply(ctx, "nope", devdata.ApplyRequest{}); !errors.Is(err, devdata.ErrUnknownScenario) {
 		t.Fatalf("unknown: %v", err)
 	}
-	if _, err := s.Apply(ctx, "dummies", devdata.ApplyRequest{Reset: true, Params: map[string]string{"count": "0"}}); !errors.Is(err, devdata.ErrInvalidParams) {
+	if _, err := s.Apply(ctx, "catalog", devdata.ApplyRequest{Reset: true, Params: map[string]string{"assets": "0"}}); !errors.Is(err, devdata.ErrInvalidParams) {
 		t.Fatalf("invalid: %v", err)
 	}
-	if rows(t, s, "dummy") != 5 {
+	if rows(t, s, "asset") != 6 {
 		t.Fatal("failed apply must not reset data")
 	}
 
+	// The personas of the access scenario have exactly the access its description promises.
+	if _, err := s.Apply(ctx, "access", devdata.ApplyRequest{}); err != nil {
+		t.Fatal(err)
+	}
+	personas := map[string]int{"editor": 6, "viewer": 3, "downloader": 1, "member": 3, "expired": 0, "nobody": 0}
+	for name, want := range personas {
+		var got int
+		err := pool2(t, url).QueryRow(ctx, `SELECT count(DISTINCT aa.asset_id) FROM asset_access aa
+			WHERE aa.principal_id IN (SELECT id FROM app_user WHERE email = $1
+				UNION SELECT m.group_id FROM user_group_member m JOIN app_user u ON u.id = m.user_id WHERE u.email = $1)`,
+			name+"@example.test").Scan(&got)
+		if err != nil || got != want {
+			t.Errorf("%s can reach %d assets, want %d (%v)", name, got, want, err)
+		}
+	}
+	users, err := s.Users(ctx)
+	if err != nil || len(users) != 8 {
+		t.Fatalf("users = %d, %v", len(users), err)
+	}
+	if u, err := s.CreateUser(ctx, "extra@example.test", true); err != nil || !u.Admin || !u.Active {
+		t.Fatalf("create user = %+v, %v", u, err)
+	}
+	if _, err := s.CreateUser(ctx, "extra@example.test", true); !errors.Is(err, domain.ErrConflict) {
+		t.Fatalf("duplicate user: %v", err)
+	}
+
 	langs, types := rows(t, s, "language"), rows(t, s, "asset_type")
-	if err := s.Reset(ctx); err != nil || rows(t, s, "dummy") != 0 {
+	if err := s.Reset(ctx); err != nil || rows(t, s, "asset") != 0 || rows(t, s, "app_user") != 0 {
 		t.Fatalf("reset: %v", err)
 	}
 	// Seeded lookup data survives a reset.
@@ -164,71 +202,211 @@ func TestStoreOnEmptySchema(t *testing.T) {
 		t.Fatalf("reset with no tables: %v", err)
 	}
 	// Scenario fails (no table) → error surfaces.
-	if _, err := s.Apply(ctx, "dummies", devdata.ApplyRequest{}); err == nil {
+	if _, err := s.Apply(ctx, "catalog", devdata.ApplyRequest{}); err == nil {
+		t.Fatal("expected error without schema")
+	}
+	if _, err := s.Users(ctx); err == nil {
 		t.Fatal("expected error without schema")
 	}
 }
 
+// TestDebugAPI uses its own app, because resetting data would pull the rug from under the
+// other tests.
 func TestDebugAPI(t *testing.T) {
-	post := func(path, body string) (int, map[string]any) {
-		res, err := http.Post(baseURL+"/debug/api/"+path, "application/json", strings.NewReader(body))
+	cfg := appConfig()
+	cfg.DatabaseURL = freshDB(t, "debug_api")
+	base := startApp(t, cfg)
+
+	call := func(method, path, body string, out any) int {
+		t.Helper()
+		req, _ := http.NewRequest(method, base+path, strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		res, err := http.DefaultClient.Do(req)
 		if err != nil {
 			t.Fatal(err)
 		}
 		defer res.Body.Close()
-		var m map[string]any
-		_ = json.NewDecoder(res.Body).Decode(&m)
-		return res.StatusCode, m
+		if out != nil {
+			_ = json.NewDecoder(res.Body).Decode(out)
+		}
+		return res.StatusCode
 	}
 
-	if code, m := post("scenarios/dummies", `{"reset":true,"seed":5,"params":{"count":"7"}}`); code != 200 || m["seed"] != float64(5) {
-		t.Fatalf("apply = %d %v", code, m)
+	var applied map[string]any
+	if code := call("POST", "/debug/api/scenarios/access", `{"seed":5}`, &applied); code != 200 || applied["seed"] != float64(5) || applied["reset"] != true {
+		t.Fatalf("apply = %d %v", code, applied)
 	}
-	res, err := http.Get(baseURL + "/debug/api/stats")
+	var stats []devdata.TableStat
+	call("GET", "/debug/api/stats", "", &stats)
+	counts := map[string]int64{}
+	for _, s := range stats {
+		counts[s.Table] = s.Rows
+		if s.Reference && s.Rows == 0 {
+			t.Fatalf("reference table %s was emptied by reset", s.Table)
+		}
+	}
+	if counts["asset"] != 6 || counts["app_user"] != 8 {
+		t.Fatalf("stats = %v", counts)
+	}
+
+	// Acting as a persona through the debug cookie shows exactly what that persona may see.
+	var users []devdata.User
+	if code := call("GET", "/debug/api/users", "", &users); code != 200 || len(users) != 8 {
+		t.Fatalf("users = %d %v", code, users)
+	}
+	seen := func(cookie string) (int, int) {
+		req, _ := http.NewRequest("POST", base+"/query", strings.NewReader(`{"query":"{ assets { id } }"}`))
+		req.Header.Set("Content-Type", "application/json")
+		if cookie != "" {
+			req.AddCookie(&http.Cookie{Name: auth.DebugUserCookie, Value: cookie})
+		}
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer res.Body.Close()
+		var r struct {
+			Data struct{ Assets []struct{ ID string } }
+		}
+		_ = json.NewDecoder(res.Body).Decode(&r)
+		return res.StatusCode, len(r.Data.Assets)
+	}
+	want := map[string]int{"admin@example.test": 6, "editor@example.test": 6, "viewer@example.test": 3, "nobody@example.test": 0}
+	for _, u := range users {
+		if n, ok := want[*u.Email]; ok {
+			if code, got := seen(u.ID); code != 200 || got != n {
+				t.Errorf("%s: status %d, sees %d assets, want %d", *u.Email, code, got, n)
+			}
+		}
+		if *u.Email == "inactive@example.test" {
+			if code, _ := seen(u.ID); code != http.StatusForbidden {
+				t.Errorf("inactive persona: status %d", code)
+			}
+		}
+	}
+	if code, _ := seen(""); code != http.StatusUnauthorized {
+		t.Fatalf("no user chosen: status %d", code)
+	}
+
+	var created devdata.User
+	if code := call("POST", "/debug/api/users", `{"email":"new@example.test","admin":true}`, &created); code != 200 || !created.Admin {
+		t.Fatalf("create user = %d %+v", code, created)
+	}
+	if code, n := seen(created.ID); code != 200 || n != 6 {
+		t.Fatalf("new admin sees %d assets (status %d)", n, code)
+	}
+	if code := call("POST", "/debug/api/users", `{"email":"new@example.test"}`, nil); code != 400 {
+		t.Fatalf("duplicate user = %d", code)
+	}
+	if code := call("POST", "/debug/api/users", `{"email":" "}`, nil); code != 400 {
+		t.Fatalf("blank email = %d", code)
+	}
+
+	if code := call("POST", "/debug/api/scenarios/catalog", `{"params":{"assets":"-1"}}`, nil); code != 400 {
+		t.Fatalf("invalid params = %d", code)
+	}
+	if code := call("POST", "/debug/api/scenarios/nope", `{}`, nil); code != 404 {
+		t.Fatalf("unknown = %d", code)
+	}
+	if code := call("POST", "/debug/api/reset", ``, nil); code != 200 {
+		t.Fatalf("reset = %d", code)
+	}
+	if code := call("GET", "/debug/", "", nil); code != 200 {
+		t.Fatalf("debug ui = %d", code)
+	}
+	if code := call("GET", "/", "", nil); code != 200 {
+		t.Fatalf("playground = %d", code)
+	}
+	if code := call("GET", "/healthz", "", nil); code != 200 {
+		t.Fatalf("healthz = %d", code)
+	}
+}
+
+// startApp runs a second server for the test and returns its base URL.
+func startApp(t *testing.T, cfg config.Config) string {
+	t.Helper()
+	a, err := app.New(context.Background(), cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
-	var stats []devdata.TableStat
-	_ = json.NewDecoder(res.Body).Decode(&stats)
-	res.Body.Close()
-	dummies := -1
-	for _, s := range stats {
-		switch {
-		case s.Table == "dummy":
-			dummies = int(s.Rows)
-		case s.Reference:
-			if s.Rows == 0 {
-				t.Fatalf("reference table %s was emptied by reset", s.Table)
+	ctx, stop := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- a.Serve(ctx) }()
+	t.Cleanup(func() {
+		stop()
+		if err := <-done; err != nil {
+			t.Errorf("shutdown: %v", err)
+		}
+	})
+	return "http://" + a.Addr()
+}
+
+// TestDefaultDebugUser is the `make dev` setup: no proxy, DEBUG_USER set. Requests that name
+// nobody work on an empty database and keep working after the data is wiped.
+func TestDefaultDebugUser(t *testing.T) {
+	cfg := config.Config{
+		DatabaseURL: freshDB(t, "debug_user"), HTTPAddr: "127.0.0.1:0", Playground: true,
+		Debug: true, DebugUser: "admin@example.test", AuthHeader: "Authorization",
+	}
+	base := startApp(t, cfg)
+	me := func(headers map[string]string) (int, string, bool) {
+		t.Helper()
+		req, _ := http.NewRequest("POST", base+"/query", strings.NewReader(`{"query":"{ me { id email isAdmin } }"}`))
+		req.Header.Set("Content-Type", "application/json")
+		for k, v := range headers {
+			req.Header.Set(k, v)
+		}
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer res.Body.Close()
+		var r struct {
+			Data struct {
+				Me struct {
+					ID, Email string
+					IsAdmin   bool
+				}
 			}
-		case s.Rows != 0:
-			t.Fatalf("table %s has %d rows after reset, want 0", s.Table, s.Rows)
+		}
+		_ = json.NewDecoder(res.Body).Decode(&r)
+		return res.StatusCode, r.Data.Me.ID + "/" + r.Data.Me.Email, r.Data.Me.IsAdmin
+	}
+
+	status, first, admin := me(nil)
+	if status != 200 || !strings.HasSuffix(first, "/admin@example.test") || !admin {
+		t.Fatalf("empty database: %d %q admin=%v", status, first, admin)
+	}
+	// Naming the default user explicitly (as the Yaak workspace does) is the same user.
+	if status, again, _ := me(map[string]string{auth.DebugUserHeader: "admin@example.test"}); status != 200 || again != first {
+		t.Fatalf("named: %d %q, want %q", status, again, first)
+	}
+	// Other users still have to exist.
+	if status, _, _ := me(map[string]string{auth.DebugUserHeader: "someone@example.test"}); status != http.StatusUnauthorized {
+		t.Fatalf("unknown user: %d", status)
+	}
+
+	// The user comes back after a reset, and the access scenario's own admin is reused.
+	for _, path := range []string{"/debug/api/reset", "/debug/api/scenarios/access"} {
+		res, err := http.Post(base+path, "application/json", strings.NewReader("{}"))
+		if err != nil || res.StatusCode != 200 {
+			t.Fatalf("%s: %v", path, err)
+		}
+		res.Body.Close()
+		if status, got, admin := me(nil); status != 200 || !strings.HasSuffix(got, "/admin@example.test") || !admin {
+			t.Fatalf("after %s: %d %q admin=%v", path, status, got, admin)
 		}
 	}
-	if dummies != 7 {
-		t.Fatalf("dummy rows = %d, want 7 (stats = %+v)", dummies, stats)
-	}
+}
 
-	// Data created via the debug API is visible through GraphQL.
-	var r struct{ Dummies []dummyJSON }
-	mustGQL(t, `{ dummies { id } }`, nil, &r)
-	if len(r.Dummies) != 7 {
-		t.Fatalf("graphql sees %d dummies", len(r.Dummies))
+func pool2(t *testing.T, url string) *pgxpool.Pool {
+	t.Helper()
+	p, err := db.Connect(context.Background(), url)
+	if err != nil {
+		t.Fatal(err)
 	}
-
-	if code, _ := post("scenarios/dummies", `{"params":{"count":"-1"}}`); code != 400 {
-		t.Fatalf("invalid params = %d", code)
-	}
-	if code, _ := post("scenarios/nope", `{}`); code != 404 {
-		t.Fatalf("unknown = %d", code)
-	}
-	if code, _ := post("reset", ``); code != 200 {
-		t.Fatalf("reset = %d", code)
-	}
-	res, err = http.Get(baseURL + "/debug/")
-	if err != nil || res.StatusCode != 200 {
-		t.Fatalf("debug ui: %v %v", err, res.StatusCode)
-	}
-	res.Body.Close()
+	t.Cleanup(p.Close)
+	return p
 }
 
 func TestCLIAgainstDB(t *testing.T) {
@@ -245,7 +423,7 @@ func TestCLIAgainstDB(t *testing.T) {
 		return out.String()
 	}
 
-	if out := run("migrate", "status"); !strings.Contains(out, "00001_dummy.sql") || !strings.Contains(out, "applied") {
+	if out := run("migrate", "status"); !strings.Contains(out, "00007_user_admin.sql") || !strings.Contains(out, "applied") {
 		t.Fatalf("status: %q", out)
 	}
 	run("migrate", "down")
@@ -254,20 +432,21 @@ func TestCLIAgainstDB(t *testing.T) {
 	}
 	run("migrate", "up")
 	run("migrate", "reset")
-	if out := run("seed", "dummies", "-reset", "-seed", "3", "count=4"); !strings.Contains(out, "created 4 dummies") || !strings.Contains(out, "seed 3") {
+	run("migrate", "up")
+	if out := run("seed", "catalog", "-reset", "-seed", "3", "programs=1", "projects=1", "assets=4"); !strings.Contains(out, "1 projects, 4 assets") || !strings.Contains(out, "seed 3") {
 		t.Fatalf("seed: %q", out)
 	}
-	if n := len(dummyNames(t, url)); n != 4 {
+	if n := len(titles(t, url)); n < 5 {
 		t.Fatalf("rows after seed = %d", n)
 	}
 	if out := run("reset-data"); !strings.Contains(out, "reset") {
 		t.Fatalf("reset-data: %q", out)
 	}
-	if n := len(dummyNames(t, url)); n != 0 {
+	if n := len(titles(t, url)); n != 0 {
 		t.Fatalf("rows after reset = %d", n)
 	}
 	var out bytes.Buffer
-	if err := cli.Run(ctx, []string{"seed", "dummies", "count=0"}, &out); err == nil {
+	if err := cli.Run(ctx, []string{"seed", "catalog", "assets=0"}, &out); err == nil {
 		t.Fatal("expected invalid params error")
 	}
 }

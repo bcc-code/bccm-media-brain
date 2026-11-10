@@ -1,0 +1,76 @@
+enum TrackKind {
+  SUBTITLE
+  CC
+  TRANSCRIPT
+}
+
+enum TrackOrigin {
+  IMPORT
+  ASR
+  MANUAL
+}
+
+enum SubtitleFormat {
+  SRT
+  VTT
+}
+
+"One revision of a rendition's subtitles. Revisions are never changed; edits add a new one."
+type SubtitleTrack {
+  id: ID!
+  renditionId: ID!
+  assetId: ID!
+  sourceFileId: ID
+  language: String
+  kind: TrackKind!
+  origin: TrackOrigin!
+  revision: Int!
+  "The revision this one replaced."
+  parentId: ID
+  createdBy: ID
+  createdAt: Time!
+  "At most 5000 per page."
+  cues(limit: Int = 500, offset: Int = 0): [SubtitleCue!]!
+  "The whole track as subtitle text. SRT drops speakers."
+  export(format: SubtitleFormat!): String!
+}
+
+type SubtitleCue {
+  seq: Int!
+  startMs: Int!
+  endMs: Int!
+  text: String!
+  speaker: String
+}
+
+input ImportSubtitlesInput {
+  versionId: ID!
+  "BCP 47 tag. Each language has its own subtitle rendition."
+  language: String
+  kind: TrackKind
+  format: SubtitleFormat!
+  "The subtitle file's text, at most 5 MB."
+  content: String!
+  "The registered file the text came from, if any."
+  sourceFileId: ID
+}
+
+input SubtitleCueInput {
+  startMs: Int!
+  endMs: Int!
+  text: String!
+  speaker: String
+}
+
+extend type Query {
+  subtitleTrack(id: ID!): SubtitleTrack
+  subtitleTracks(assetId: ID!, history: Boolean! = false): [SubtitleTrack!]!
+}
+
+extend type Mutation {
+  "Adds a new revision for the language on the version."
+  importSubtitles(input: ImportSubtitlesInput!): SubtitleTrack!
+  "Writes a new revision with exactly these cues. Only the latest revision can be edited."
+  editSubtitles(trackId: ID!, cues: [SubtitleCueInput!]!): SubtitleTrack!
+  deleteSubtitleTrack(id: ID!): Boolean!
+}

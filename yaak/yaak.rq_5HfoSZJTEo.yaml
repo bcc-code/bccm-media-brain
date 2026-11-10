@@ -1,0 +1,53 @@
+type: http_request
+model: http_request
+id: rq_5HfoSZJTEo
+createdAt: 2026-11-10T23:30:00
+updatedAt: 2026-11-10T23:30:00
+workspaceId: wk_tPlK1TUEUQ
+folderId: fl_olovTz0eCf
+authentication: {}
+authenticationType: null
+body:
+  query: |
+    mutation($in: GrantInput!) {
+      grantAccess(input: $in) { id scope scopeId level userId groupId grantedBy grantedAt expiresAt }
+    }
+  variables: |-
+    {
+      "in": {
+        "scope": "ASSET",
+        "scopeId": "${[ asset_id ]}",
+        "userEmail": "viewer@example.test",
+        "level": "VIEW"
+      }
+    }
+bodyType: graphql
+description: 'scope: PROGRAM | PROJECT | ASSET. Target: exactly one of userId, userEmail, groupId. Optional expiresAt. Put the returned id into grant_id.'
+headers:
+- enabled: true
+  name: Content-Type
+  value: application/json
+  id: qcdtHW5SZi
+method: POST
+name: Grant access
+sortPriority: 4000.0
+url: ${[ base_url ]}/query
+urlParameters: []
+settingSendCookies:
+  enabled: false
+  value: true
+settingStoreCookies:
+  enabled: false
+  value: true
+settingValidateCertificates:
+  enabled: false
+  value: true
+settingFollowRedirects:
+  enabled: false
+  value: true
+settingRequestTimeout:
+  enabled: false
+  value: 0
+settingHttpVersion:
+  enabled: false
+  value: auto

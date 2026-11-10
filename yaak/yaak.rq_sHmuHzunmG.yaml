@@ -1,0 +1,50 @@
+type: http_request
+model: http_request
+id: rq_sHmuHzunmG
+createdAt: 2026-11-10T23:30:00
+updatedAt: 2026-11-10T23:30:00
+workspaceId: wk_tPlK1TUEUQ
+folderId: fl_Xz143881TC
+authentication: {}
+authenticationType: null
+body:
+  query: |
+    mutation($assetId: ID!, $projectId: ID!, $role: LinkRole!) {
+      linkAssetToProject(assetId: $assetId, projectId: $projectId, role: $role) { assetId projectId role linkedBy }
+    }
+  variables: |-
+    {
+      "assetId": "${[ asset_id ]}",
+      "projectId": "${[ project_id ]}",
+      "role": "REFERENCE"
+    }
+bodyType: graphql
+description: 'role: SOURCE | DELIVERABLE | REFERENCE'
+headers:
+- enabled: true
+  name: Content-Type
+  value: application/json
+  id: oMVN0LfL3D
+method: POST
+name: Link asset to project
+sortPriority: 7000.0
+url: ${[ base_url ]}/query
+urlParameters: []
+settingSendCookies:
+  enabled: false
+  value: true
+settingStoreCookies:
+  enabled: false
+  value: true
+settingValidateCertificates:
+  enabled: false
+  value: true
+settingFollowRedirects:
+  enabled: false
+  value: true
+settingRequestTimeout:
+  enabled: false
+  value: 0
+settingHttpVersion:
+  enabled: false
+  value: auto

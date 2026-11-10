@@ -17,15 +17,14 @@ Guidance for AI coding agents (and humans) working in this repository.
   (`godotenv`; real env vars win; override path with `MEDIABRAIN_ENV_FILE`).
 - **Web UI:** Vue, planned. `web/` is a placeholder.
 
-> The data model is **not designed yet**. Everything named `dummy` (table, queries,
-> `internal/dummy`, GraphQL `Dummy` type, dev-data scenarios, tests) is a placeholder
-> that proves the pipeline and will be replaced. Don't build features on top of it.
+**[`docs/`](docs/README.md) records what has been built and why**: architecture, data model, API,
+security, and a dated log. Read it before changing behaviour, and update it in the same change.
 
 ## Layout
 
 ```
 cmd/mediabrain/         thin main -> internal/cli
-internal/cli/           subcommands: serve | migrate | seed | reset-data
+internal/cli/           subcommands: serve | migrate | seed | reset-data | admin
 internal/app/           wiring (DB, migrations, services, HTTP server), routes, request logging
 internal/config/        env + .env config
 internal/logging/       slog setup (text/json)
@@ -33,20 +32,26 @@ internal/db/            pgx pool, embedded goose migrations
   migrations/           goose SQL migrations (also the schema source for sqlc)
   queries/              sqlc query files
   sqlc/                 GENERATED, do not edit
-internal/<domain>/      domain services over sqlc.Querier (currently: dummy)
-internal/graph/         gqlgen resolvers (hand-written) + resolver.go (DI)
+internal/domain/        shared errors, paging and input rules
+internal/access/        principals, permission levels, grants, asset_access refresh; users and groups
+internal/auth/          verifies the proxy's JWT, trusted proxies, debug bypass (authtest/: test issuer)
+internal/<domain>/      domain services over sqlc.Querier: project, file, asset, subtitle
+internal/graph/         gqlgen resolvers (hand-written), dataloaders, error presenter, server setup
   schema/*.graphqls     GraphQL schema (source of truth)
+  loader/, scalar/      generic batching loader; Date and JSON scalars
   generated/, model/models_gen.go   GENERATED, do not edit
-internal/fake/          gofakeit-based, seedable fake data builders (tests + dev data)
+internal/fake/          gofakeit-based, seedable fake input builders (tests + dev data)
 internal/devdata/       dev-data SCENARIOS, debug UI (ui/index.html) and its JSON API
-e2e/                    end-to-end tests (build tag `e2e`, Postgres via testcontainers)
+e2e/                    tests against real Postgres (build tag `e2e`, testcontainers): API, permissions, scenarios
+docs/                   what has been built and why
+yaak/                   Yaak API-client workspace with requests for the standard operations
 deploy/                 docker-compose for local Postgres
 scripts/                dev bootstrap, codegen-on-change, coverage gate, git hooks
 web/                    future Vue app
 ```
 
-HTTP routes: `POST /query` (GraphQL), `GET /` (playground), `GET /healthz`,
-`/debug/` (dev-data UI + API, only when `DEBUG=true`).
+HTTP routes: `POST /query` (GraphQL, authenticated), `GET /` (playground, only when
+`GRAPHQL_PLAYGROUND=true`), `GET /healthz`, `/debug/` (dev-data UI + API, only when `DEBUG=true`).
 
 ## Development
 
@@ -59,8 +64,10 @@ HTTP routes: `POST /query` (GraphQL), `GET /` (playground), `GET /healthz`,
    (only if their inputs changed, see `scripts/dev-codegen.sh`), then rebuilds and restarts.
    New migrations apply on restart (`AUTO_MIGRATE=true`).
 
-Then open `http://localhost:8080/` for the GraphQL playground and `http://localhost:8080/debug/`
-to generate data.
+Then open `http://localhost:8080/debug/` to generate data and choose the user to act as, and
+`http://localhost:8080/` for the GraphQL playground. The API refuses anonymous requests, but with `DEBUG_USER` set
+(as in `.env.example`) requests that name no user run as that administrator, so the playground
+and the Yaak workspace work straight away. Choose another user in the debug UI to see what they see.
 
 Live reload caveats:
 - Editing a migration that is **already applied** does nothing on restart. Run `make db-reset`
@@ -71,7 +78,9 @@ Live reload caveats:
 |---|---|
 | Dev environment (live reload) | `make dev` |
 | Run once, no reload | `make run` |
-| Dev data: list / run scenario | `make seed-list` / `make seed s=dummies args="-reset -seed 42 count=100"` |
+| Dev data: list / run scenario | `make seed-list` / `make seed s=catalog args="-reset -seed 42 assets=20"` |
+| System administrator | `make admin-grant u=me@example.com` / `make admin-revoke u=...` (the user must have signed in once) |
+| Format | `make fmt` |
 | Wipe data / rebuild schema | `make reset-data` / `make db-reset` |
 | New migration | `make migrate-new name=add_something` |
 | Migration status / up / down | `make migrate-status` / `migrate-up` / `migrate-down` |
@@ -87,14 +96,18 @@ Tools (goose, sqlc, gqlgen, air) are pinned as `tool` directives in `go.mod`. Us
 ## Dev data and the debug UI
 
 `internal/devdata` holds a registry of **scenarios** (`scenarios.go`). A scenario is a named,
-parameterised recipe that creates a specific data situation, for example "N dummies" or "edge
-cases". Scenarios:
+parameterised recipe that creates a specific data situation, for example "a catalog of N assets",
+"one persona per permission level" or "edge cases". Scenarios:
 - show up automatically in the debug UI (`/debug/`, a form per scenario generated from its
   `Params`) and in `mediabrain seed`,
 - run in one transaction, optionally after wiping all tables (`reset`),
 - are reproducible: a run reports its seed, and passing the same seed recreates the same data,
-- use `internal/fake` for realistic values and should go through domain services, so the data
-  respects invariants.
+- use `internal/fake` for realistic values and go through the domain services (as the system
+  principal), so the data respects the same rules as the API.
+
+The debug UI also lists users and lets you act as one of them ("Act as user"): it sets the
+`mb_debug_user` cookie that `/query` honours when `DEBUG=true`. `X-Debug-User: <email or id>` does
+the same for curl.
 
 Reset and stats work from the schema (they read every table in `public` except goose's), so they
 need no updates. The one exception: reference tables that a migration seeds (`asset_type`,
@@ -112,9 +125,18 @@ need no updates. The one exception: reference tables that a migration seeds (`as
    `internal/devdata/scenarios.go` so the new entity can be generated from the debug UI, with
    realistic values plus edge cases. Remove or replace scenarios for entities that no longer
    exist.
-6. Tests: unit tests (fake Querier / fake service) **and** e2e coverage with fake data.
-   `internal/devdata` tests run every scenario automatically (in memory and against real
-   Postgres), so a broken scenario fails `make check`.
+6. Tests. Everything that touches the database (services, permissions, resolvers) is tested in
+   `e2e/` against real Postgres with fake data, as each kind of user. Unit tests cover what needs
+   no database (parsers, validation, auth, config). There is no in-memory fake of the database:
+   the permission rules live in SQL, so a fake would test a copy of them. `e2e/` runs every
+   scenario automatically, so a broken scenario fails `make check`.
+7. **Security:** decide who may call the new operation and enforce it in the service with
+   `internal/access` (never in a resolver). Add the operation to the permission tests in
+   `e2e/access_test.go` and to the fault sweep in `e2e/graph_test.go`.
+8. **No N+1:** nested GraphQL fields load through a dataloader (`internal/graph/loaders.go`)
+   backed by a query that takes a list of parent ids. `TestNestedQueriesAreBatched` fails if a
+   field queries per item.
+9. Update `docs/`, and the requests in `yaak/` when API operations are added or changed.
 
 ## Rules for agents
 
@@ -124,8 +146,8 @@ need no updates. The one exception: reference tables that a migration seeds (`as
   and e2e can't run, say so explicitly instead of committing.
 - Run `make hooks` once per clone to enable the pre-commit hook that enforces this.
 - **Testing is required:** ≥ 90% coverage of hand-written code (generated code is excluded by
-  `scripts/coverage.sh`), with both unit tests and docker-based e2e tests using fake data
-  from `internal/fake`.
+  `scripts/coverage.sh`), with unit tests for database-free logic and docker-based tests in
+  `e2e/` using fake data from `internal/fake` for everything else.
 - **Keep dev data in sync with the model.** Any change to tables, domain services or GraphQL
   types must update `internal/devdata` scenarios (and `internal/fake`) in the same change.
   The debug UI is how humans try the system, so it must never lag behind.
@@ -135,7 +157,17 @@ need no updates. The one exception: reference tables that a migration seeds (`as
   attributes rather than formatted strings, so JSON output stays useful. CLI result output to
   stdout is the only exception.
 - Config goes through `internal/config` (env + `.env`). Add new settings there, in
-  `.env.example`, and in this file.
+  `.env.example`, and in this file. Current settings: `DATABASE_URL`, `HTTP_ADDR`, `AUTO_MIGRATE`,
+  `GRAPHQL_PLAYGROUND`, `DEBUG`, `DEBUG_USER`, `LOG_FORMAT`, `LOG_LEVEL`, and for sign-in `AUTH_ISSUER`,
+  `AUTH_AUDIENCE`, `AUTH_JWKS_URL`, `AUTH_TRUSTED_PROXIES`, `AUTH_HEADER`, `AUTH_GROUPS_CLAIM`.
+- **Security is not optional.** Every query and mutation is authenticated and checks permissions
+  in its domain service. Reading something without access must look exactly like "not found".
+  Unexpected errors reach the client only as a generic `INTERNAL` error. The server must refuse to
+  start without the `AUTH_*` settings unless `DEBUG=true`.
+- **Keep `docs/` current.** Record what was built and why, concisely, in the same change; add a
+  dated entry to `docs/log.md`.
+- **Comment only what the code cannot say.** No comments that restate a name or a signature.
+  Write one when a reader could not work out the reason, the rule or the trap from the code itself.
 - Never edit generated files (`internal/db/sqlc/`, `internal/graph/generated/`,
   `internal/graph/model/models_gen.go`). Change the source and run `make generate`.
   gqlgen preserves resolver bodies in `*.resolvers.go`.

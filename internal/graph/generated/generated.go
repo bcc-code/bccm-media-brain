@@ -5,6 +5,7 @@ package generated
 import (
 	"bytes"
 	"context"
+	"encoding/json/jsontext"
 	"errors"
 	"fmt"
 	"math"
@@ -14,7 +15,13 @@ import (
 
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/99designs/gqlgen/graphql/introspection"
+	"github.com/bcc-media/mediabrain/internal/access"
+	"github.com/bcc-media/mediabrain/internal/asset"
 	"github.com/bcc-media/mediabrain/internal/db/sqlc"
+	"github.com/bcc-media/mediabrain/internal/file"
+	"github.com/bcc-media/mediabrain/internal/graph/scalar"
+	"github.com/bcc-media/mediabrain/internal/project"
+	"github.com/bcc-media/mediabrain/internal/subtitle"
 	gqlparser "github.com/vektah/gqlparser/v2"
 	"github.com/vektah/gqlparser/v2/ast"
 )
@@ -29,30 +36,277 @@ func NewExecutableSchema(cfg Config) graphql.ExecutableSchema {
 type Config = graphql.Config[ResolverRoot, DirectiveRoot, ComplexityRoot]
 
 type ResolverRoot interface {
-	Dummy() DummyResolver
+	Asset() AssetResolver
+	AssetProjectLink() AssetProjectLinkResolver
+	AssetVersion() AssetVersionResolver
+	File() FileResolver
+	FileCopy() FileCopyResolver
+	FileHash() FileHashResolver
 	Mutation() MutationResolver
+	Program() ProgramResolver
+	Project() ProjectResolver
 	Query() QueryResolver
+	Rendition() RenditionResolver
+	RenditionFile() RenditionFileResolver
+	SubtitleTrack() SubtitleTrackResolver
 }
 
 type DirectiveRoot struct {
 }
 
 type ComplexityRoot struct {
-	Dummy struct {
+	Asset struct {
+		Camera           func(childComplexity int) int
+		CapturedAt       func(childComplexity int) int
+		CreatedAt        func(childComplexity int) int
+		Description      func(childComplexity int) int
+		ID               func(childComplexity int) int
+		LegacyIds        func(childComplexity int) int
+		Metadata         func(childComplexity int) int
+		MyLevel          func(childComplexity int) int
+		OriginalLanguage func(childComplexity int) int
+		Projects         func(childComplexity int) int
+		Reel             func(childComplexity int) int
+		Title            func(childComplexity int) int
+		Type             func(childComplexity int) int
+		TypeID           func(childComplexity int) int
+		UpdatedAt        func(childComplexity int) int
+		Versions         func(childComplexity int) int
+	}
+
+	AssetProjectLink struct {
+		AssetID   func(childComplexity int) int
 		CreatedAt func(childComplexity int) int
+		LinkedBy  func(childComplexity int) int
+		Project   func(childComplexity int) int
+		ProjectID func(childComplexity int) int
+		Role      func(childComplexity int) int
+	}
+
+	AssetType struct {
+		Description func(childComplexity int) int
+		ID          func(childComplexity int) int
+		Name        func(childComplexity int) int
+	}
+
+	AssetVersion struct {
+		AssetID    func(childComplexity int) int
+		CreatedAt  func(childComplexity int) int
+		CreatedBy  func(childComplexity int) int
+		ID         func(childComplexity int) int
+		Label      func(childComplexity int) int
+		Number     func(childComplexity int) int
+		Renditions func(childComplexity int) int
+		Status     func(childComplexity int) int
+	}
+
+	File struct {
+		Codec      func(childComplexity int) int
+		Copies     func(childComplexity int) int
+		CreatedAt  func(childComplexity int) int
+		DurationMs func(childComplexity int) int
+		Hashes     func(childComplexity int) int
+		Height     func(childComplexity int) int
+		ID         func(childComplexity int) int
+		MimeType   func(childComplexity int) int
+		Probe      func(childComplexity int) int
+		SizeBytes  func(childComplexity int) int
+		Width      func(childComplexity int) int
+	}
+
+	FileCopy struct {
+		FileID         func(childComplexity int) int
+		ID             func(childComplexity int) int
+		LastSeenAt     func(childComplexity int) int
+		LastVerifiedAt func(childComplexity int) int
+		Location       func(childComplexity int) int
+		LocationID     func(childComplexity int) int
+		Path           func(childComplexity int) int
+		Status         func(childComplexity int) int
+	}
+
+	FileHash struct {
+		Algo       func(childComplexity int) int
+		ComputedAt func(childComplexity int) int
+		Value      func(childComplexity int) int
+	}
+
+	Grant struct {
+		ExpiresAt func(childComplexity int) int
+		GrantedAt func(childComplexity int) int
+		GrantedBy func(childComplexity int) int
+		GroupID   func(childComplexity int) int
 		ID        func(childComplexity int) int
-		Name      func(childComplexity int) int
+		Level     func(childComplexity int) int
+		Scope     func(childComplexity int) int
+		ScopeID   func(childComplexity int) int
+		UserID    func(childComplexity int) int
+	}
+
+	Language struct {
+		Active     func(childComplexity int) int
+		AltCodes   func(childComplexity int) int
+		BaseCode   func(childComplexity int) int
+		Code       func(childComplexity int) int
+		Modality   func(childComplexity int) int
+		Name       func(childComplexity int) int
+		NativeName func(childComplexity int) int
 	}
 
 	Mutation struct {
-		CreateDummy func(childComplexity int, name string) int
-		DeleteDummy func(childComplexity int, id string) int
+		AddFileCopy            func(childComplexity int, fileID string, copy file.CopyInput) int
+		AttachFile             func(childComplexity int, renditionID string, fileID string, role sqlc.FileRole, position int) int
+		CreateAsset            func(childComplexity int, projectID *string, input asset.Input) int
+		CreateAssetVersion     func(childComplexity int, assetID string, input asset.VersionInput) int
+		CreateProgram          func(childComplexity int, input project.ProgramInput) int
+		CreateProject          func(childComplexity int, input project.ProjectInput) int
+		CreateRendition        func(childComplexity int, versionID string, input asset.RenditionInput) int
+		CreateStorageLocation  func(childComplexity int, input file.LocationInput) int
+		DeleteAsset            func(childComplexity int, id string) int
+		DeleteAssetVersion     func(childComplexity int, id string) int
+		DeleteFile             func(childComplexity int, id string) int
+		DeleteProgram          func(childComplexity int, id string) int
+		DeleteProject          func(childComplexity int, id string) int
+		DeleteRendition        func(childComplexity int, id string) int
+		DeleteStorageLocation  func(childComplexity int, id string) int
+		DeleteSubtitleTrack    func(childComplexity int, id string) int
+		DetachFile             func(childComplexity int, renditionID string, fileID string, role sqlc.FileRole) int
+		EditSubtitles          func(childComplexity int, trackID string, cues []*subtitle.Cue) int
+		GrantAccess            func(childComplexity int, input access.GrantInput) int
+		ImportSubtitles        func(childComplexity int, input subtitle.ImportInput) int
+		LinkAssetToProject     func(childComplexity int, assetID string, projectID string, role sqlc.LinkRole) int
+		RegisterFile           func(childComplexity int, input file.RegisterInput) int
+		RemoveFileCopy         func(childComplexity int, id string) int
+		RevokeAccess           func(childComplexity int, id string) int
+		SetFileCopyStatus      func(childComplexity int, id string, status sqlc.CopyStatus) int
+		SetUserAdmin           func(childComplexity int, user string, admin bool) int
+		UnlinkAssetFromProject func(childComplexity int, assetID string, projectID string, role sqlc.LinkRole) int
+		UpdateAsset            func(childComplexity int, id string, input asset.Input) int
+		UpdateAssetVersion     func(childComplexity int, id string, input asset.VersionInput) int
+		UpdateProgram          func(childComplexity int, id string, input project.ProgramInput) int
+		UpdateProject          func(childComplexity int, id string, input project.ProjectInput) int
+		UpdateRendition        func(childComplexity int, id string, input asset.RenditionInput) int
+		UpdateStorageLocation  func(childComplexity int, id string, input file.LocationInput) int
+	}
+
+	Program struct {
+		Code        func(childComplexity int) int
+		CreatedAt   func(childComplexity int) int
+		Description func(childComplexity int) int
+		ID          func(childComplexity int) int
+		Metadata    func(childComplexity int) int
+		Name        func(childComplexity int) int
+		Projects    func(childComplexity int) int
+		UpdatedAt   func(childComplexity int) int
+	}
+
+	Project struct {
+		Code      func(childComplexity int) int
+		CreatedAt func(childComplexity int) int
+		EndsOn    func(childComplexity int) int
+		ID        func(childComplexity int) int
+		Metadata  func(childComplexity int) int
+		Name      func(childComplexity int) int
+		Program   func(childComplexity int) int
+		ProgramID func(childComplexity int) int
+		StartsOn  func(childComplexity int) int
+		Status    func(childComplexity int) int
+		UpdatedAt func(childComplexity int) int
 	}
 
 	Query struct {
-		Dummies func(childComplexity int, limit *int, offset *int) int
-		Dummy   func(childComplexity int, id string) int
-		Ping    func(childComplexity int) int
+		Asset            func(childComplexity int, id string) int
+		AssetTypes       func(childComplexity int) int
+		AssetVersion     func(childComplexity int, id string) int
+		Assets           func(childComplexity int, filter *asset.Filter, limit *int, offset *int) int
+		File             func(childComplexity int, id string) int
+		FileByHash       func(childComplexity int, hash file.HashInput) int
+		Files            func(childComplexity int, limit *int, offset *int) int
+		Grants           func(childComplexity int, scope sqlc.GrantScope, scopeID string) int
+		Languages        func(childComplexity int, activeOnly bool) int
+		Me               func(childComplexity int) int
+		Ping             func(childComplexity int) int
+		Program          func(childComplexity int, id string) int
+		Programs         func(childComplexity int, limit *int, offset *int) int
+		Project          func(childComplexity int, id string) int
+		Projects         func(childComplexity int, programID *string, status *sqlc.ProjectStatus, limit *int, offset *int) int
+		Rendition        func(childComplexity int, id string) int
+		StorageLocations func(childComplexity int) int
+		SubtitleTrack    func(childComplexity int, id string) int
+		SubtitleTracks   func(childComplexity int, assetID string, history bool) int
+		UserGroups       func(childComplexity int) int
+		Users            func(childComplexity int, limit *int, offset *int) int
+	}
+
+	Rendition struct {
+		CreatedAt      func(childComplexity int) int
+		Files          func(childComplexity int) int
+		ID             func(childComplexity int) int
+		Kind           func(childComplexity int) int
+		Language       func(childComplexity int) int
+		Metadata       func(childComplexity int) int
+		Overrides      func(childComplexity int) int
+		Purpose        func(childComplexity int) int
+		SubtitleTracks func(childComplexity int, history bool) int
+		VersionID      func(childComplexity int) int
+	}
+
+	RenditionFile struct {
+		File        func(childComplexity int) int
+		FileID      func(childComplexity int) int
+		Position    func(childComplexity int) int
+		RenditionID func(childComplexity int) int
+		Role        func(childComplexity int) int
+	}
+
+	StorageLocation struct {
+		BaseUri   func(childComplexity int) int
+		CreatedAt func(childComplexity int) int
+		ID        func(childComplexity int) int
+		Kind      func(childComplexity int) int
+		Name      func(childComplexity int) int
+		Online    func(childComplexity int) int
+	}
+
+	SubtitleCue struct {
+		EndMs   func(childComplexity int) int
+		Seq     func(childComplexity int) int
+		Speaker func(childComplexity int) int
+		StartMs func(childComplexity int) int
+		Text    func(childComplexity int) int
+	}
+
+	SubtitleTrack struct {
+		AssetID      func(childComplexity int) int
+		CreatedAt    func(childComplexity int) int
+		CreatedBy    func(childComplexity int) int
+		Cues         func(childComplexity int, limit *int, offset *int) int
+		Export       func(childComplexity int, format subtitle.Format) int
+		ID           func(childComplexity int) int
+		Kind         func(childComplexity int) int
+		Language     func(childComplexity int) int
+		Origin       func(childComplexity int) int
+		ParentID     func(childComplexity int) int
+		RenditionID  func(childComplexity int) int
+		Revision     func(childComplexity int) int
+		SourceFileID func(childComplexity int) int
+	}
+
+	User struct {
+		Active     func(childComplexity int) int
+		CreatedAt  func(childComplexity int) int
+		Email      func(childComplexity int) int
+		ExternalID func(childComplexity int) int
+		ID         func(childComplexity int) int
+		IsAdmin    func(childComplexity int) int
+		Name       func(childComplexity int) int
+	}
+
+	UserGroup struct {
+		Description func(childComplexity int) int
+		ExternalID  func(childComplexity int) int
+		ID          func(childComplexity int) int
+		Name        func(childComplexity int) int
 	}
 }
 
@@ -60,17 +314,102 @@ type ComplexityRoot struct {
 
 // region    ************************** generated!.gotpl **************************
 
-type DummyResolver interface {
-	ID(ctx context.Context, obj *sqlc.Dummy) (string, error)
+type AssetResolver interface {
+	Type(ctx context.Context, obj *sqlc.Asset) (*sqlc.AssetType, error)
+	MyLevel(ctx context.Context, obj *sqlc.Asset) (sqlc.PermissionLevel, error)
+	Versions(ctx context.Context, obj *sqlc.Asset) ([]*sqlc.AssetVersion, error)
+	Projects(ctx context.Context, obj *sqlc.Asset) ([]*sqlc.AssetProject, error)
+}
+type AssetProjectLinkResolver interface {
+	Project(ctx context.Context, obj *sqlc.AssetProject) (*sqlc.Project, error)
+}
+type AssetVersionResolver interface {
+	Renditions(ctx context.Context, obj *sqlc.AssetVersion) ([]*sqlc.Rendition, error)
+}
+type FileResolver interface {
+	Hashes(ctx context.Context, obj *sqlc.File) ([]*sqlc.FileHash, error)
+	Copies(ctx context.Context, obj *sqlc.File) ([]*sqlc.FileCopy, error)
+}
+type FileCopyResolver interface {
+	Location(ctx context.Context, obj *sqlc.FileCopy) (*sqlc.StorageLocation, error)
+}
+type FileHashResolver interface {
+	Value(ctx context.Context, obj *sqlc.FileHash) (string, error)
 }
 type MutationResolver interface {
-	CreateDummy(ctx context.Context, name string) (*sqlc.Dummy, error)
-	DeleteDummy(ctx context.Context, id string) (bool, error)
+	GrantAccess(ctx context.Context, input access.GrantInput) (*sqlc.PermissionGrant, error)
+	RevokeAccess(ctx context.Context, id string) (bool, error)
+	SetUserAdmin(ctx context.Context, user string, admin bool) (*sqlc.AppUser, error)
+	CreateAsset(ctx context.Context, projectID *string, input asset.Input) (*sqlc.Asset, error)
+	UpdateAsset(ctx context.Context, id string, input asset.Input) (*sqlc.Asset, error)
+	DeleteAsset(ctx context.Context, id string) (bool, error)
+	LinkAssetToProject(ctx context.Context, assetID string, projectID string, role sqlc.LinkRole) (*sqlc.AssetProject, error)
+	UnlinkAssetFromProject(ctx context.Context, assetID string, projectID string, role sqlc.LinkRole) (bool, error)
+	CreateAssetVersion(ctx context.Context, assetID string, input asset.VersionInput) (*sqlc.AssetVersion, error)
+	UpdateAssetVersion(ctx context.Context, id string, input asset.VersionInput) (*sqlc.AssetVersion, error)
+	DeleteAssetVersion(ctx context.Context, id string) (bool, error)
+	CreateRendition(ctx context.Context, versionID string, input asset.RenditionInput) (*sqlc.Rendition, error)
+	UpdateRendition(ctx context.Context, id string, input asset.RenditionInput) (*sqlc.Rendition, error)
+	DeleteRendition(ctx context.Context, id string) (bool, error)
+	AttachFile(ctx context.Context, renditionID string, fileID string, role sqlc.FileRole, position int) (*sqlc.RenditionFile, error)
+	DetachFile(ctx context.Context, renditionID string, fileID string, role sqlc.FileRole) (bool, error)
+	CreateStorageLocation(ctx context.Context, input file.LocationInput) (*sqlc.StorageLocation, error)
+	UpdateStorageLocation(ctx context.Context, id string, input file.LocationInput) (*sqlc.StorageLocation, error)
+	DeleteStorageLocation(ctx context.Context, id string) (bool, error)
+	RegisterFile(ctx context.Context, input file.RegisterInput) (*sqlc.File, error)
+	AddFileCopy(ctx context.Context, fileID string, copy file.CopyInput) (*sqlc.FileCopy, error)
+	SetFileCopyStatus(ctx context.Context, id string, status sqlc.CopyStatus) (*sqlc.FileCopy, error)
+	RemoveFileCopy(ctx context.Context, id string) (bool, error)
+	DeleteFile(ctx context.Context, id string) (bool, error)
+	CreateProgram(ctx context.Context, input project.ProgramInput) (*sqlc.Program, error)
+	UpdateProgram(ctx context.Context, id string, input project.ProgramInput) (*sqlc.Program, error)
+	DeleteProgram(ctx context.Context, id string) (bool, error)
+	CreateProject(ctx context.Context, input project.ProjectInput) (*sqlc.Project, error)
+	UpdateProject(ctx context.Context, id string, input project.ProjectInput) (*sqlc.Project, error)
+	DeleteProject(ctx context.Context, id string) (bool, error)
+	ImportSubtitles(ctx context.Context, input subtitle.ImportInput) (*sqlc.SubtitleTrack, error)
+	EditSubtitles(ctx context.Context, trackID string, cues []*subtitle.Cue) (*sqlc.SubtitleTrack, error)
+	DeleteSubtitleTrack(ctx context.Context, id string) (bool, error)
+}
+type ProgramResolver interface {
+	Projects(ctx context.Context, obj *sqlc.Program) ([]*sqlc.Project, error)
+}
+type ProjectResolver interface {
+	Program(ctx context.Context, obj *sqlc.Project) (*sqlc.Program, error)
 }
 type QueryResolver interface {
 	Ping(ctx context.Context) (string, error)
-	Dummy(ctx context.Context, id string) (*sqlc.Dummy, error)
-	Dummies(ctx context.Context, limit *int, offset *int) ([]*sqlc.Dummy, error)
+	Me(ctx context.Context) (*sqlc.AppUser, error)
+	Users(ctx context.Context, limit *int, offset *int) ([]*sqlc.AppUser, error)
+	UserGroups(ctx context.Context) ([]*sqlc.UserGroup, error)
+	Grants(ctx context.Context, scope sqlc.GrantScope, scopeID string) ([]*sqlc.PermissionGrant, error)
+	AssetTypes(ctx context.Context) ([]*sqlc.AssetType, error)
+	Languages(ctx context.Context, activeOnly bool) ([]*sqlc.Language, error)
+	Asset(ctx context.Context, id string) (*sqlc.Asset, error)
+	Assets(ctx context.Context, filter *asset.Filter, limit *int, offset *int) ([]*sqlc.Asset, error)
+	AssetVersion(ctx context.Context, id string) (*sqlc.AssetVersion, error)
+	Rendition(ctx context.Context, id string) (*sqlc.Rendition, error)
+	File(ctx context.Context, id string) (*sqlc.File, error)
+	FileByHash(ctx context.Context, hash file.HashInput) (*sqlc.File, error)
+	Files(ctx context.Context, limit *int, offset *int) ([]*sqlc.File, error)
+	StorageLocations(ctx context.Context) ([]*sqlc.StorageLocation, error)
+	Program(ctx context.Context, id string) (*sqlc.Program, error)
+	Programs(ctx context.Context, limit *int, offset *int) ([]*sqlc.Program, error)
+	Project(ctx context.Context, id string) (*sqlc.Project, error)
+	Projects(ctx context.Context, programID *string, status *sqlc.ProjectStatus, limit *int, offset *int) ([]*sqlc.Project, error)
+	SubtitleTrack(ctx context.Context, id string) (*sqlc.SubtitleTrack, error)
+	SubtitleTracks(ctx context.Context, assetID string, history bool) ([]*sqlc.SubtitleTrack, error)
+}
+type RenditionResolver interface {
+	Files(ctx context.Context, obj *sqlc.Rendition) ([]*sqlc.RenditionFile, error)
+	SubtitleTracks(ctx context.Context, obj *sqlc.Rendition, history bool) ([]*sqlc.SubtitleTrack, error)
+}
+type RenditionFileResolver interface {
+	File(ctx context.Context, obj *sqlc.RenditionFile) (*sqlc.File, error)
+}
+type SubtitleTrackResolver interface {
+	Cues(ctx context.Context, obj *sqlc.SubtitleTrack, limit *int, offset *int) ([]*sqlc.ListSubtitleCuesRow, error)
+	Export(ctx context.Context, obj *sqlc.SubtitleTrack, format subtitle.Format) (string, error)
 }
 
 // endregion ************************** generated!.gotpl **************************
@@ -91,77 +430,1450 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 	_ = ec
 	switch typeName + "." + field {
 
-	case "Dummy.createdAt":
-		if e.ComplexityRoot.Dummy.CreatedAt == nil {
+	case "Asset.camera":
+		if e.ComplexityRoot.Asset.Camera == nil {
 			break
 		}
 
-		return e.ComplexityRoot.Dummy.CreatedAt(childComplexity), true
-	case "Dummy.id":
-		if e.ComplexityRoot.Dummy.ID == nil {
+		return e.ComplexityRoot.Asset.Camera(childComplexity), true
+	case "Asset.capturedAt":
+		if e.ComplexityRoot.Asset.CapturedAt == nil {
 			break
 		}
 
-		return e.ComplexityRoot.Dummy.ID(childComplexity), true
-	case "Dummy.name":
-		if e.ComplexityRoot.Dummy.Name == nil {
+		return e.ComplexityRoot.Asset.CapturedAt(childComplexity), true
+	case "Asset.createdAt":
+		if e.ComplexityRoot.Asset.CreatedAt == nil {
 			break
 		}
 
-		return e.ComplexityRoot.Dummy.Name(childComplexity), true
-
-	case "Mutation.createDummy":
-		if e.ComplexityRoot.Mutation.CreateDummy == nil {
+		return e.ComplexityRoot.Asset.CreatedAt(childComplexity), true
+	case "Asset.description":
+		if e.ComplexityRoot.Asset.Description == nil {
 			break
 		}
 
-		args, err := ec.field_Mutation_createDummy_args(ctx, rawArgs)
+		return e.ComplexityRoot.Asset.Description(childComplexity), true
+	case "Asset.id":
+		if e.ComplexityRoot.Asset.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Asset.ID(childComplexity), true
+	case "Asset.legacyIds":
+		if e.ComplexityRoot.Asset.LegacyIds == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Asset.LegacyIds(childComplexity), true
+	case "Asset.metadata":
+		if e.ComplexityRoot.Asset.Metadata == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Asset.Metadata(childComplexity), true
+	case "Asset.myLevel":
+		if e.ComplexityRoot.Asset.MyLevel == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Asset.MyLevel(childComplexity), true
+	case "Asset.originalLanguage":
+		if e.ComplexityRoot.Asset.OriginalLanguage == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Asset.OriginalLanguage(childComplexity), true
+	case "Asset.projects":
+		if e.ComplexityRoot.Asset.Projects == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Asset.Projects(childComplexity), true
+	case "Asset.reel":
+		if e.ComplexityRoot.Asset.Reel == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Asset.Reel(childComplexity), true
+	case "Asset.title":
+		if e.ComplexityRoot.Asset.Title == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Asset.Title(childComplexity), true
+	case "Asset.type":
+		if e.ComplexityRoot.Asset.Type == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Asset.Type(childComplexity), true
+	case "Asset.typeId":
+		if e.ComplexityRoot.Asset.TypeID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Asset.TypeID(childComplexity), true
+	case "Asset.updatedAt":
+		if e.ComplexityRoot.Asset.UpdatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Asset.UpdatedAt(childComplexity), true
+	case "Asset.versions":
+		if e.ComplexityRoot.Asset.Versions == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Asset.Versions(childComplexity), true
+
+	case "AssetProjectLink.assetId":
+		if e.ComplexityRoot.AssetProjectLink.AssetID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AssetProjectLink.AssetID(childComplexity), true
+	case "AssetProjectLink.createdAt":
+		if e.ComplexityRoot.AssetProjectLink.CreatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AssetProjectLink.CreatedAt(childComplexity), true
+	case "AssetProjectLink.linkedBy":
+		if e.ComplexityRoot.AssetProjectLink.LinkedBy == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AssetProjectLink.LinkedBy(childComplexity), true
+	case "AssetProjectLink.project":
+		if e.ComplexityRoot.AssetProjectLink.Project == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AssetProjectLink.Project(childComplexity), true
+	case "AssetProjectLink.projectId":
+		if e.ComplexityRoot.AssetProjectLink.ProjectID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AssetProjectLink.ProjectID(childComplexity), true
+	case "AssetProjectLink.role":
+		if e.ComplexityRoot.AssetProjectLink.Role == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AssetProjectLink.Role(childComplexity), true
+
+	case "AssetType.description":
+		if e.ComplexityRoot.AssetType.Description == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AssetType.Description(childComplexity), true
+	case "AssetType.id":
+		if e.ComplexityRoot.AssetType.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AssetType.ID(childComplexity), true
+	case "AssetType.name":
+		if e.ComplexityRoot.AssetType.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AssetType.Name(childComplexity), true
+
+	case "AssetVersion.assetId":
+		if e.ComplexityRoot.AssetVersion.AssetID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AssetVersion.AssetID(childComplexity), true
+	case "AssetVersion.createdAt":
+		if e.ComplexityRoot.AssetVersion.CreatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AssetVersion.CreatedAt(childComplexity), true
+	case "AssetVersion.createdBy":
+		if e.ComplexityRoot.AssetVersion.CreatedBy == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AssetVersion.CreatedBy(childComplexity), true
+	case "AssetVersion.id":
+		if e.ComplexityRoot.AssetVersion.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AssetVersion.ID(childComplexity), true
+	case "AssetVersion.label":
+		if e.ComplexityRoot.AssetVersion.Label == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AssetVersion.Label(childComplexity), true
+	case "AssetVersion.number":
+		if e.ComplexityRoot.AssetVersion.Number == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AssetVersion.Number(childComplexity), true
+	case "AssetVersion.renditions":
+		if e.ComplexityRoot.AssetVersion.Renditions == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AssetVersion.Renditions(childComplexity), true
+	case "AssetVersion.status":
+		if e.ComplexityRoot.AssetVersion.Status == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AssetVersion.Status(childComplexity), true
+
+	case "File.codec":
+		if e.ComplexityRoot.File.Codec == nil {
+			break
+		}
+
+		return e.ComplexityRoot.File.Codec(childComplexity), true
+	case "File.copies":
+		if e.ComplexityRoot.File.Copies == nil {
+			break
+		}
+
+		return e.ComplexityRoot.File.Copies(childComplexity), true
+	case "File.createdAt":
+		if e.ComplexityRoot.File.CreatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.File.CreatedAt(childComplexity), true
+	case "File.durationMs":
+		if e.ComplexityRoot.File.DurationMs == nil {
+			break
+		}
+
+		return e.ComplexityRoot.File.DurationMs(childComplexity), true
+	case "File.hashes":
+		if e.ComplexityRoot.File.Hashes == nil {
+			break
+		}
+
+		return e.ComplexityRoot.File.Hashes(childComplexity), true
+	case "File.height":
+		if e.ComplexityRoot.File.Height == nil {
+			break
+		}
+
+		return e.ComplexityRoot.File.Height(childComplexity), true
+	case "File.id":
+		if e.ComplexityRoot.File.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.File.ID(childComplexity), true
+	case "File.mimeType":
+		if e.ComplexityRoot.File.MimeType == nil {
+			break
+		}
+
+		return e.ComplexityRoot.File.MimeType(childComplexity), true
+	case "File.probe":
+		if e.ComplexityRoot.File.Probe == nil {
+			break
+		}
+
+		return e.ComplexityRoot.File.Probe(childComplexity), true
+	case "File.sizeBytes":
+		if e.ComplexityRoot.File.SizeBytes == nil {
+			break
+		}
+
+		return e.ComplexityRoot.File.SizeBytes(childComplexity), true
+	case "File.width":
+		if e.ComplexityRoot.File.Width == nil {
+			break
+		}
+
+		return e.ComplexityRoot.File.Width(childComplexity), true
+
+	case "FileCopy.fileId":
+		if e.ComplexityRoot.FileCopy.FileID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FileCopy.FileID(childComplexity), true
+	case "FileCopy.id":
+		if e.ComplexityRoot.FileCopy.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FileCopy.ID(childComplexity), true
+	case "FileCopy.lastSeenAt":
+		if e.ComplexityRoot.FileCopy.LastSeenAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FileCopy.LastSeenAt(childComplexity), true
+	case "FileCopy.lastVerifiedAt":
+		if e.ComplexityRoot.FileCopy.LastVerifiedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FileCopy.LastVerifiedAt(childComplexity), true
+	case "FileCopy.location":
+		if e.ComplexityRoot.FileCopy.Location == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FileCopy.Location(childComplexity), true
+	case "FileCopy.locationId":
+		if e.ComplexityRoot.FileCopy.LocationID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FileCopy.LocationID(childComplexity), true
+	case "FileCopy.path":
+		if e.ComplexityRoot.FileCopy.Path == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FileCopy.Path(childComplexity), true
+	case "FileCopy.status":
+		if e.ComplexityRoot.FileCopy.Status == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FileCopy.Status(childComplexity), true
+
+	case "FileHash.algo":
+		if e.ComplexityRoot.FileHash.Algo == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FileHash.Algo(childComplexity), true
+	case "FileHash.computedAt":
+		if e.ComplexityRoot.FileHash.ComputedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FileHash.ComputedAt(childComplexity), true
+	case "FileHash.value":
+		if e.ComplexityRoot.FileHash.Value == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FileHash.Value(childComplexity), true
+
+	case "Grant.expiresAt":
+		if e.ComplexityRoot.Grant.ExpiresAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Grant.ExpiresAt(childComplexity), true
+	case "Grant.grantedAt":
+		if e.ComplexityRoot.Grant.GrantedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Grant.GrantedAt(childComplexity), true
+	case "Grant.grantedBy":
+		if e.ComplexityRoot.Grant.GrantedBy == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Grant.GrantedBy(childComplexity), true
+	case "Grant.groupId":
+		if e.ComplexityRoot.Grant.GroupID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Grant.GroupID(childComplexity), true
+	case "Grant.id":
+		if e.ComplexityRoot.Grant.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Grant.ID(childComplexity), true
+	case "Grant.level":
+		if e.ComplexityRoot.Grant.Level == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Grant.Level(childComplexity), true
+	case "Grant.scope":
+		if e.ComplexityRoot.Grant.Scope == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Grant.Scope(childComplexity), true
+	case "Grant.scopeId":
+		if e.ComplexityRoot.Grant.ScopeID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Grant.ScopeID(childComplexity), true
+	case "Grant.userId":
+		if e.ComplexityRoot.Grant.UserID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Grant.UserID(childComplexity), true
+
+	case "Language.active":
+		if e.ComplexityRoot.Language.Active == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Language.Active(childComplexity), true
+	case "Language.altCodes":
+		if e.ComplexityRoot.Language.AltCodes == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Language.AltCodes(childComplexity), true
+	case "Language.baseCode":
+		if e.ComplexityRoot.Language.BaseCode == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Language.BaseCode(childComplexity), true
+	case "Language.code":
+		if e.ComplexityRoot.Language.Code == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Language.Code(childComplexity), true
+	case "Language.modality":
+		if e.ComplexityRoot.Language.Modality == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Language.Modality(childComplexity), true
+	case "Language.name":
+		if e.ComplexityRoot.Language.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Language.Name(childComplexity), true
+	case "Language.nativeName":
+		if e.ComplexityRoot.Language.NativeName == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Language.NativeName(childComplexity), true
+
+	case "Mutation.addFileCopy":
+		if e.ComplexityRoot.Mutation.AddFileCopy == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_addFileCopy_args(ctx, rawArgs)
 		if err != nil {
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.CreateDummy(childComplexity, args["name"].(string)), true
-	case "Mutation.deleteDummy":
-		if e.ComplexityRoot.Mutation.DeleteDummy == nil {
+		return e.ComplexityRoot.Mutation.AddFileCopy(childComplexity, args["fileId"].(string), args["copy"].(file.CopyInput)), true
+	case "Mutation.attachFile":
+		if e.ComplexityRoot.Mutation.AttachFile == nil {
 			break
 		}
 
-		args, err := ec.field_Mutation_deleteDummy_args(ctx, rawArgs)
+		args, err := ec.field_Mutation_attachFile_args(ctx, rawArgs)
 		if err != nil {
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.DeleteDummy(childComplexity, args["id"].(string)), true
-
-	case "Query.dummies":
-		if e.ComplexityRoot.Query.Dummies == nil {
+		return e.ComplexityRoot.Mutation.AttachFile(childComplexity, args["renditionId"].(string), args["fileId"].(string), args["role"].(sqlc.FileRole), args["position"].(int)), true
+	case "Mutation.createAsset":
+		if e.ComplexityRoot.Mutation.CreateAsset == nil {
 			break
 		}
 
-		args, err := ec.field_Query_dummies_args(ctx, rawArgs)
+		args, err := ec.field_Mutation_createAsset_args(ctx, rawArgs)
 		if err != nil {
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Query.Dummies(childComplexity, args["limit"].(*int), args["offset"].(*int)), true
-	case "Query.dummy":
-		if e.ComplexityRoot.Query.Dummy == nil {
+		return e.ComplexityRoot.Mutation.CreateAsset(childComplexity, args["projectId"].(*string), args["input"].(asset.Input)), true
+	case "Mutation.createAssetVersion":
+		if e.ComplexityRoot.Mutation.CreateAssetVersion == nil {
 			break
 		}
 
-		args, err := ec.field_Query_dummy_args(ctx, rawArgs)
+		args, err := ec.field_Mutation_createAssetVersion_args(ctx, rawArgs)
 		if err != nil {
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Query.Dummy(childComplexity, args["id"].(string)), true
+		return e.ComplexityRoot.Mutation.CreateAssetVersion(childComplexity, args["assetId"].(string), args["input"].(asset.VersionInput)), true
+	case "Mutation.createProgram":
+		if e.ComplexityRoot.Mutation.CreateProgram == nil {
+			break
+		}
 
+		args, err := ec.field_Mutation_createProgram_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.CreateProgram(childComplexity, args["input"].(project.ProgramInput)), true
+	case "Mutation.createProject":
+		if e.ComplexityRoot.Mutation.CreateProject == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_createProject_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.CreateProject(childComplexity, args["input"].(project.ProjectInput)), true
+	case "Mutation.createRendition":
+		if e.ComplexityRoot.Mutation.CreateRendition == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_createRendition_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.CreateRendition(childComplexity, args["versionId"].(string), args["input"].(asset.RenditionInput)), true
+	case "Mutation.createStorageLocation":
+		if e.ComplexityRoot.Mutation.CreateStorageLocation == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_createStorageLocation_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.CreateStorageLocation(childComplexity, args["input"].(file.LocationInput)), true
+	case "Mutation.deleteAsset":
+		if e.ComplexityRoot.Mutation.DeleteAsset == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deleteAsset_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.DeleteAsset(childComplexity, args["id"].(string)), true
+	case "Mutation.deleteAssetVersion":
+		if e.ComplexityRoot.Mutation.DeleteAssetVersion == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deleteAssetVersion_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.DeleteAssetVersion(childComplexity, args["id"].(string)), true
+	case "Mutation.deleteFile":
+		if e.ComplexityRoot.Mutation.DeleteFile == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deleteFile_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.DeleteFile(childComplexity, args["id"].(string)), true
+	case "Mutation.deleteProgram":
+		if e.ComplexityRoot.Mutation.DeleteProgram == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deleteProgram_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.DeleteProgram(childComplexity, args["id"].(string)), true
+	case "Mutation.deleteProject":
+		if e.ComplexityRoot.Mutation.DeleteProject == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deleteProject_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.DeleteProject(childComplexity, args["id"].(string)), true
+	case "Mutation.deleteRendition":
+		if e.ComplexityRoot.Mutation.DeleteRendition == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deleteRendition_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.DeleteRendition(childComplexity, args["id"].(string)), true
+	case "Mutation.deleteStorageLocation":
+		if e.ComplexityRoot.Mutation.DeleteStorageLocation == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deleteStorageLocation_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.DeleteStorageLocation(childComplexity, args["id"].(string)), true
+	case "Mutation.deleteSubtitleTrack":
+		if e.ComplexityRoot.Mutation.DeleteSubtitleTrack == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deleteSubtitleTrack_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.DeleteSubtitleTrack(childComplexity, args["id"].(string)), true
+	case "Mutation.detachFile":
+		if e.ComplexityRoot.Mutation.DetachFile == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_detachFile_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.DetachFile(childComplexity, args["renditionId"].(string), args["fileId"].(string), args["role"].(sqlc.FileRole)), true
+	case "Mutation.editSubtitles":
+		if e.ComplexityRoot.Mutation.EditSubtitles == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_editSubtitles_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.EditSubtitles(childComplexity, args["trackId"].(string), args["cues"].([]*subtitle.Cue)), true
+	case "Mutation.grantAccess":
+		if e.ComplexityRoot.Mutation.GrantAccess == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_grantAccess_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.GrantAccess(childComplexity, args["input"].(access.GrantInput)), true
+	case "Mutation.importSubtitles":
+		if e.ComplexityRoot.Mutation.ImportSubtitles == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_importSubtitles_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.ImportSubtitles(childComplexity, args["input"].(subtitle.ImportInput)), true
+	case "Mutation.linkAssetToProject":
+		if e.ComplexityRoot.Mutation.LinkAssetToProject == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_linkAssetToProject_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.LinkAssetToProject(childComplexity, args["assetId"].(string), args["projectId"].(string), args["role"].(sqlc.LinkRole)), true
+	case "Mutation.registerFile":
+		if e.ComplexityRoot.Mutation.RegisterFile == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_registerFile_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.RegisterFile(childComplexity, args["input"].(file.RegisterInput)), true
+	case "Mutation.removeFileCopy":
+		if e.ComplexityRoot.Mutation.RemoveFileCopy == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_removeFileCopy_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.RemoveFileCopy(childComplexity, args["id"].(string)), true
+	case "Mutation.revokeAccess":
+		if e.ComplexityRoot.Mutation.RevokeAccess == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_revokeAccess_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.RevokeAccess(childComplexity, args["id"].(string)), true
+	case "Mutation.setFileCopyStatus":
+		if e.ComplexityRoot.Mutation.SetFileCopyStatus == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_setFileCopyStatus_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.SetFileCopyStatus(childComplexity, args["id"].(string), args["status"].(sqlc.CopyStatus)), true
+	case "Mutation.setUserAdmin":
+		if e.ComplexityRoot.Mutation.SetUserAdmin == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_setUserAdmin_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.SetUserAdmin(childComplexity, args["user"].(string), args["admin"].(bool)), true
+	case "Mutation.unlinkAssetFromProject":
+		if e.ComplexityRoot.Mutation.UnlinkAssetFromProject == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_unlinkAssetFromProject_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UnlinkAssetFromProject(childComplexity, args["assetId"].(string), args["projectId"].(string), args["role"].(sqlc.LinkRole)), true
+	case "Mutation.updateAsset":
+		if e.ComplexityRoot.Mutation.UpdateAsset == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateAsset_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UpdateAsset(childComplexity, args["id"].(string), args["input"].(asset.Input)), true
+	case "Mutation.updateAssetVersion":
+		if e.ComplexityRoot.Mutation.UpdateAssetVersion == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateAssetVersion_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UpdateAssetVersion(childComplexity, args["id"].(string), args["input"].(asset.VersionInput)), true
+	case "Mutation.updateProgram":
+		if e.ComplexityRoot.Mutation.UpdateProgram == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateProgram_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UpdateProgram(childComplexity, args["id"].(string), args["input"].(project.ProgramInput)), true
+	case "Mutation.updateProject":
+		if e.ComplexityRoot.Mutation.UpdateProject == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateProject_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UpdateProject(childComplexity, args["id"].(string), args["input"].(project.ProjectInput)), true
+	case "Mutation.updateRendition":
+		if e.ComplexityRoot.Mutation.UpdateRendition == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateRendition_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UpdateRendition(childComplexity, args["id"].(string), args["input"].(asset.RenditionInput)), true
+	case "Mutation.updateStorageLocation":
+		if e.ComplexityRoot.Mutation.UpdateStorageLocation == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateStorageLocation_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UpdateStorageLocation(childComplexity, args["id"].(string), args["input"].(file.LocationInput)), true
+
+	case "Program.code":
+		if e.ComplexityRoot.Program.Code == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Program.Code(childComplexity), true
+	case "Program.createdAt":
+		if e.ComplexityRoot.Program.CreatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Program.CreatedAt(childComplexity), true
+	case "Program.description":
+		if e.ComplexityRoot.Program.Description == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Program.Description(childComplexity), true
+	case "Program.id":
+		if e.ComplexityRoot.Program.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Program.ID(childComplexity), true
+	case "Program.metadata":
+		if e.ComplexityRoot.Program.Metadata == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Program.Metadata(childComplexity), true
+	case "Program.name":
+		if e.ComplexityRoot.Program.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Program.Name(childComplexity), true
+	case "Program.projects":
+		if e.ComplexityRoot.Program.Projects == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Program.Projects(childComplexity), true
+	case "Program.updatedAt":
+		if e.ComplexityRoot.Program.UpdatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Program.UpdatedAt(childComplexity), true
+
+	case "Project.code":
+		if e.ComplexityRoot.Project.Code == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Project.Code(childComplexity), true
+	case "Project.createdAt":
+		if e.ComplexityRoot.Project.CreatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Project.CreatedAt(childComplexity), true
+	case "Project.endsOn":
+		if e.ComplexityRoot.Project.EndsOn == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Project.EndsOn(childComplexity), true
+	case "Project.id":
+		if e.ComplexityRoot.Project.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Project.ID(childComplexity), true
+	case "Project.metadata":
+		if e.ComplexityRoot.Project.Metadata == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Project.Metadata(childComplexity), true
+	case "Project.name":
+		if e.ComplexityRoot.Project.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Project.Name(childComplexity), true
+	case "Project.program":
+		if e.ComplexityRoot.Project.Program == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Project.Program(childComplexity), true
+	case "Project.programId":
+		if e.ComplexityRoot.Project.ProgramID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Project.ProgramID(childComplexity), true
+	case "Project.startsOn":
+		if e.ComplexityRoot.Project.StartsOn == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Project.StartsOn(childComplexity), true
+	case "Project.status":
+		if e.ComplexityRoot.Project.Status == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Project.Status(childComplexity), true
+	case "Project.updatedAt":
+		if e.ComplexityRoot.Project.UpdatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Project.UpdatedAt(childComplexity), true
+
+	case "Query.asset":
+		if e.ComplexityRoot.Query.Asset == nil {
+			break
+		}
+
+		args, err := ec.field_Query_asset_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.Asset(childComplexity, args["id"].(string)), true
+	case "Query.assetTypes":
+		if e.ComplexityRoot.Query.AssetTypes == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.AssetTypes(childComplexity), true
+	case "Query.assetVersion":
+		if e.ComplexityRoot.Query.AssetVersion == nil {
+			break
+		}
+
+		args, err := ec.field_Query_assetVersion_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.AssetVersion(childComplexity, args["id"].(string)), true
+	case "Query.assets":
+		if e.ComplexityRoot.Query.Assets == nil {
+			break
+		}
+
+		args, err := ec.field_Query_assets_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.Assets(childComplexity, args["filter"].(*asset.Filter), args["limit"].(*int), args["offset"].(*int)), true
+	case "Query.file":
+		if e.ComplexityRoot.Query.File == nil {
+			break
+		}
+
+		args, err := ec.field_Query_file_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.File(childComplexity, args["id"].(string)), true
+	case "Query.fileByHash":
+		if e.ComplexityRoot.Query.FileByHash == nil {
+			break
+		}
+
+		args, err := ec.field_Query_fileByHash_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.FileByHash(childComplexity, args["hash"].(file.HashInput)), true
+	case "Query.files":
+		if e.ComplexityRoot.Query.Files == nil {
+			break
+		}
+
+		args, err := ec.field_Query_files_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.Files(childComplexity, args["limit"].(*int), args["offset"].(*int)), true
+	case "Query.grants":
+		if e.ComplexityRoot.Query.Grants == nil {
+			break
+		}
+
+		args, err := ec.field_Query_grants_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.Grants(childComplexity, args["scope"].(sqlc.GrantScope), args["scopeId"].(string)), true
+
+	case "Query.languages":
+		if e.ComplexityRoot.Query.Languages == nil {
+			break
+		}
+
+		args, err := ec.field_Query_languages_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.Languages(childComplexity, args["activeOnly"].(bool)), true
+	case "Query.me":
+		if e.ComplexityRoot.Query.Me == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.Me(childComplexity), true
 	case "Query.ping":
 		if e.ComplexityRoot.Query.Ping == nil {
 			break
 		}
 
 		return e.ComplexityRoot.Query.Ping(childComplexity), true
+	case "Query.program":
+		if e.ComplexityRoot.Query.Program == nil {
+			break
+		}
+
+		args, err := ec.field_Query_program_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.Program(childComplexity, args["id"].(string)), true
+	case "Query.programs":
+		if e.ComplexityRoot.Query.Programs == nil {
+			break
+		}
+
+		args, err := ec.field_Query_programs_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.Programs(childComplexity, args["limit"].(*int), args["offset"].(*int)), true
+	case "Query.project":
+		if e.ComplexityRoot.Query.Project == nil {
+			break
+		}
+
+		args, err := ec.field_Query_project_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.Project(childComplexity, args["id"].(string)), true
+	case "Query.projects":
+		if e.ComplexityRoot.Query.Projects == nil {
+			break
+		}
+
+		args, err := ec.field_Query_projects_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.Projects(childComplexity, args["programId"].(*string), args["status"].(*sqlc.ProjectStatus), args["limit"].(*int), args["offset"].(*int)), true
+	case "Query.rendition":
+		if e.ComplexityRoot.Query.Rendition == nil {
+			break
+		}
+
+		args, err := ec.field_Query_rendition_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.Rendition(childComplexity, args["id"].(string)), true
+	case "Query.storageLocations":
+		if e.ComplexityRoot.Query.StorageLocations == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.StorageLocations(childComplexity), true
+	case "Query.subtitleTrack":
+		if e.ComplexityRoot.Query.SubtitleTrack == nil {
+			break
+		}
+
+		args, err := ec.field_Query_subtitleTrack_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.SubtitleTrack(childComplexity, args["id"].(string)), true
+	case "Query.subtitleTracks":
+		if e.ComplexityRoot.Query.SubtitleTracks == nil {
+			break
+		}
+
+		args, err := ec.field_Query_subtitleTracks_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.SubtitleTracks(childComplexity, args["assetId"].(string), args["history"].(bool)), true
+	case "Query.userGroups":
+		if e.ComplexityRoot.Query.UserGroups == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Query.UserGroups(childComplexity), true
+	case "Query.users":
+		if e.ComplexityRoot.Query.Users == nil {
+			break
+		}
+
+		args, err := ec.field_Query_users_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.Users(childComplexity, args["limit"].(*int), args["offset"].(*int)), true
+
+	case "Rendition.createdAt":
+		if e.ComplexityRoot.Rendition.CreatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Rendition.CreatedAt(childComplexity), true
+	case "Rendition.files":
+		if e.ComplexityRoot.Rendition.Files == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Rendition.Files(childComplexity), true
+	case "Rendition.id":
+		if e.ComplexityRoot.Rendition.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Rendition.ID(childComplexity), true
+	case "Rendition.kind":
+		if e.ComplexityRoot.Rendition.Kind == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Rendition.Kind(childComplexity), true
+	case "Rendition.language":
+		if e.ComplexityRoot.Rendition.Language == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Rendition.Language(childComplexity), true
+	case "Rendition.metadata":
+		if e.ComplexityRoot.Rendition.Metadata == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Rendition.Metadata(childComplexity), true
+	case "Rendition.overrides":
+		if e.ComplexityRoot.Rendition.Overrides == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Rendition.Overrides(childComplexity), true
+	case "Rendition.purpose":
+		if e.ComplexityRoot.Rendition.Purpose == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Rendition.Purpose(childComplexity), true
+	case "Rendition.subtitleTracks":
+		if e.ComplexityRoot.Rendition.SubtitleTracks == nil {
+			break
+		}
+
+		args, err := ec.field_Rendition_subtitleTracks_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Rendition.SubtitleTracks(childComplexity, args["history"].(bool)), true
+	case "Rendition.versionId":
+		if e.ComplexityRoot.Rendition.VersionID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Rendition.VersionID(childComplexity), true
+
+	case "RenditionFile.file":
+		if e.ComplexityRoot.RenditionFile.File == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RenditionFile.File(childComplexity), true
+	case "RenditionFile.fileId":
+		if e.ComplexityRoot.RenditionFile.FileID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RenditionFile.FileID(childComplexity), true
+	case "RenditionFile.position":
+		if e.ComplexityRoot.RenditionFile.Position == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RenditionFile.Position(childComplexity), true
+	case "RenditionFile.renditionId":
+		if e.ComplexityRoot.RenditionFile.RenditionID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RenditionFile.RenditionID(childComplexity), true
+	case "RenditionFile.role":
+		if e.ComplexityRoot.RenditionFile.Role == nil {
+			break
+		}
+
+		return e.ComplexityRoot.RenditionFile.Role(childComplexity), true
+
+	case "StorageLocation.baseUri":
+		if e.ComplexityRoot.StorageLocation.BaseUri == nil {
+			break
+		}
+
+		return e.ComplexityRoot.StorageLocation.BaseUri(childComplexity), true
+	case "StorageLocation.createdAt":
+		if e.ComplexityRoot.StorageLocation.CreatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.StorageLocation.CreatedAt(childComplexity), true
+	case "StorageLocation.id":
+		if e.ComplexityRoot.StorageLocation.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.StorageLocation.ID(childComplexity), true
+	case "StorageLocation.kind":
+		if e.ComplexityRoot.StorageLocation.Kind == nil {
+			break
+		}
+
+		return e.ComplexityRoot.StorageLocation.Kind(childComplexity), true
+	case "StorageLocation.name":
+		if e.ComplexityRoot.StorageLocation.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.StorageLocation.Name(childComplexity), true
+	case "StorageLocation.online":
+		if e.ComplexityRoot.StorageLocation.Online == nil {
+			break
+		}
+
+		return e.ComplexityRoot.StorageLocation.Online(childComplexity), true
+
+	case "SubtitleCue.endMs":
+		if e.ComplexityRoot.SubtitleCue.EndMs == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SubtitleCue.EndMs(childComplexity), true
+	case "SubtitleCue.seq":
+		if e.ComplexityRoot.SubtitleCue.Seq == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SubtitleCue.Seq(childComplexity), true
+	case "SubtitleCue.speaker":
+		if e.ComplexityRoot.SubtitleCue.Speaker == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SubtitleCue.Speaker(childComplexity), true
+	case "SubtitleCue.startMs":
+		if e.ComplexityRoot.SubtitleCue.StartMs == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SubtitleCue.StartMs(childComplexity), true
+	case "SubtitleCue.text":
+		if e.ComplexityRoot.SubtitleCue.Text == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SubtitleCue.Text(childComplexity), true
+
+	case "SubtitleTrack.assetId":
+		if e.ComplexityRoot.SubtitleTrack.AssetID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SubtitleTrack.AssetID(childComplexity), true
+	case "SubtitleTrack.createdAt":
+		if e.ComplexityRoot.SubtitleTrack.CreatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SubtitleTrack.CreatedAt(childComplexity), true
+	case "SubtitleTrack.createdBy":
+		if e.ComplexityRoot.SubtitleTrack.CreatedBy == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SubtitleTrack.CreatedBy(childComplexity), true
+	case "SubtitleTrack.cues":
+		if e.ComplexityRoot.SubtitleTrack.Cues == nil {
+			break
+		}
+
+		args, err := ec.field_SubtitleTrack_cues_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.SubtitleTrack.Cues(childComplexity, args["limit"].(*int), args["offset"].(*int)), true
+	case "SubtitleTrack.export":
+		if e.ComplexityRoot.SubtitleTrack.Export == nil {
+			break
+		}
+
+		args, err := ec.field_SubtitleTrack_export_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.SubtitleTrack.Export(childComplexity, args["format"].(subtitle.Format)), true
+	case "SubtitleTrack.id":
+		if e.ComplexityRoot.SubtitleTrack.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SubtitleTrack.ID(childComplexity), true
+	case "SubtitleTrack.kind":
+		if e.ComplexityRoot.SubtitleTrack.Kind == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SubtitleTrack.Kind(childComplexity), true
+	case "SubtitleTrack.language":
+		if e.ComplexityRoot.SubtitleTrack.Language == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SubtitleTrack.Language(childComplexity), true
+	case "SubtitleTrack.origin":
+		if e.ComplexityRoot.SubtitleTrack.Origin == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SubtitleTrack.Origin(childComplexity), true
+	case "SubtitleTrack.parentId":
+		if e.ComplexityRoot.SubtitleTrack.ParentID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SubtitleTrack.ParentID(childComplexity), true
+	case "SubtitleTrack.renditionId":
+		if e.ComplexityRoot.SubtitleTrack.RenditionID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SubtitleTrack.RenditionID(childComplexity), true
+	case "SubtitleTrack.revision":
+		if e.ComplexityRoot.SubtitleTrack.Revision == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SubtitleTrack.Revision(childComplexity), true
+	case "SubtitleTrack.sourceFileId":
+		if e.ComplexityRoot.SubtitleTrack.SourceFileID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SubtitleTrack.SourceFileID(childComplexity), true
+
+	case "User.active":
+		if e.ComplexityRoot.User.Active == nil {
+			break
+		}
+
+		return e.ComplexityRoot.User.Active(childComplexity), true
+	case "User.createdAt":
+		if e.ComplexityRoot.User.CreatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.User.CreatedAt(childComplexity), true
+	case "User.email":
+		if e.ComplexityRoot.User.Email == nil {
+			break
+		}
+
+		return e.ComplexityRoot.User.Email(childComplexity), true
+	case "User.externalId":
+		if e.ComplexityRoot.User.ExternalID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.User.ExternalID(childComplexity), true
+	case "User.id":
+		if e.ComplexityRoot.User.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.User.ID(childComplexity), true
+	case "User.isAdmin":
+		if e.ComplexityRoot.User.IsAdmin == nil {
+			break
+		}
+
+		return e.ComplexityRoot.User.IsAdmin(childComplexity), true
+	case "User.name":
+		if e.ComplexityRoot.User.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.User.Name(childComplexity), true
+
+	case "UserGroup.description":
+		if e.ComplexityRoot.UserGroup.Description == nil {
+			break
+		}
+
+		return e.ComplexityRoot.UserGroup.Description(childComplexity), true
+	case "UserGroup.externalId":
+		if e.ComplexityRoot.UserGroup.ExternalID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.UserGroup.ExternalID(childComplexity), true
+	case "UserGroup.id":
+		if e.ComplexityRoot.UserGroup.ID == nil {
+			break
+		}
+
+		return e.ComplexityRoot.UserGroup.ID(childComplexity), true
+	case "UserGroup.name":
+		if e.ComplexityRoot.UserGroup.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.UserGroup.Name(childComplexity), true
 
 	}
 	return 0, false
@@ -171,7 +1883,24 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 	opCtx := graphql.GetOperationContext(ctx)
 	ec := newExecutionContext(opCtx, e, make(chan graphql.DeferredResult))
 	inputUnmarshalers := func() *graphql.InputUnmarshalerIndex {
-		return graphql.NewInputUnmarshalerIndex()
+		return graphql.NewInputUnmarshalerIndex(
+			graphql.NewInputUnmarshaler("AssetFilter", ec.unmarshalInputAssetFilter),
+			graphql.NewInputUnmarshaler("AssetInput", ec.unmarshalInputAssetInput),
+			graphql.NewInputUnmarshaler("CreateProgramInput", ec.unmarshalInputCreateProgramInput),
+			graphql.NewInputUnmarshaler("CreateProjectInput", ec.unmarshalInputCreateProjectInput),
+			graphql.NewInputUnmarshaler("CreateRenditionInput", ec.unmarshalInputCreateRenditionInput),
+			graphql.NewInputUnmarshaler("FileCopyInput", ec.unmarshalInputFileCopyInput),
+			graphql.NewInputUnmarshaler("FileHashInput", ec.unmarshalInputFileHashInput),
+			graphql.NewInputUnmarshaler("GrantInput", ec.unmarshalInputGrantInput),
+			graphql.NewInputUnmarshaler("ImportSubtitlesInput", ec.unmarshalInputImportSubtitlesInput),
+			graphql.NewInputUnmarshaler("RegisterFileInput", ec.unmarshalInputRegisterFileInput),
+			graphql.NewInputUnmarshaler("StorageLocationInput", ec.unmarshalInputStorageLocationInput),
+			graphql.NewInputUnmarshaler("SubtitleCueInput", ec.unmarshalInputSubtitleCueInput),
+			graphql.NewInputUnmarshaler("UpdateProgramInput", ec.unmarshalInputUpdateProgramInput),
+			graphql.NewInputUnmarshaler("UpdateProjectInput", ec.unmarshalInputUpdateProjectInput),
+			graphql.NewInputUnmarshaler("UpdateRenditionInput", ec.unmarshalInputUpdateRenditionInput),
+			graphql.NewInputUnmarshaler("VersionInput", ec.unmarshalInputVersionInput),
+		)
 	}
 	first := true
 
@@ -247,25 +1976,493 @@ func newExecutionContext(
 }
 
 var sources = []*ast.Source{
-	{Name: "../schema/dummy.graphqls", Input: `# PLACEHOLDER types — replace with the real media model.
+	{Name: "../schema/access.graphqls", Input: `"Ordered: each level includes the ones before it."
+enum PermissionLevel {
+  VIEW
+  DOWNLOAD_ORIGINAL
+  EDIT
+  DELETE
+  ADMIN
+}
 
-type Dummy {
+enum GrantScope {
+  PROGRAM
+  PROJECT
+  ASSET
+}
+
+type User {
   id: ID!
-  name: String!
+  externalId: String!
+  email: String
+  name: String
+  active: Boolean!
+  "System administrators bypass all grant checks."
+  isAdmin: Boolean!
   createdAt: Time!
 }
 
+type UserGroup {
+  id: ID!
+  name: String!
+  "Set for groups that come from the identity provider."
+  externalId: String
+  description: String
+}
+
+"Access given to one user or one group on a program, project or asset."
+type Grant {
+  id: ID!
+  scope: GrantScope!
+  scopeId: ID!
+  level: PermissionLevel!
+  userId: ID
+  groupId: ID
+  grantedBy: ID
+  grantedAt: Time!
+  expiresAt: Time
+}
+
+input GrantInput {
+  scope: GrantScope!
+  scopeId: ID!
+  "Exactly one of userId, userEmail and groupId."
+  userId: ID
+  userEmail: String
+  groupId: ID
+  level: PermissionLevel!
+  expiresAt: Time
+}
+
 extend type Query {
-  dummy(id: ID!): Dummy
-  dummies(limit: Int = 50, offset: Int = 0): [Dummy!]!
+  me: User!
+  "Administrators only."
+  users(limit: Int = 50, offset: Int = 0): [User!]!
+  "Administrators only."
+  userGroups: [UserGroup!]!
+  "Needs ADMIN on the object."
+  grants(scope: GrantScope!, scopeId: ID!): [Grant!]!
 }
 
 extend type Mutation {
-  createDummy(name: String!): Dummy!
-  deleteDummy(id: ID!): Boolean!
+  "Needs ADMIN on the object."
+  grantAccess(input: GrantInput!): Grant!
+  revokeAccess(id: ID!): Boolean!
+  "Administrators only. user is a user id or email."
+  setUserAdmin(user: String!, admin: Boolean!): User!
+}
+`, BuiltIn: false},
+	{Name: "../schema/asset.graphqls", Input: `enum LinkRole {
+  SOURCE
+  DELIVERABLE
+  REFERENCE
+}
+
+enum LinkOrigin {
+  FOLDER
+  MANUAL
+}
+
+enum VersionStatus {
+  DRAFT
+  REVIEW
+  APPROVED
+  FINAL
+}
+
+enum RenditionKind {
+  MASTER
+  ENCODE
+  DUB
+  SIGN
+  SUBTITLE
+  AUDIO
+  OTHER
+}
+
+enum FileRole {
+  VIDEO
+  AUDIO
+  SUBTITLE
+  SIDECAR
+  PACKAGE
+}
+
+enum LanguageModality {
+  SPOKEN
+  SIGNED
+  NONE
+  SPECIAL
+}
+
+type AssetType {
+  id: Int!
+  name: String!
+  description: String
+}
+
+type Language {
+  "BCP 47 tag."
+  code: String!
+  name: String!
+  nativeName: String
+  modality: LanguageModality!
+  baseCode: String
+  altCodes: [String!]!
+  active: Boolean!
+}
+
+"The logical item, for example one camera clip or one finished programme."
+type Asset {
+  id: ID!
+  typeId: Int!
+  title: String!
+  description: String
+  capturedAt: Time
+  camera: String
+  reel: String
+  metadata: JSON!
+  legacyIds: [String!]!
+  originalLanguage: String
+  createdAt: Time!
+  updatedAt: Time!
+  type: AssetType!
+  "The caller's permission level on this asset."
+  myLevel: PermissionLevel!
+  versions: [AssetVersion!]!
+  projects: [AssetProjectLink!]!
+}
+
+type AssetProjectLink {
+  assetId: ID!
+  projectId: ID!
+  role: LinkRole!
+  linkedBy: LinkOrigin!
+  createdAt: Time!
+  "Null when the caller may not see the project."
+  project: Project
+}
+
+"One edit of an asset: rough cut, review 1, final."
+type AssetVersion {
+  id: ID!
+  assetId: ID!
+  number: Int!
+  label: String
+  status: VersionStatus!
+  createdBy: ID
+  createdAt: Time!
+  renditions: [Rendition!]!
+}
+
+"One concrete form of a version: master, encode, dub, subtitles."
+type Rendition {
+  id: ID!
+  versionId: ID!
+  kind: RenditionKind!
+  language: String
+  purpose: String
+  overrides: JSON!
+  metadata: JSON!
+  createdAt: Time!
+  files: [RenditionFile!]!
+  "The latest revision, or every revision with history."
+  subtitleTracks(history: Boolean! = false): [SubtitleTrack!]!
+}
+
+type RenditionFile {
+  renditionId: ID!
+  fileId: ID!
+  role: FileRole!
+  position: Int!
+  file: File!
+}
+
+input AssetInput {
+  typeId: Int!
+  title: String!
+  description: String
+  capturedAt: Time
+  camera: String
+  reel: String
+  metadata: JSON
+  legacyIds: [String!]
+  originalLanguage: String
+}
+
+input AssetFilter {
+  typeId: Int
+  projectId: ID
+  "Case-insensitive part of the title."
+  title: String
+  legacyId: String
+}
+
+input VersionInput {
+  label: String
+  status: VersionStatus
+}
+
+input CreateRenditionInput {
+  kind: RenditionKind!
+  language: String
+  purpose: String
+  overrides: JSON
+  metadata: JSON
+}
+
+input UpdateRenditionInput {
+  language: String
+  purpose: String
+  overrides: JSON
+  metadata: JSON
+}
+
+extend type Query {
+  assetTypes: [AssetType!]!
+  languages(activeOnly: Boolean! = true): [Language!]!
+  asset(id: ID!): Asset
+  "Newest first."
+  assets(filter: AssetFilter, limit: Int = 50, offset: Int = 0): [Asset!]!
+  assetVersion(id: ID!): AssetVersion
+  rendition(id: ID!): Rendition
+}
+
+extend type Mutation {
+  "Needs EDIT on the project. Only administrators may leave projectId out."
+  createAsset(projectId: ID, input: AssetInput!): Asset!
+  "Replaces all editable fields."
+  updateAsset(id: ID!, input: AssetInput!): Asset!
+  "Removes the asset with its versions, renditions and subtitles. Files stay."
+  deleteAsset(id: ID!): Boolean!
+  "Needs EDIT on both the asset and the project."
+  linkAssetToProject(assetId: ID!, projectId: ID!, role: LinkRole!): AssetProjectLink!
+  unlinkAssetFromProject(assetId: ID!, projectId: ID!, role: LinkRole!): Boolean!
+  createAssetVersion(assetId: ID!, input: VersionInput!): AssetVersion!
+  updateAssetVersion(id: ID!, input: VersionInput!): AssetVersion!
+  deleteAssetVersion(id: ID!): Boolean!
+  createRendition(versionId: ID!, input: CreateRenditionInput!): Rendition!
+  updateRendition(id: ID!, input: UpdateRenditionInput!): Rendition!
+  deleteRendition(id: ID!): Boolean!
+  "The caller must already be able to see the file."
+  attachFile(renditionId: ID!, fileId: ID!, role: FileRole!, position: Int! = 0): RenditionFile!
+  detachFile(renditionId: ID!, fileId: ID!, role: FileRole!): Boolean!
+}
+`, BuiltIn: false},
+	{Name: "../schema/file.graphqls", Input: `enum LocationKind {
+  NAS
+  LTO
+  S3
+  LOCAL
+}
+
+enum HashAlgo {
+  XXH3_128
+  BLAKE3
+  SHA256
+  MD5
+}
+
+enum CopyStatus {
+  PRESENT
+  MISSING
+  MISMATCH
+}
+
+type StorageLocation {
+  id: ID!
+  name: String!
+  kind: LocationKind!
+  baseUri: String!
+  online: Boolean!
+  createdAt: Time!
+}
+
+"Unique content, identified by its hashes rather than by a path."
+type File {
+  id: ID!
+  sizeBytes: Int64!
+  mimeType: String
+  durationMs: Int64
+  codec: String
+  width: Int
+  height: Int
+  "Raw ffprobe output."
+  probe: JSON!
+  createdAt: Time!
+  hashes: [FileHash!]!
+  "Where the file is stored. Empty below DOWNLOAD_ORIGINAL."
+  copies: [FileCopy!]!
+}
+
+type FileHash {
+  algo: HashAlgo!
+  "Hex encoded."
+  value: String!
+  computedAt: Time!
+}
+
+type FileCopy {
+  id: ID!
+  fileId: ID!
+  locationId: ID!
+  "Relative to the storage location's base URI."
+  path: String!
+  status: CopyStatus!
+  lastSeenAt: Time
+  lastVerifiedAt: Time
+  location: StorageLocation!
+}
+
+input StorageLocationInput {
+  name: String!
+  kind: LocationKind!
+  baseUri: String!
+  online: Boolean! = true
+}
+
+input FileHashInput {
+  algo: HashAlgo!
+  "Hex encoded."
+  value: String!
+}
+
+input FileCopyInput {
+  locationId: ID!
+  path: String!
+}
+
+input RegisterFileInput {
+  sizeBytes: Int64!
+  mimeType: String
+  durationMs: Int64
+  codec: String
+  width: Int
+  height: Int
+  probe: JSON
+  "At least one."
+  hashes: [FileHashInput!]!
+  copies: [FileCopyInput!]
+}
+
+extend type Query {
+  "Visible through an asset the caller can view."
+  file(id: ID!): File
+  fileByHash(hash: FileHashInput!): File
+  "Administrators only."
+  files(limit: Int = 50, offset: Int = 0): [File!]!
+  "Administrators only."
+  storageLocations: [StorageLocation!]!
+}
+
+# All file and storage mutations are for administrators only.
+extend type Mutation {
+  createStorageLocation(input: StorageLocationInput!): StorageLocation!
+  updateStorageLocation(id: ID!, input: StorageLocationInput!): StorageLocation!
+  deleteStorageLocation(id: ID!): Boolean!
+  "Returns the existing file when one of the hashes is already known, adding new hashes and copies to it."
+  registerFile(input: RegisterFileInput!): File!
+  addFileCopy(fileId: ID!, copy: FileCopyInput!): FileCopy!
+  setFileCopyStatus(id: ID!, status: CopyStatus!): FileCopy!
+  removeFileCopy(id: ID!): Boolean!
+  "Fails while the file has copies or is used by a rendition."
+  deleteFile(id: ID!): Boolean!
+}
+`, BuiltIn: false},
+	{Name: "../schema/project.graphqls", Input: `enum ProjectStatus {
+  PLANNED
+  ACTIVE
+  DELIVERED
+  ARCHIVED
+}
+
+type Program {
+  id: ID!
+  code: String!
+  name: String!
+  description: String
+  metadata: JSON!
+  createdAt: Time!
+  updatedAt: Time!
+  "The projects the caller may see."
+  projects: [Project!]!
+}
+
+type Project {
+  id: ID!
+  programId: ID!
+  code: String!
+  name: String!
+  status: ProjectStatus!
+  startsOn: Date
+  endsOn: Date
+  metadata: JSON!
+  createdAt: Time!
+  updatedAt: Time!
+  program: Program!
+}
+
+input CreateProgramInput {
+  "4-5 capital letters."
+  code: String!
+  name: String!
+  description: String
+  metadata: JSON
+}
+
+input UpdateProgramInput {
+  name: String!
+  description: String
+  metadata: JSON
+}
+
+input CreateProjectInput {
+  programId: ID!
+  "The program's code, an underscore, then letters, digits or underscores."
+  code: String!
+  name: String!
+  status: ProjectStatus
+  startsOn: Date
+  endsOn: Date
+  metadata: JSON
+}
+
+input UpdateProjectInput {
+  name: String!
+  status: ProjectStatus
+  startsOn: Date
+  endsOn: Date
+  metadata: JSON
+}
+
+extend type Query {
+  program(id: ID!): Program
+  programs(limit: Int = 50, offset: Int = 0): [Program!]!
+  project(id: ID!): Project
+  projects(programId: ID, status: ProjectStatus, limit: Int = 50, offset: Int = 0): [Project!]!
+}
+
+extend type Mutation {
+  "Administrators only."
+  createProgram(input: CreateProgramInput!): Program!
+  "Replaces all editable fields."
+  updateProgram(id: ID!, input: UpdateProgramInput!): Program!
+  "Administrators only. Fails while the program has projects."
+  deleteProgram(id: ID!): Boolean!
+  "Needs EDIT on the program."
+  createProject(input: CreateProjectInput!): Project!
+  "Replaces all editable fields."
+  updateProject(id: ID!, input: UpdateProjectInput!): Project!
+  deleteProject(id: ID!): Boolean!
 }
 `, BuiltIn: false},
 	{Name: "../schema/schema.graphqls", Input: `scalar Time
+"Calendar date, YYYY-MM-DD."
+scalar Date
+"Any JSON value. Metadata fields must be JSON objects."
+scalar JSON
+"64-bit integer, sent as a JSON number."
+scalar Int64
 
 type Query {
   "Liveness check that also proves the GraphQL stack is wired."
@@ -274,6 +2471,83 @@ type Query {
 
 type Mutation
 `, BuiltIn: false},
+	{Name: "../schema/subtitle.graphqls", Input: `enum TrackKind {
+  SUBTITLE
+  CC
+  TRANSCRIPT
+}
+
+enum TrackOrigin {
+  IMPORT
+  ASR
+  MANUAL
+}
+
+enum SubtitleFormat {
+  SRT
+  VTT
+}
+
+"One revision of a rendition's subtitles. Revisions are never changed; edits add a new one."
+type SubtitleTrack {
+  id: ID!
+  renditionId: ID!
+  assetId: ID!
+  sourceFileId: ID
+  language: String
+  kind: TrackKind!
+  origin: TrackOrigin!
+  revision: Int!
+  "The revision this one replaced."
+  parentId: ID
+  createdBy: ID
+  createdAt: Time!
+  "At most 5000 per page."
+  cues(limit: Int = 500, offset: Int = 0): [SubtitleCue!]!
+  "The whole track as subtitle text. SRT drops speakers."
+  export(format: SubtitleFormat!): String!
+}
+
+type SubtitleCue {
+  seq: Int!
+  startMs: Int!
+  endMs: Int!
+  text: String!
+  speaker: String
+}
+
+input ImportSubtitlesInput {
+  versionId: ID!
+  "BCP 47 tag. Each language has its own subtitle rendition."
+  language: String
+  kind: TrackKind
+  format: SubtitleFormat!
+  "The subtitle file's text, at most 5 MB."
+  content: String!
+  "The registered file the text came from, if any."
+  sourceFileId: ID
+}
+
+input SubtitleCueInput {
+  startMs: Int!
+  endMs: Int!
+  text: String!
+  speaker: String
+}
+
+extend type Query {
+  subtitleTrack(id: ID!): SubtitleTrack
+  subtitleTracks(assetId: ID!, history: Boolean! = false): [SubtitleTrack!]!
+}
+
+extend type Mutation {
+  "Adds a new revision for the language on the version."
+  importSubtitles(input: ImportSubtitlesInput!): SubtitleTrack!
+  "Writes a new revision with exactly these cues. Only the latest revision can be edited."
+  editSubtitles(trackId: ID!, cues: [SubtitleCueInput!]!): SubtitleTrack!
+  deleteSubtitleTrack(id: ID!): Boolean!
+}
+`, BuiltIn: false},
 }
 var parsedSchema = gqlparser.MustLoadSchema(sources...)
 
@@ -281,16 +2555,392 @@ var parsedSchema = gqlparser.MustLoadSchema(sources...)
 // Each function is generated once per unique object type, deduplicating the
 // switch statements that were previously inlined in every fieldContext_* function.
 
-func (ec *executionContext) childFields_Dummy(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+func (ec *executionContext) childFields_Asset(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "id":
-		return ec.fieldContext_Dummy_id(ctx, field)
-	case "name":
-		return ec.fieldContext_Dummy_name(ctx, field)
+		return ec.fieldContext_Asset_id(ctx, field)
+	case "typeId":
+		return ec.fieldContext_Asset_typeId(ctx, field)
+	case "title":
+		return ec.fieldContext_Asset_title(ctx, field)
+	case "description":
+		return ec.fieldContext_Asset_description(ctx, field)
+	case "capturedAt":
+		return ec.fieldContext_Asset_capturedAt(ctx, field)
+	case "camera":
+		return ec.fieldContext_Asset_camera(ctx, field)
+	case "reel":
+		return ec.fieldContext_Asset_reel(ctx, field)
+	case "metadata":
+		return ec.fieldContext_Asset_metadata(ctx, field)
+	case "legacyIds":
+		return ec.fieldContext_Asset_legacyIds(ctx, field)
+	case "originalLanguage":
+		return ec.fieldContext_Asset_originalLanguage(ctx, field)
 	case "createdAt":
-		return ec.fieldContext_Dummy_createdAt(ctx, field)
+		return ec.fieldContext_Asset_createdAt(ctx, field)
+	case "updatedAt":
+		return ec.fieldContext_Asset_updatedAt(ctx, field)
+	case "type":
+		return ec.fieldContext_Asset_type(ctx, field)
+	case "myLevel":
+		return ec.fieldContext_Asset_myLevel(ctx, field)
+	case "versions":
+		return ec.fieldContext_Asset_versions(ctx, field)
+	case "projects":
+		return ec.fieldContext_Asset_projects(ctx, field)
 	}
-	return nil, fmt.Errorf("no field named %q was found under type Dummy", field.Name)
+	return nil, fmt.Errorf("no field named %q was found under type Asset", field.Name)
+}
+
+func (ec *executionContext) childFields_AssetProjectLink(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "assetId":
+		return ec.fieldContext_AssetProjectLink_assetId(ctx, field)
+	case "projectId":
+		return ec.fieldContext_AssetProjectLink_projectId(ctx, field)
+	case "role":
+		return ec.fieldContext_AssetProjectLink_role(ctx, field)
+	case "linkedBy":
+		return ec.fieldContext_AssetProjectLink_linkedBy(ctx, field)
+	case "createdAt":
+		return ec.fieldContext_AssetProjectLink_createdAt(ctx, field)
+	case "project":
+		return ec.fieldContext_AssetProjectLink_project(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type AssetProjectLink", field.Name)
+}
+
+func (ec *executionContext) childFields_AssetType(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_AssetType_id(ctx, field)
+	case "name":
+		return ec.fieldContext_AssetType_name(ctx, field)
+	case "description":
+		return ec.fieldContext_AssetType_description(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type AssetType", field.Name)
+}
+
+func (ec *executionContext) childFields_AssetVersion(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_AssetVersion_id(ctx, field)
+	case "assetId":
+		return ec.fieldContext_AssetVersion_assetId(ctx, field)
+	case "number":
+		return ec.fieldContext_AssetVersion_number(ctx, field)
+	case "label":
+		return ec.fieldContext_AssetVersion_label(ctx, field)
+	case "status":
+		return ec.fieldContext_AssetVersion_status(ctx, field)
+	case "createdBy":
+		return ec.fieldContext_AssetVersion_createdBy(ctx, field)
+	case "createdAt":
+		return ec.fieldContext_AssetVersion_createdAt(ctx, field)
+	case "renditions":
+		return ec.fieldContext_AssetVersion_renditions(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type AssetVersion", field.Name)
+}
+
+func (ec *executionContext) childFields_File(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_File_id(ctx, field)
+	case "sizeBytes":
+		return ec.fieldContext_File_sizeBytes(ctx, field)
+	case "mimeType":
+		return ec.fieldContext_File_mimeType(ctx, field)
+	case "durationMs":
+		return ec.fieldContext_File_durationMs(ctx, field)
+	case "codec":
+		return ec.fieldContext_File_codec(ctx, field)
+	case "width":
+		return ec.fieldContext_File_width(ctx, field)
+	case "height":
+		return ec.fieldContext_File_height(ctx, field)
+	case "probe":
+		return ec.fieldContext_File_probe(ctx, field)
+	case "createdAt":
+		return ec.fieldContext_File_createdAt(ctx, field)
+	case "hashes":
+		return ec.fieldContext_File_hashes(ctx, field)
+	case "copies":
+		return ec.fieldContext_File_copies(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type File", field.Name)
+}
+
+func (ec *executionContext) childFields_FileCopy(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_FileCopy_id(ctx, field)
+	case "fileId":
+		return ec.fieldContext_FileCopy_fileId(ctx, field)
+	case "locationId":
+		return ec.fieldContext_FileCopy_locationId(ctx, field)
+	case "path":
+		return ec.fieldContext_FileCopy_path(ctx, field)
+	case "status":
+		return ec.fieldContext_FileCopy_status(ctx, field)
+	case "lastSeenAt":
+		return ec.fieldContext_FileCopy_lastSeenAt(ctx, field)
+	case "lastVerifiedAt":
+		return ec.fieldContext_FileCopy_lastVerifiedAt(ctx, field)
+	case "location":
+		return ec.fieldContext_FileCopy_location(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type FileCopy", field.Name)
+}
+
+func (ec *executionContext) childFields_FileHash(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "algo":
+		return ec.fieldContext_FileHash_algo(ctx, field)
+	case "value":
+		return ec.fieldContext_FileHash_value(ctx, field)
+	case "computedAt":
+		return ec.fieldContext_FileHash_computedAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type FileHash", field.Name)
+}
+
+func (ec *executionContext) childFields_Grant(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_Grant_id(ctx, field)
+	case "scope":
+		return ec.fieldContext_Grant_scope(ctx, field)
+	case "scopeId":
+		return ec.fieldContext_Grant_scopeId(ctx, field)
+	case "level":
+		return ec.fieldContext_Grant_level(ctx, field)
+	case "userId":
+		return ec.fieldContext_Grant_userId(ctx, field)
+	case "groupId":
+		return ec.fieldContext_Grant_groupId(ctx, field)
+	case "grantedBy":
+		return ec.fieldContext_Grant_grantedBy(ctx, field)
+	case "grantedAt":
+		return ec.fieldContext_Grant_grantedAt(ctx, field)
+	case "expiresAt":
+		return ec.fieldContext_Grant_expiresAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type Grant", field.Name)
+}
+
+func (ec *executionContext) childFields_Language(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "code":
+		return ec.fieldContext_Language_code(ctx, field)
+	case "name":
+		return ec.fieldContext_Language_name(ctx, field)
+	case "nativeName":
+		return ec.fieldContext_Language_nativeName(ctx, field)
+	case "modality":
+		return ec.fieldContext_Language_modality(ctx, field)
+	case "baseCode":
+		return ec.fieldContext_Language_baseCode(ctx, field)
+	case "altCodes":
+		return ec.fieldContext_Language_altCodes(ctx, field)
+	case "active":
+		return ec.fieldContext_Language_active(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type Language", field.Name)
+}
+
+func (ec *executionContext) childFields_Program(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_Program_id(ctx, field)
+	case "code":
+		return ec.fieldContext_Program_code(ctx, field)
+	case "name":
+		return ec.fieldContext_Program_name(ctx, field)
+	case "description":
+		return ec.fieldContext_Program_description(ctx, field)
+	case "metadata":
+		return ec.fieldContext_Program_metadata(ctx, field)
+	case "createdAt":
+		return ec.fieldContext_Program_createdAt(ctx, field)
+	case "updatedAt":
+		return ec.fieldContext_Program_updatedAt(ctx, field)
+	case "projects":
+		return ec.fieldContext_Program_projects(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type Program", field.Name)
+}
+
+func (ec *executionContext) childFields_Project(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_Project_id(ctx, field)
+	case "programId":
+		return ec.fieldContext_Project_programId(ctx, field)
+	case "code":
+		return ec.fieldContext_Project_code(ctx, field)
+	case "name":
+		return ec.fieldContext_Project_name(ctx, field)
+	case "status":
+		return ec.fieldContext_Project_status(ctx, field)
+	case "startsOn":
+		return ec.fieldContext_Project_startsOn(ctx, field)
+	case "endsOn":
+		return ec.fieldContext_Project_endsOn(ctx, field)
+	case "metadata":
+		return ec.fieldContext_Project_metadata(ctx, field)
+	case "createdAt":
+		return ec.fieldContext_Project_createdAt(ctx, field)
+	case "updatedAt":
+		return ec.fieldContext_Project_updatedAt(ctx, field)
+	case "program":
+		return ec.fieldContext_Project_program(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type Project", field.Name)
+}
+
+func (ec *executionContext) childFields_Rendition(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_Rendition_id(ctx, field)
+	case "versionId":
+		return ec.fieldContext_Rendition_versionId(ctx, field)
+	case "kind":
+		return ec.fieldContext_Rendition_kind(ctx, field)
+	case "language":
+		return ec.fieldContext_Rendition_language(ctx, field)
+	case "purpose":
+		return ec.fieldContext_Rendition_purpose(ctx, field)
+	case "overrides":
+		return ec.fieldContext_Rendition_overrides(ctx, field)
+	case "metadata":
+		return ec.fieldContext_Rendition_metadata(ctx, field)
+	case "createdAt":
+		return ec.fieldContext_Rendition_createdAt(ctx, field)
+	case "files":
+		return ec.fieldContext_Rendition_files(ctx, field)
+	case "subtitleTracks":
+		return ec.fieldContext_Rendition_subtitleTracks(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type Rendition", field.Name)
+}
+
+func (ec *executionContext) childFields_RenditionFile(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "renditionId":
+		return ec.fieldContext_RenditionFile_renditionId(ctx, field)
+	case "fileId":
+		return ec.fieldContext_RenditionFile_fileId(ctx, field)
+	case "role":
+		return ec.fieldContext_RenditionFile_role(ctx, field)
+	case "position":
+		return ec.fieldContext_RenditionFile_position(ctx, field)
+	case "file":
+		return ec.fieldContext_RenditionFile_file(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type RenditionFile", field.Name)
+}
+
+func (ec *executionContext) childFields_StorageLocation(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_StorageLocation_id(ctx, field)
+	case "name":
+		return ec.fieldContext_StorageLocation_name(ctx, field)
+	case "kind":
+		return ec.fieldContext_StorageLocation_kind(ctx, field)
+	case "baseUri":
+		return ec.fieldContext_StorageLocation_baseUri(ctx, field)
+	case "online":
+		return ec.fieldContext_StorageLocation_online(ctx, field)
+	case "createdAt":
+		return ec.fieldContext_StorageLocation_createdAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type StorageLocation", field.Name)
+}
+
+func (ec *executionContext) childFields_SubtitleCue(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "seq":
+		return ec.fieldContext_SubtitleCue_seq(ctx, field)
+	case "startMs":
+		return ec.fieldContext_SubtitleCue_startMs(ctx, field)
+	case "endMs":
+		return ec.fieldContext_SubtitleCue_endMs(ctx, field)
+	case "text":
+		return ec.fieldContext_SubtitleCue_text(ctx, field)
+	case "speaker":
+		return ec.fieldContext_SubtitleCue_speaker(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type SubtitleCue", field.Name)
+}
+
+func (ec *executionContext) childFields_SubtitleTrack(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_SubtitleTrack_id(ctx, field)
+	case "renditionId":
+		return ec.fieldContext_SubtitleTrack_renditionId(ctx, field)
+	case "assetId":
+		return ec.fieldContext_SubtitleTrack_assetId(ctx, field)
+	case "sourceFileId":
+		return ec.fieldContext_SubtitleTrack_sourceFileId(ctx, field)
+	case "language":
+		return ec.fieldContext_SubtitleTrack_language(ctx, field)
+	case "kind":
+		return ec.fieldContext_SubtitleTrack_kind(ctx, field)
+	case "origin":
+		return ec.fieldContext_SubtitleTrack_origin(ctx, field)
+	case "revision":
+		return ec.fieldContext_SubtitleTrack_revision(ctx, field)
+	case "parentId":
+		return ec.fieldContext_SubtitleTrack_parentId(ctx, field)
+	case "createdBy":
+		return ec.fieldContext_SubtitleTrack_createdBy(ctx, field)
+	case "createdAt":
+		return ec.fieldContext_SubtitleTrack_createdAt(ctx, field)
+	case "cues":
+		return ec.fieldContext_SubtitleTrack_cues(ctx, field)
+	case "export":
+		return ec.fieldContext_SubtitleTrack_export(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type SubtitleTrack", field.Name)
+}
+
+func (ec *executionContext) childFields_User(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_User_id(ctx, field)
+	case "externalId":
+		return ec.fieldContext_User_externalId(ctx, field)
+	case "email":
+		return ec.fieldContext_User_email(ctx, field)
+	case "name":
+		return ec.fieldContext_User_name(ctx, field)
+	case "active":
+		return ec.fieldContext_User_active(ctx, field)
+	case "isAdmin":
+		return ec.fieldContext_User_isAdmin(ctx, field)
+	case "createdAt":
+		return ec.fieldContext_User_createdAt(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type User", field.Name)
+}
+
+func (ec *executionContext) childFields_UserGroup(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "id":
+		return ec.fieldContext_UserGroup_id(ctx, field)
+	case "name":
+		return ec.fieldContext_UserGroup_name(ctx, field)
+	case "externalId":
+		return ec.fieldContext_UserGroup_externalId(ctx, field)
+	case "description":
+		return ec.fieldContext_UserGroup_description(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type UserGroup", field.Name)
 }
 
 func (ec *executionContext) childFields___Directive(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -409,21 +3059,175 @@ func (ec *executionContext) childFields___Type(ctx context.Context, field graphq
 
 // region    ***************************** args.gotpl *****************************
 
-func (ec *executionContext) field_Mutation_createDummy_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+func (ec *executionContext) field_Mutation_addFileCopy_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "name",
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "fileId",
 		func(ctx context.Context, v any) (string, error) {
-			return ec.unmarshalNString2string(ctx, v)
+			return ec.unmarshalNID2string(ctx, v)
 		})
 	if err != nil {
 		return nil, err
 	}
-	args["name"] = arg0
+	args["fileId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "copy",
+		func(ctx context.Context, v any) (file.CopyInput, error) {
+			return ec.unmarshalNFileCopyInput2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋfileᚐCopyInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["copy"] = arg1
 	return args, nil
 }
 
-func (ec *executionContext) field_Mutation_deleteDummy_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+func (ec *executionContext) field_Mutation_attachFile_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "renditionId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["renditionId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "fileId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["fileId"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "role",
+		func(ctx context.Context, v any) (sqlc.FileRole, error) {
+			return ec.unmarshalNFileRole2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐFileRole(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["role"] = arg2
+	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "position",
+		func(ctx context.Context, v any) (int, error) {
+			return ec.unmarshalNInt2int(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["position"] = arg3
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_createAssetVersion_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "assetId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["assetId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (asset.VersionInput, error) {
+			return ec.unmarshalNVersionInput2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋassetᚐVersionInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_createAsset_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "projectId",
+		func(ctx context.Context, v any) (*string, error) {
+			return ec.unmarshalOID2ᚖstring(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["projectId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (asset.Input, error) {
+			return ec.unmarshalNAssetInput2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋassetᚐInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_createProgram_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (project.ProgramInput, error) {
+			return ec.unmarshalNCreateProgramInput2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋprojectᚐProgramInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_createProject_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (project.ProjectInput, error) {
+			return ec.unmarshalNCreateProjectInput2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋprojectᚐProjectInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_createRendition_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "versionId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["versionId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (asset.RenditionInput, error) {
+			return ec.unmarshalNCreateRenditionInput2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋassetᚐRenditionInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_createStorageLocation_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (file.LocationInput, error) {
+			return ec.unmarshalNStorageLocationInput2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋfileᚐLocationInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_deleteAssetVersion_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
@@ -434,6 +3238,462 @@ func (ec *executionContext) field_Mutation_deleteDummy_args(ctx context.Context,
 		return nil, err
 	}
 	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_deleteAsset_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_deleteFile_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_deleteProgram_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_deleteProject_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_deleteRendition_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_deleteStorageLocation_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_deleteSubtitleTrack_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_detachFile_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "renditionId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["renditionId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "fileId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["fileId"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "role",
+		func(ctx context.Context, v any) (sqlc.FileRole, error) {
+			return ec.unmarshalNFileRole2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐFileRole(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["role"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_editSubtitles_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "trackId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["trackId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "cues",
+		func(ctx context.Context, v any) ([]*subtitle.Cue, error) {
+			return ec.unmarshalNSubtitleCueInput2ᚕᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋsubtitleᚐCueᚄ(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["cues"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_grantAccess_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (access.GrantInput, error) {
+			return ec.unmarshalNGrantInput2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋaccessᚐGrantInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_importSubtitles_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (subtitle.ImportInput, error) {
+			return ec.unmarshalNImportSubtitlesInput2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋsubtitleᚐImportInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_linkAssetToProject_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "assetId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["assetId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "projectId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["projectId"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "role",
+		func(ctx context.Context, v any) (sqlc.LinkRole, error) {
+			return ec.unmarshalNLinkRole2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐLinkRole(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["role"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_registerFile_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (file.RegisterInput, error) {
+			return ec.unmarshalNRegisterFileInput2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋfileᚐRegisterInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_removeFileCopy_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_revokeAccess_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_setFileCopyStatus_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "status",
+		func(ctx context.Context, v any) (sqlc.CopyStatus, error) {
+			return ec.unmarshalNCopyStatus2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐCopyStatus(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["status"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_setUserAdmin_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "user",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["user"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "admin",
+		func(ctx context.Context, v any) (bool, error) {
+			return ec.unmarshalNBoolean2bool(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["admin"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_unlinkAssetFromProject_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "assetId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["assetId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "projectId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["projectId"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "role",
+		func(ctx context.Context, v any) (sqlc.LinkRole, error) {
+			return ec.unmarshalNLinkRole2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐLinkRole(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["role"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_updateAssetVersion_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (asset.VersionInput, error) {
+			return ec.unmarshalNVersionInput2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋassetᚐVersionInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_updateAsset_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (asset.Input, error) {
+			return ec.unmarshalNAssetInput2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋassetᚐInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_updateProgram_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (project.ProgramInput, error) {
+			return ec.unmarshalNUpdateProgramInput2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋprojectᚐProgramInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_updateProject_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (project.ProjectInput, error) {
+			return ec.unmarshalNUpdateProjectInput2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋprojectᚐProjectInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_updateRendition_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (asset.RenditionInput, error) {
+			return ec.unmarshalNUpdateRenditionInput2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋassetᚐRenditionInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_updateStorageLocation_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "input",
+		func(ctx context.Context, v any) (file.LocationInput, error) {
+			return ec.unmarshalNStorageLocationInput2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋfileᚐLocationInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg1
 	return args, nil
 }
 
@@ -451,7 +3711,93 @@ func (ec *executionContext) field_Query___type_args(ctx context.Context, rawArgs
 	return args, nil
 }
 
-func (ec *executionContext) field_Query_dummies_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+func (ec *executionContext) field_Query_assetVersion_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_asset_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_assets_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "filter",
+		func(ctx context.Context, v any) (*asset.Filter, error) {
+			return ec.unmarshalOAssetFilter2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋassetᚐFilter(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["filter"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "limit",
+		func(ctx context.Context, v any) (*int, error) {
+			return ec.unmarshalOInt2ᚖint(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["limit"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "offset",
+		func(ctx context.Context, v any) (*int, error) {
+			return ec.unmarshalOInt2ᚖint(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["offset"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_fileByHash_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "hash",
+		func(ctx context.Context, v any) (file.HashInput, error) {
+			return ec.unmarshalNFileHashInput2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋfileᚐHashInput(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["hash"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_file_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_files_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "limit",
@@ -473,7 +3819,43 @@ func (ec *executionContext) field_Query_dummies_args(ctx context.Context, rawArg
 	return args, nil
 }
 
-func (ec *executionContext) field_Query_dummy_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+func (ec *executionContext) field_Query_grants_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "scope",
+		func(ctx context.Context, v any) (sqlc.GrantScope, error) {
+			return ec.unmarshalNGrantScope2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐGrantScope(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["scope"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "scopeId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["scopeId"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_languages_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "activeOnly",
+		func(ctx context.Context, v any) (bool, error) {
+			return ec.unmarshalNBoolean2bool(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["activeOnly"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_program_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
@@ -484,6 +3866,202 @@ func (ec *executionContext) field_Query_dummy_args(ctx context.Context, rawArgs 
 		return nil, err
 	}
 	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_programs_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "limit",
+		func(ctx context.Context, v any) (*int, error) {
+			return ec.unmarshalOInt2ᚖint(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["limit"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "offset",
+		func(ctx context.Context, v any) (*int, error) {
+			return ec.unmarshalOInt2ᚖint(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["offset"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_project_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_projects_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "programId",
+		func(ctx context.Context, v any) (*string, error) {
+			return ec.unmarshalOID2ᚖstring(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["programId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "status",
+		func(ctx context.Context, v any) (*sqlc.ProjectStatus, error) {
+			return ec.unmarshalOProjectStatus2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐProjectStatus(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["status"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "limit",
+		func(ctx context.Context, v any) (*int, error) {
+			return ec.unmarshalOInt2ᚖint(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["limit"] = arg2
+	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "offset",
+		func(ctx context.Context, v any) (*int, error) {
+			return ec.unmarshalOInt2ᚖint(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["offset"] = arg3
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_rendition_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_subtitleTrack_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_subtitleTracks_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "assetId",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNID2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["assetId"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "history",
+		func(ctx context.Context, v any) (bool, error) {
+			return ec.unmarshalNBoolean2bool(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["history"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_users_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "limit",
+		func(ctx context.Context, v any) (*int, error) {
+			return ec.unmarshalOInt2ᚖint(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["limit"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "offset",
+		func(ctx context.Context, v any) (*int, error) {
+			return ec.unmarshalOInt2ᚖint(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["offset"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Rendition_subtitleTracks_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "history",
+		func(ctx context.Context, v any) (bool, error) {
+			return ec.unmarshalNBoolean2bool(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["history"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_SubtitleTrack_cues_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "limit",
+		func(ctx context.Context, v any) (*int, error) {
+			return ec.unmarshalOInt2ᚖint(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["limit"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "offset",
+		func(ctx context.Context, v any) (*int, error) {
+			return ec.unmarshalOInt2ᚖint(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["offset"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_SubtitleTrack_export_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "format",
+		func(ctx context.Context, v any) (subtitle.Format, error) {
+			return ec.unmarshalNSubtitleFormat2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋsubtitleᚐFormat(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["format"] = arg0
 	return args, nil
 }
 
@@ -561,16 +4139,16 @@ func (ec *executionContext) field___Type_inputFields_args(ctx context.Context, r
 
 // region    **************************** field.gotpl *****************************
 
-func (ec *executionContext) _Dummy_id(ctx context.Context, field graphql.CollectedField, obj *sqlc.Dummy) (ret graphql.Marshaler) {
+func (ec *executionContext) _Asset_id(ctx context.Context, field graphql.CollectedField, obj *sqlc.Asset) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
 		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_Dummy_id(ctx, field)
+			return ec.fieldContext_Asset_id(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return ec.Resolvers.Dummy().ID(ctx, obj)
+			return obj.ID, nil
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
@@ -580,20 +4158,43 @@ func (ec *executionContext) _Dummy_id(ctx context.Context, field graphql.Collect
 		true,
 	)
 }
-func (ec *executionContext) fieldContext_Dummy_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("Dummy", field, true, true, "ID")
+func (ec *executionContext) fieldContext_Asset_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Asset", field, false, false, "ID")
 }
 
-func (ec *executionContext) _Dummy_name(ctx context.Context, field graphql.CollectedField, obj *sqlc.Dummy) (ret graphql.Marshaler) {
+func (ec *executionContext) _Asset_typeId(ctx context.Context, field graphql.CollectedField, obj *sqlc.Asset) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
 		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_Dummy_name(ctx, field)
+			return ec.fieldContext_Asset_typeId(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return obj.Name, nil
+			return obj.TypeID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int16) graphql.Marshaler {
+			return ec.marshalNInt2int16(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Asset_typeId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Asset", field, false, false, "Int")
+}
+
+func (ec *executionContext) _Asset_title(ctx context.Context, field graphql.CollectedField, obj *sqlc.Asset) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Asset_title(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Title, nil
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
@@ -603,17 +4204,178 @@ func (ec *executionContext) _Dummy_name(ctx context.Context, field graphql.Colle
 		true,
 	)
 }
-func (ec *executionContext) fieldContext_Dummy_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("Dummy", field, false, false, "String")
+func (ec *executionContext) fieldContext_Asset_title(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Asset", field, false, false, "String")
 }
 
-func (ec *executionContext) _Dummy_createdAt(ctx context.Context, field graphql.CollectedField, obj *sqlc.Dummy) (ret graphql.Marshaler) {
+func (ec *executionContext) _Asset_description(ctx context.Context, field graphql.CollectedField, obj *sqlc.Asset) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
 		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_Dummy_createdAt(ctx, field)
+			return ec.fieldContext_Asset_description(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Description, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Asset_description(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Asset", field, false, false, "String")
+}
+
+func (ec *executionContext) _Asset_capturedAt(ctx context.Context, field graphql.CollectedField, obj *sqlc.Asset) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Asset_capturedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CapturedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Asset_capturedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Asset", field, false, false, "Time")
+}
+
+func (ec *executionContext) _Asset_camera(ctx context.Context, field graphql.CollectedField, obj *sqlc.Asset) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Asset_camera(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Camera, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Asset_camera(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Asset", field, false, false, "String")
+}
+
+func (ec *executionContext) _Asset_reel(ctx context.Context, field graphql.CollectedField, obj *sqlc.Asset) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Asset_reel(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Reel, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Asset_reel(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Asset", field, false, false, "String")
+}
+
+func (ec *executionContext) _Asset_metadata(ctx context.Context, field graphql.CollectedField, obj *sqlc.Asset) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Asset_metadata(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Metadata, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v jsontext.Value) graphql.Marshaler {
+			return ec.marshalNJSON2encodingᚋjsonᚋjsontextᚐValue(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Asset_metadata(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Asset", field, false, false, "JSON")
+}
+
+func (ec *executionContext) _Asset_legacyIds(ctx context.Context, field graphql.CollectedField, obj *sqlc.Asset) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Asset_legacyIds(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.LegacyIds, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Asset_legacyIds(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Asset", field, false, false, "String")
+}
+
+func (ec *executionContext) _Asset_originalLanguage(ctx context.Context, field graphql.CollectedField, obj *sqlc.Asset) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Asset_originalLanguage(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.OriginalLanguage, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Asset_originalLanguage(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Asset", field, false, false, "String")
+}
+
+func (ec *executionContext) _Asset_createdAt(ctx context.Context, field graphql.CollectedField, obj *sqlc.Asset) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Asset_createdAt(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
 			return obj.CreatedAt, nil
@@ -626,65 +4388,1449 @@ func (ec *executionContext) _Dummy_createdAt(ctx context.Context, field graphql.
 		true,
 	)
 }
-func (ec *executionContext) fieldContext_Dummy_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("Dummy", field, false, false, "Time")
+func (ec *executionContext) fieldContext_Asset_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Asset", field, false, false, "Time")
 }
 
-func (ec *executionContext) _Mutation_createDummy(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+func (ec *executionContext) _Asset_updatedAt(ctx context.Context, field graphql.CollectedField, obj *sqlc.Asset) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
 		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_Mutation_createDummy(ctx, field)
+			return ec.fieldContext_Asset_updatedAt(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().CreateDummy(ctx, fc.Args["name"].(string))
+			return obj.UpdatedAt, nil
 		},
 		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v *sqlc.Dummy) graphql.Marshaler {
-			return ec.marshalNDummy2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐDummy(ctx, selections, v)
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
 		},
 		true,
 		true,
 	)
 }
-func (ec *executionContext) fieldContext_Mutation_createDummy(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Mutation",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.childFields_Dummy(ctx, field)
-		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Mutation_createDummy_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
-	}
-	return fc, nil
+func (ec *executionContext) fieldContext_Asset_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Asset", field, false, false, "Time")
 }
 
-func (ec *executionContext) _Mutation_deleteDummy(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+func (ec *executionContext) _Asset_type(ctx context.Context, field graphql.CollectedField, obj *sqlc.Asset) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
 		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_Mutation_deleteDummy(ctx, field)
+			return ec.fieldContext_Asset_type(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().DeleteDummy(ctx, fc.Args["id"].(string))
+			return ec.Resolvers.Asset().Type(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *sqlc.AssetType) graphql.Marshaler {
+			return ec.marshalNAssetType2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐAssetType(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Asset_type(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Asset",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AssetType(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Asset_myLevel(ctx context.Context, field graphql.CollectedField, obj *sqlc.Asset) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Asset_myLevel(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Asset().MyLevel(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v sqlc.PermissionLevel) graphql.Marshaler {
+			return ec.marshalNPermissionLevel2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐPermissionLevel(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Asset_myLevel(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Asset", field, true, true, "PermissionLevel")
+}
+
+func (ec *executionContext) _Asset_versions(ctx context.Context, field graphql.CollectedField, obj *sqlc.Asset) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Asset_versions(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Asset().Versions(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*sqlc.AssetVersion) graphql.Marshaler {
+			return ec.marshalNAssetVersion2ᚕᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐAssetVersionᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Asset_versions(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Asset",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AssetVersion(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Asset_projects(ctx context.Context, field graphql.CollectedField, obj *sqlc.Asset) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Asset_projects(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Asset().Projects(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*sqlc.AssetProject) graphql.Marshaler {
+			return ec.marshalNAssetProjectLink2ᚕᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐAssetProjectᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Asset_projects(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Asset",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AssetProjectLink(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AssetProjectLink_assetId(ctx context.Context, field graphql.CollectedField, obj *sqlc.AssetProject) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AssetProjectLink_assetId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.AssetID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AssetProjectLink_assetId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AssetProjectLink", field, false, false, "ID")
+}
+
+func (ec *executionContext) _AssetProjectLink_projectId(ctx context.Context, field graphql.CollectedField, obj *sqlc.AssetProject) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AssetProjectLink_projectId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ProjectID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AssetProjectLink_projectId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AssetProjectLink", field, false, false, "ID")
+}
+
+func (ec *executionContext) _AssetProjectLink_role(ctx context.Context, field graphql.CollectedField, obj *sqlc.AssetProject) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AssetProjectLink_role(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Role, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v sqlc.LinkRole) graphql.Marshaler {
+			return ec.marshalNLinkRole2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐLinkRole(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AssetProjectLink_role(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AssetProjectLink", field, false, false, "LinkRole")
+}
+
+func (ec *executionContext) _AssetProjectLink_linkedBy(ctx context.Context, field graphql.CollectedField, obj *sqlc.AssetProject) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AssetProjectLink_linkedBy(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.LinkedBy, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v sqlc.LinkOrigin) graphql.Marshaler {
+			return ec.marshalNLinkOrigin2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐLinkOrigin(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AssetProjectLink_linkedBy(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AssetProjectLink", field, false, false, "LinkOrigin")
+}
+
+func (ec *executionContext) _AssetProjectLink_createdAt(ctx context.Context, field graphql.CollectedField, obj *sqlc.AssetProject) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AssetProjectLink_createdAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AssetProjectLink_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AssetProjectLink", field, false, false, "Time")
+}
+
+func (ec *executionContext) _AssetProjectLink_project(ctx context.Context, field graphql.CollectedField, obj *sqlc.AssetProject) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AssetProjectLink_project(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.AssetProjectLink().Project(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *sqlc.Project) graphql.Marshaler {
+			return ec.marshalOProject2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐProject(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AssetProjectLink_project(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AssetProjectLink",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Project(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AssetType_id(ctx context.Context, field graphql.CollectedField, obj *sqlc.AssetType) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AssetType_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int16) graphql.Marshaler {
+			return ec.marshalNInt2int16(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AssetType_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AssetType", field, false, false, "Int")
+}
+
+func (ec *executionContext) _AssetType_name(ctx context.Context, field graphql.CollectedField, obj *sqlc.AssetType) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AssetType_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AssetType_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AssetType", field, false, false, "String")
+}
+
+func (ec *executionContext) _AssetType_description(ctx context.Context, field graphql.CollectedField, obj *sqlc.AssetType) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AssetType_description(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Description, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AssetType_description(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AssetType", field, false, false, "String")
+}
+
+func (ec *executionContext) _AssetVersion_id(ctx context.Context, field graphql.CollectedField, obj *sqlc.AssetVersion) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AssetVersion_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AssetVersion_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AssetVersion", field, false, false, "ID")
+}
+
+func (ec *executionContext) _AssetVersion_assetId(ctx context.Context, field graphql.CollectedField, obj *sqlc.AssetVersion) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AssetVersion_assetId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.AssetID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AssetVersion_assetId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AssetVersion", field, false, false, "ID")
+}
+
+func (ec *executionContext) _AssetVersion_number(ctx context.Context, field graphql.CollectedField, obj *sqlc.AssetVersion) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AssetVersion_number(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Number, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AssetVersion_number(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AssetVersion", field, false, false, "Int")
+}
+
+func (ec *executionContext) _AssetVersion_label(ctx context.Context, field graphql.CollectedField, obj *sqlc.AssetVersion) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AssetVersion_label(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Label, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AssetVersion_label(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AssetVersion", field, false, false, "String")
+}
+
+func (ec *executionContext) _AssetVersion_status(ctx context.Context, field graphql.CollectedField, obj *sqlc.AssetVersion) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AssetVersion_status(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Status, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v sqlc.VersionStatus) graphql.Marshaler {
+			return ec.marshalNVersionStatus2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐVersionStatus(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AssetVersion_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AssetVersion", field, false, false, "VersionStatus")
+}
+
+func (ec *executionContext) _AssetVersion_createdBy(ctx context.Context, field graphql.CollectedField, obj *sqlc.AssetVersion) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AssetVersion_createdBy(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedBy, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOID2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_AssetVersion_createdBy(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AssetVersion", field, false, false, "ID")
+}
+
+func (ec *executionContext) _AssetVersion_createdAt(ctx context.Context, field graphql.CollectedField, obj *sqlc.AssetVersion) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AssetVersion_createdAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AssetVersion_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AssetVersion", field, false, false, "Time")
+}
+
+func (ec *executionContext) _AssetVersion_renditions(ctx context.Context, field graphql.CollectedField, obj *sqlc.AssetVersion) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AssetVersion_renditions(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.AssetVersion().Renditions(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*sqlc.Rendition) graphql.Marshaler {
+			return ec.marshalNRendition2ᚕᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐRenditionᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AssetVersion_renditions(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AssetVersion",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Rendition(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _File_id(ctx context.Context, field graphql.CollectedField, obj *sqlc.File) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_File_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_File_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("File", field, false, false, "ID")
+}
+
+func (ec *executionContext) _File_sizeBytes(ctx context.Context, field graphql.CollectedField, obj *sqlc.File) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_File_sizeBytes(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SizeBytes, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int64) graphql.Marshaler {
+			return ec.marshalNInt642int64(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_File_sizeBytes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("File", field, false, false, "Int64")
+}
+
+func (ec *executionContext) _File_mimeType(ctx context.Context, field graphql.CollectedField, obj *sqlc.File) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_File_mimeType(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.MimeType, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_File_mimeType(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("File", field, false, false, "String")
+}
+
+func (ec *executionContext) _File_durationMs(ctx context.Context, field graphql.CollectedField, obj *sqlc.File) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_File_durationMs(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.DurationMs, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int64) graphql.Marshaler {
+			return ec.marshalOInt642ᚖint64(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_File_durationMs(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("File", field, false, false, "Int64")
+}
+
+func (ec *executionContext) _File_codec(ctx context.Context, field graphql.CollectedField, obj *sqlc.File) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_File_codec(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Codec, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_File_codec(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("File", field, false, false, "String")
+}
+
+func (ec *executionContext) _File_width(ctx context.Context, field graphql.CollectedField, obj *sqlc.File) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_File_width(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Width, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int32) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint32(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_File_width(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("File", field, false, false, "Int")
+}
+
+func (ec *executionContext) _File_height(ctx context.Context, field graphql.CollectedField, obj *sqlc.File) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_File_height(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Height, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *int32) graphql.Marshaler {
+			return ec.marshalOInt2ᚖint32(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_File_height(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("File", field, false, false, "Int")
+}
+
+func (ec *executionContext) _File_probe(ctx context.Context, field graphql.CollectedField, obj *sqlc.File) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_File_probe(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Probe, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v jsontext.Value) graphql.Marshaler {
+			return ec.marshalNJSON2encodingᚋjsonᚋjsontextᚐValue(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_File_probe(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("File", field, false, false, "JSON")
+}
+
+func (ec *executionContext) _File_createdAt(ctx context.Context, field graphql.CollectedField, obj *sqlc.File) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_File_createdAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_File_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("File", field, false, false, "Time")
+}
+
+func (ec *executionContext) _File_hashes(ctx context.Context, field graphql.CollectedField, obj *sqlc.File) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_File_hashes(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.File().Hashes(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*sqlc.FileHash) graphql.Marshaler {
+			return ec.marshalNFileHash2ᚕᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐFileHashᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_File_hashes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "File",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_FileHash(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _File_copies(ctx context.Context, field graphql.CollectedField, obj *sqlc.File) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_File_copies(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.File().Copies(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*sqlc.FileCopy) graphql.Marshaler {
+			return ec.marshalNFileCopy2ᚕᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐFileCopyᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_File_copies(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "File",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_FileCopy(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FileCopy_id(ctx context.Context, field graphql.CollectedField, obj *sqlc.FileCopy) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_FileCopy_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_FileCopy_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("FileCopy", field, false, false, "ID")
+}
+
+func (ec *executionContext) _FileCopy_fileId(ctx context.Context, field graphql.CollectedField, obj *sqlc.FileCopy) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_FileCopy_fileId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.FileID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_FileCopy_fileId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("FileCopy", field, false, false, "ID")
+}
+
+func (ec *executionContext) _FileCopy_locationId(ctx context.Context, field graphql.CollectedField, obj *sqlc.FileCopy) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_FileCopy_locationId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.LocationID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_FileCopy_locationId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("FileCopy", field, false, false, "ID")
+}
+
+func (ec *executionContext) _FileCopy_path(ctx context.Context, field graphql.CollectedField, obj *sqlc.FileCopy) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_FileCopy_path(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Path, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_FileCopy_path(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("FileCopy", field, false, false, "String")
+}
+
+func (ec *executionContext) _FileCopy_status(ctx context.Context, field graphql.CollectedField, obj *sqlc.FileCopy) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_FileCopy_status(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Status, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v sqlc.CopyStatus) graphql.Marshaler {
+			return ec.marshalNCopyStatus2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐCopyStatus(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_FileCopy_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("FileCopy", field, false, false, "CopyStatus")
+}
+
+func (ec *executionContext) _FileCopy_lastSeenAt(ctx context.Context, field graphql.CollectedField, obj *sqlc.FileCopy) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_FileCopy_lastSeenAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.LastSeenAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_FileCopy_lastSeenAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("FileCopy", field, false, false, "Time")
+}
+
+func (ec *executionContext) _FileCopy_lastVerifiedAt(ctx context.Context, field graphql.CollectedField, obj *sqlc.FileCopy) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_FileCopy_lastVerifiedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.LastVerifiedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_FileCopy_lastVerifiedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("FileCopy", field, false, false, "Time")
+}
+
+func (ec *executionContext) _FileCopy_location(ctx context.Context, field graphql.CollectedField, obj *sqlc.FileCopy) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_FileCopy_location(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.FileCopy().Location(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *sqlc.StorageLocation) graphql.Marshaler {
+			return ec.marshalNStorageLocation2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐStorageLocation(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_FileCopy_location(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FileCopy",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_StorageLocation(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FileHash_algo(ctx context.Context, field graphql.CollectedField, obj *sqlc.FileHash) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_FileHash_algo(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Algo, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v sqlc.HashAlgo) graphql.Marshaler {
+			return ec.marshalNHashAlgo2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐHashAlgo(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_FileHash_algo(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("FileHash", field, false, false, "HashAlgo")
+}
+
+func (ec *executionContext) _FileHash_value(ctx context.Context, field graphql.CollectedField, obj *sqlc.FileHash) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_FileHash_value(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.FileHash().Value(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_FileHash_value(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("FileHash", field, true, true, "String")
+}
+
+func (ec *executionContext) _FileHash_computedAt(ctx context.Context, field graphql.CollectedField, obj *sqlc.FileHash) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_FileHash_computedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ComputedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_FileHash_computedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("FileHash", field, false, false, "Time")
+}
+
+func (ec *executionContext) _Grant_id(ctx context.Context, field graphql.CollectedField, obj *sqlc.PermissionGrant) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Grant_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Grant_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Grant", field, false, false, "ID")
+}
+
+func (ec *executionContext) _Grant_scope(ctx context.Context, field graphql.CollectedField, obj *sqlc.PermissionGrant) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Grant_scope(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Scope, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v sqlc.GrantScope) graphql.Marshaler {
+			return ec.marshalNGrantScope2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐGrantScope(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Grant_scope(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Grant", field, false, false, "GrantScope")
+}
+
+func (ec *executionContext) _Grant_scopeId(ctx context.Context, field graphql.CollectedField, obj *sqlc.PermissionGrant) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Grant_scopeId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ScopeID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Grant_scopeId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Grant", field, false, false, "ID")
+}
+
+func (ec *executionContext) _Grant_level(ctx context.Context, field graphql.CollectedField, obj *sqlc.PermissionGrant) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Grant_level(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Level, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v sqlc.PermissionLevel) graphql.Marshaler {
+			return ec.marshalNPermissionLevel2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐPermissionLevel(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Grant_level(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Grant", field, false, false, "PermissionLevel")
+}
+
+func (ec *executionContext) _Grant_userId(ctx context.Context, field graphql.CollectedField, obj *sqlc.PermissionGrant) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Grant_userId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UserID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOID2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Grant_userId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Grant", field, false, false, "ID")
+}
+
+func (ec *executionContext) _Grant_groupId(ctx context.Context, field graphql.CollectedField, obj *sqlc.PermissionGrant) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Grant_groupId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.GroupID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOID2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Grant_groupId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Grant", field, false, false, "ID")
+}
+
+func (ec *executionContext) _Grant_grantedBy(ctx context.Context, field graphql.CollectedField, obj *sqlc.PermissionGrant) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Grant_grantedBy(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.GrantedBy, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOID2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Grant_grantedBy(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Grant", field, false, false, "ID")
+}
+
+func (ec *executionContext) _Grant_grantedAt(ctx context.Context, field graphql.CollectedField, obj *sqlc.PermissionGrant) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Grant_grantedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.GrantedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Grant_grantedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Grant", field, false, false, "Time")
+}
+
+func (ec *executionContext) _Grant_expiresAt(ctx context.Context, field graphql.CollectedField, obj *sqlc.PermissionGrant) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Grant_expiresAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ExpiresAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Grant_expiresAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Grant", field, false, false, "Time")
+}
+
+func (ec *executionContext) _Language_code(ctx context.Context, field graphql.CollectedField, obj *sqlc.Language) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Language_code(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Code, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Language_code(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Language", field, false, false, "String")
+}
+
+func (ec *executionContext) _Language_name(ctx context.Context, field graphql.CollectedField, obj *sqlc.Language) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Language_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Language_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Language", field, false, false, "String")
+}
+
+func (ec *executionContext) _Language_nativeName(ctx context.Context, field graphql.CollectedField, obj *sqlc.Language) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Language_nativeName(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.NativeName, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Language_nativeName(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Language", field, false, false, "String")
+}
+
+func (ec *executionContext) _Language_modality(ctx context.Context, field graphql.CollectedField, obj *sqlc.Language) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Language_modality(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Modality, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v sqlc.LanguageModality) graphql.Marshaler {
+			return ec.marshalNLanguageModality2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐLanguageModality(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Language_modality(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Language", field, false, false, "LanguageModality")
+}
+
+func (ec *executionContext) _Language_baseCode(ctx context.Context, field graphql.CollectedField, obj *sqlc.Language) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Language_baseCode(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.BaseCode, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Language_baseCode(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Language", field, false, false, "String")
+}
+
+func (ec *executionContext) _Language_altCodes(ctx context.Context, field graphql.CollectedField, obj *sqlc.Language) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Language_altCodes(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.AltCodes, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []string) graphql.Marshaler {
+			return ec.marshalNString2ᚕstringᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Language_altCodes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Language", field, false, false, "String")
+}
+
+func (ec *executionContext) _Language_active(ctx context.Context, field graphql.CollectedField, obj *sqlc.Language) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Language_active(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Active, nil
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
@@ -694,7 +5840,75 @@ func (ec *executionContext) _Mutation_deleteDummy(ctx context.Context, field gra
 		true,
 	)
 }
-func (ec *executionContext) fieldContext_Mutation_deleteDummy(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Language_active(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Language", field, false, false, "Boolean")
+}
+
+func (ec *executionContext) _Mutation_grantAccess(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_grantAccess(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().GrantAccess(ctx, fc.Args["input"].(access.GrantInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *sqlc.PermissionGrant) graphql.Marshaler {
+			return ec.marshalNGrant2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐPermissionGrant(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_grantAccess(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Grant(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_grantAccess_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_revokeAccess(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_revokeAccess(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().RevokeAccess(ctx, fc.Args["id"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_revokeAccess(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Mutation",
 		Field:      field,
@@ -711,9 +5925,1828 @@ func (ec *executionContext) fieldContext_Mutation_deleteDummy(ctx context.Contex
 		}
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Mutation_deleteDummy_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+	if fc.Args, err = ec.field_Mutation_revokeAccess_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_setUserAdmin(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_setUserAdmin(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().SetUserAdmin(ctx, fc.Args["user"].(string), fc.Args["admin"].(bool))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *sqlc.AppUser) graphql.Marshaler {
+			return ec.marshalNUser2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐAppUser(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_setUserAdmin(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_User(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_setUserAdmin_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_createAsset(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_createAsset(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().CreateAsset(ctx, fc.Args["projectId"].(*string), fc.Args["input"].(asset.Input))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *sqlc.Asset) graphql.Marshaler {
+			return ec.marshalNAsset2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐAsset(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_createAsset(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Asset(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_createAsset_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateAsset(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_updateAsset(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UpdateAsset(ctx, fc.Args["id"].(string), fc.Args["input"].(asset.Input))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *sqlc.Asset) graphql.Marshaler {
+			return ec.marshalNAsset2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐAsset(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_updateAsset(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Asset(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateAsset_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteAsset(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_deleteAsset(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().DeleteAsset(ctx, fc.Args["id"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_deleteAsset(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deleteAsset_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_linkAssetToProject(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_linkAssetToProject(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().LinkAssetToProject(ctx, fc.Args["assetId"].(string), fc.Args["projectId"].(string), fc.Args["role"].(sqlc.LinkRole))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *sqlc.AssetProject) graphql.Marshaler {
+			return ec.marshalNAssetProjectLink2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐAssetProject(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_linkAssetToProject(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AssetProjectLink(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_linkAssetToProject_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_unlinkAssetFromProject(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_unlinkAssetFromProject(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UnlinkAssetFromProject(ctx, fc.Args["assetId"].(string), fc.Args["projectId"].(string), fc.Args["role"].(sqlc.LinkRole))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_unlinkAssetFromProject(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_unlinkAssetFromProject_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_createAssetVersion(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_createAssetVersion(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().CreateAssetVersion(ctx, fc.Args["assetId"].(string), fc.Args["input"].(asset.VersionInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *sqlc.AssetVersion) graphql.Marshaler {
+			return ec.marshalNAssetVersion2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐAssetVersion(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_createAssetVersion(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AssetVersion(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_createAssetVersion_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateAssetVersion(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_updateAssetVersion(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UpdateAssetVersion(ctx, fc.Args["id"].(string), fc.Args["input"].(asset.VersionInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *sqlc.AssetVersion) graphql.Marshaler {
+			return ec.marshalNAssetVersion2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐAssetVersion(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_updateAssetVersion(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AssetVersion(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateAssetVersion_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteAssetVersion(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_deleteAssetVersion(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().DeleteAssetVersion(ctx, fc.Args["id"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_deleteAssetVersion(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deleteAssetVersion_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_createRendition(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_createRendition(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().CreateRendition(ctx, fc.Args["versionId"].(string), fc.Args["input"].(asset.RenditionInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *sqlc.Rendition) graphql.Marshaler {
+			return ec.marshalNRendition2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐRendition(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_createRendition(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Rendition(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_createRendition_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateRendition(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_updateRendition(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UpdateRendition(ctx, fc.Args["id"].(string), fc.Args["input"].(asset.RenditionInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *sqlc.Rendition) graphql.Marshaler {
+			return ec.marshalNRendition2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐRendition(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_updateRendition(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Rendition(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateRendition_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteRendition(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_deleteRendition(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().DeleteRendition(ctx, fc.Args["id"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_deleteRendition(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deleteRendition_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_attachFile(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_attachFile(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().AttachFile(ctx, fc.Args["renditionId"].(string), fc.Args["fileId"].(string), fc.Args["role"].(sqlc.FileRole), fc.Args["position"].(int))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *sqlc.RenditionFile) graphql.Marshaler {
+			return ec.marshalNRenditionFile2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐRenditionFile(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_attachFile(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_RenditionFile(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_attachFile_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_detachFile(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_detachFile(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().DetachFile(ctx, fc.Args["renditionId"].(string), fc.Args["fileId"].(string), fc.Args["role"].(sqlc.FileRole))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_detachFile(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_detachFile_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_createStorageLocation(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_createStorageLocation(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().CreateStorageLocation(ctx, fc.Args["input"].(file.LocationInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *sqlc.StorageLocation) graphql.Marshaler {
+			return ec.marshalNStorageLocation2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐStorageLocation(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_createStorageLocation(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_StorageLocation(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_createStorageLocation_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateStorageLocation(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_updateStorageLocation(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UpdateStorageLocation(ctx, fc.Args["id"].(string), fc.Args["input"].(file.LocationInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *sqlc.StorageLocation) graphql.Marshaler {
+			return ec.marshalNStorageLocation2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐStorageLocation(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_updateStorageLocation(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_StorageLocation(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateStorageLocation_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteStorageLocation(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_deleteStorageLocation(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().DeleteStorageLocation(ctx, fc.Args["id"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_deleteStorageLocation(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deleteStorageLocation_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_registerFile(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_registerFile(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().RegisterFile(ctx, fc.Args["input"].(file.RegisterInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *sqlc.File) graphql.Marshaler {
+			return ec.marshalNFile2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐFile(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_registerFile(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_File(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_registerFile_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_addFileCopy(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_addFileCopy(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().AddFileCopy(ctx, fc.Args["fileId"].(string), fc.Args["copy"].(file.CopyInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *sqlc.FileCopy) graphql.Marshaler {
+			return ec.marshalNFileCopy2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐFileCopy(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_addFileCopy(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_FileCopy(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_addFileCopy_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_setFileCopyStatus(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_setFileCopyStatus(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().SetFileCopyStatus(ctx, fc.Args["id"].(string), fc.Args["status"].(sqlc.CopyStatus))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *sqlc.FileCopy) graphql.Marshaler {
+			return ec.marshalNFileCopy2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐFileCopy(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_setFileCopyStatus(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_FileCopy(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_setFileCopyStatus_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_removeFileCopy(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_removeFileCopy(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().RemoveFileCopy(ctx, fc.Args["id"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_removeFileCopy(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_removeFileCopy_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteFile(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_deleteFile(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().DeleteFile(ctx, fc.Args["id"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_deleteFile(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deleteFile_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_createProgram(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_createProgram(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().CreateProgram(ctx, fc.Args["input"].(project.ProgramInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *sqlc.Program) graphql.Marshaler {
+			return ec.marshalNProgram2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐProgram(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_createProgram(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Program(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_createProgram_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateProgram(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_updateProgram(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UpdateProgram(ctx, fc.Args["id"].(string), fc.Args["input"].(project.ProgramInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *sqlc.Program) graphql.Marshaler {
+			return ec.marshalNProgram2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐProgram(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_updateProgram(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Program(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateProgram_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteProgram(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_deleteProgram(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().DeleteProgram(ctx, fc.Args["id"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_deleteProgram(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deleteProgram_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_createProject(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_createProject(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().CreateProject(ctx, fc.Args["input"].(project.ProjectInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *sqlc.Project) graphql.Marshaler {
+			return ec.marshalNProject2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐProject(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_createProject(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Project(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_createProject_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateProject(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_updateProject(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UpdateProject(ctx, fc.Args["id"].(string), fc.Args["input"].(project.ProjectInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *sqlc.Project) graphql.Marshaler {
+			return ec.marshalNProject2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐProject(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_updateProject(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Project(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateProject_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteProject(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_deleteProject(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().DeleteProject(ctx, fc.Args["id"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_deleteProject(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deleteProject_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_importSubtitles(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_importSubtitles(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().ImportSubtitles(ctx, fc.Args["input"].(subtitle.ImportInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *sqlc.SubtitleTrack) graphql.Marshaler {
+			return ec.marshalNSubtitleTrack2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐSubtitleTrack(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_importSubtitles(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_SubtitleTrack(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_importSubtitles_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_editSubtitles(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_editSubtitles(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().EditSubtitles(ctx, fc.Args["trackId"].(string), fc.Args["cues"].([]*subtitle.Cue))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *sqlc.SubtitleTrack) graphql.Marshaler {
+			return ec.marshalNSubtitleTrack2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐSubtitleTrack(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_editSubtitles(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_SubtitleTrack(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_editSubtitles_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteSubtitleTrack(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_deleteSubtitleTrack(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().DeleteSubtitleTrack(ctx, fc.Args["id"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_deleteSubtitleTrack(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deleteSubtitleTrack_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Program_id(ctx context.Context, field graphql.CollectedField, obj *sqlc.Program) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Program_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Program_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Program", field, false, false, "ID")
+}
+
+func (ec *executionContext) _Program_code(ctx context.Context, field graphql.CollectedField, obj *sqlc.Program) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Program_code(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Code, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Program_code(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Program", field, false, false, "String")
+}
+
+func (ec *executionContext) _Program_name(ctx context.Context, field graphql.CollectedField, obj *sqlc.Program) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Program_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Program_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Program", field, false, false, "String")
+}
+
+func (ec *executionContext) _Program_description(ctx context.Context, field graphql.CollectedField, obj *sqlc.Program) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Program_description(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Description, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Program_description(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Program", field, false, false, "String")
+}
+
+func (ec *executionContext) _Program_metadata(ctx context.Context, field graphql.CollectedField, obj *sqlc.Program) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Program_metadata(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Metadata, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v jsontext.Value) graphql.Marshaler {
+			return ec.marshalNJSON2encodingᚋjsonᚋjsontextᚐValue(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Program_metadata(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Program", field, false, false, "JSON")
+}
+
+func (ec *executionContext) _Program_createdAt(ctx context.Context, field graphql.CollectedField, obj *sqlc.Program) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Program_createdAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Program_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Program", field, false, false, "Time")
+}
+
+func (ec *executionContext) _Program_updatedAt(ctx context.Context, field graphql.CollectedField, obj *sqlc.Program) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Program_updatedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Program_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Program", field, false, false, "Time")
+}
+
+func (ec *executionContext) _Program_projects(ctx context.Context, field graphql.CollectedField, obj *sqlc.Program) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Program_projects(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Program().Projects(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*sqlc.Project) graphql.Marshaler {
+			return ec.marshalNProject2ᚕᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐProjectᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Program_projects(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Program",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Project(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Project_id(ctx context.Context, field graphql.CollectedField, obj *sqlc.Project) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Project_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Project_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Project", field, false, false, "ID")
+}
+
+func (ec *executionContext) _Project_programId(ctx context.Context, field graphql.CollectedField, obj *sqlc.Project) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Project_programId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ProgramID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Project_programId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Project", field, false, false, "ID")
+}
+
+func (ec *executionContext) _Project_code(ctx context.Context, field graphql.CollectedField, obj *sqlc.Project) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Project_code(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Code, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Project_code(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Project", field, false, false, "String")
+}
+
+func (ec *executionContext) _Project_name(ctx context.Context, field graphql.CollectedField, obj *sqlc.Project) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Project_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Project_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Project", field, false, false, "String")
+}
+
+func (ec *executionContext) _Project_status(ctx context.Context, field graphql.CollectedField, obj *sqlc.Project) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Project_status(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Status, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v sqlc.ProjectStatus) graphql.Marshaler {
+			return ec.marshalNProjectStatus2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐProjectStatus(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Project_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Project", field, false, false, "ProjectStatus")
+}
+
+func (ec *executionContext) _Project_startsOn(ctx context.Context, field graphql.CollectedField, obj *sqlc.Project) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Project_startsOn(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.StartsOn, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalODate2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Project_startsOn(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Project", field, false, false, "Date")
+}
+
+func (ec *executionContext) _Project_endsOn(ctx context.Context, field graphql.CollectedField, obj *sqlc.Project) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Project_endsOn(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.EndsOn, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
+			return ec.marshalODate2ᚖtimeᚐTime(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Project_endsOn(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Project", field, false, false, "Date")
+}
+
+func (ec *executionContext) _Project_metadata(ctx context.Context, field graphql.CollectedField, obj *sqlc.Project) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Project_metadata(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Metadata, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v jsontext.Value) graphql.Marshaler {
+			return ec.marshalNJSON2encodingᚋjsonᚋjsontextᚐValue(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Project_metadata(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Project", field, false, false, "JSON")
+}
+
+func (ec *executionContext) _Project_createdAt(ctx context.Context, field graphql.CollectedField, obj *sqlc.Project) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Project_createdAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Project_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Project", field, false, false, "Time")
+}
+
+func (ec *executionContext) _Project_updatedAt(ctx context.Context, field graphql.CollectedField, obj *sqlc.Project) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Project_updatedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Project_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Project", field, false, false, "Time")
+}
+
+func (ec *executionContext) _Project_program(ctx context.Context, field graphql.CollectedField, obj *sqlc.Project) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Project_program(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Project().Program(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *sqlc.Program) graphql.Marshaler {
+			return ec.marshalNProgram2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐProgram(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Project_program(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Project",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Program(ctx, field)
+		},
 	}
 	return fc, nil
 }
@@ -741,34 +7774,66 @@ func (ec *executionContext) fieldContext_Query_ping(_ context.Context, field gra
 	return graphql.NewScalarFieldContext("Query", field, true, true, "String")
 }
 
-func (ec *executionContext) _Query_dummy(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+func (ec *executionContext) _Query_me(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
 		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_Query_dummy(ctx, field)
+			return ec.fieldContext_Query_me(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Query().Dummy(ctx, fc.Args["id"].(string))
+			return ec.Resolvers.Query().Me(ctx)
 		},
 		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v *sqlc.Dummy) graphql.Marshaler {
-			return ec.marshalODummy2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐDummy(ctx, selections, v)
+		func(ctx context.Context, selections ast.SelectionSet, v *sqlc.AppUser) graphql.Marshaler {
+			return ec.marshalNUser2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐAppUser(ctx, selections, v)
 		},
 		true,
-		false,
+		true,
 	)
 }
-func (ec *executionContext) fieldContext_Query_dummy(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Query_me(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Query",
 		Field:      field,
 		IsMethod:   true,
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.childFields_Dummy(ctx, field)
+			return ec.childFields_User(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_users(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_users(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().Users(ctx, fc.Args["limit"].(*int), fc.Args["offset"].(*int))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*sqlc.AppUser) graphql.Marshaler {
+			return ec.marshalNUser2ᚕᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐAppUserᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_users(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_User(ctx, field)
 		},
 	}
 	defer func() {
@@ -778,41 +7843,73 @@ func (ec *executionContext) fieldContext_Query_dummy(ctx context.Context, field 
 		}
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Query_dummy_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+	if fc.Args, err = ec.field_Query_users_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
 	return fc, nil
 }
 
-func (ec *executionContext) _Query_dummies(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+func (ec *executionContext) _Query_userGroups(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
 		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_Query_dummies(ctx, field)
+			return ec.fieldContext_Query_userGroups(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Query().Dummies(ctx, fc.Args["limit"].(*int), fc.Args["offset"].(*int))
+			return ec.Resolvers.Query().UserGroups(ctx)
 		},
 		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v []*sqlc.Dummy) graphql.Marshaler {
-			return ec.marshalNDummy2ᚕᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐDummyᚄ(ctx, selections, v)
+		func(ctx context.Context, selections ast.SelectionSet, v []*sqlc.UserGroup) graphql.Marshaler {
+			return ec.marshalNUserGroup2ᚕᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐUserGroupᚄ(ctx, selections, v)
 		},
 		true,
 		true,
 	)
 }
-func (ec *executionContext) fieldContext_Query_dummies(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Query_userGroups(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Query",
 		Field:      field,
 		IsMethod:   true,
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.childFields_Dummy(ctx, field)
+			return ec.childFields_UserGroup(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_grants(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_grants(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().Grants(ctx, fc.Args["scope"].(sqlc.GrantScope), fc.Args["scopeId"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*sqlc.PermissionGrant) graphql.Marshaler {
+			return ec.marshalNGrant2ᚕᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐPermissionGrantᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_grants(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Grant(ctx, field)
 		},
 	}
 	defer func() {
@@ -822,7 +7919,687 @@ func (ec *executionContext) fieldContext_Query_dummies(ctx context.Context, fiel
 		}
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Query_dummies_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+	if fc.Args, err = ec.field_Query_grants_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_assetTypes(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_assetTypes(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().AssetTypes(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*sqlc.AssetType) graphql.Marshaler {
+			return ec.marshalNAssetType2ᚕᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐAssetTypeᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_assetTypes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AssetType(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_languages(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_languages(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().Languages(ctx, fc.Args["activeOnly"].(bool))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*sqlc.Language) graphql.Marshaler {
+			return ec.marshalNLanguage2ᚕᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐLanguageᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_languages(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Language(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_languages_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_asset(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_asset(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().Asset(ctx, fc.Args["id"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *sqlc.Asset) graphql.Marshaler {
+			return ec.marshalOAsset2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐAsset(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Query_asset(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Asset(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_asset_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_assets(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_assets(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().Assets(ctx, fc.Args["filter"].(*asset.Filter), fc.Args["limit"].(*int), fc.Args["offset"].(*int))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*sqlc.Asset) graphql.Marshaler {
+			return ec.marshalNAsset2ᚕᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐAssetᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_assets(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Asset(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_assets_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_assetVersion(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_assetVersion(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().AssetVersion(ctx, fc.Args["id"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *sqlc.AssetVersion) graphql.Marshaler {
+			return ec.marshalOAssetVersion2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐAssetVersion(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Query_assetVersion(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AssetVersion(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_assetVersion_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_rendition(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_rendition(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().Rendition(ctx, fc.Args["id"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *sqlc.Rendition) graphql.Marshaler {
+			return ec.marshalORendition2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐRendition(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Query_rendition(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Rendition(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_rendition_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_file(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_file(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().File(ctx, fc.Args["id"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *sqlc.File) graphql.Marshaler {
+			return ec.marshalOFile2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐFile(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Query_file(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_File(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_file_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_fileByHash(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_fileByHash(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().FileByHash(ctx, fc.Args["hash"].(file.HashInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *sqlc.File) graphql.Marshaler {
+			return ec.marshalOFile2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐFile(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Query_fileByHash(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_File(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_fileByHash_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_files(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_files(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().Files(ctx, fc.Args["limit"].(*int), fc.Args["offset"].(*int))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*sqlc.File) graphql.Marshaler {
+			return ec.marshalNFile2ᚕᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐFileᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_files(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_File(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_files_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_storageLocations(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_storageLocations(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Query().StorageLocations(ctx)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*sqlc.StorageLocation) graphql.Marshaler {
+			return ec.marshalNStorageLocation2ᚕᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐStorageLocationᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_storageLocations(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_StorageLocation(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_program(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_program(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().Program(ctx, fc.Args["id"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *sqlc.Program) graphql.Marshaler {
+			return ec.marshalOProgram2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐProgram(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Query_program(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Program(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_program_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_programs(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_programs(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().Programs(ctx, fc.Args["limit"].(*int), fc.Args["offset"].(*int))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*sqlc.Program) graphql.Marshaler {
+			return ec.marshalNProgram2ᚕᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐProgramᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_programs(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Program(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_programs_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_project(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_project(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().Project(ctx, fc.Args["id"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *sqlc.Project) graphql.Marshaler {
+			return ec.marshalOProject2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐProject(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Query_project(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Project(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_project_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_projects(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_projects(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().Projects(ctx, fc.Args["programId"].(*string), fc.Args["status"].(*sqlc.ProjectStatus), fc.Args["limit"].(*int), fc.Args["offset"].(*int))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*sqlc.Project) graphql.Marshaler {
+			return ec.marshalNProject2ᚕᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐProjectᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_projects(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Project(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_projects_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_subtitleTrack(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_subtitleTrack(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().SubtitleTrack(ctx, fc.Args["id"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *sqlc.SubtitleTrack) graphql.Marshaler {
+			return ec.marshalOSubtitleTrack2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐSubtitleTrack(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Query_subtitleTrack(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_SubtitleTrack(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_subtitleTrack_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_subtitleTracks(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Query_subtitleTracks(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().SubtitleTracks(ctx, fc.Args["assetId"].(string), fc.Args["history"].(bool))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*sqlc.SubtitleTrack) graphql.Marshaler {
+			return ec.marshalNSubtitleTrack2ᚕᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐSubtitleTrackᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Query_subtitleTracks(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_SubtitleTrack(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_subtitleTracks_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -903,6 +8680,1237 @@ func (ec *executionContext) fieldContext_Query___schema(_ context.Context, field
 		},
 	}
 	return fc, nil
+}
+
+func (ec *executionContext) _Rendition_id(ctx context.Context, field graphql.CollectedField, obj *sqlc.Rendition) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Rendition_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Rendition_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Rendition", field, false, false, "ID")
+}
+
+func (ec *executionContext) _Rendition_versionId(ctx context.Context, field graphql.CollectedField, obj *sqlc.Rendition) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Rendition_versionId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.VersionID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Rendition_versionId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Rendition", field, false, false, "ID")
+}
+
+func (ec *executionContext) _Rendition_kind(ctx context.Context, field graphql.CollectedField, obj *sqlc.Rendition) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Rendition_kind(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Kind, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v sqlc.RenditionKind) graphql.Marshaler {
+			return ec.marshalNRenditionKind2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐRenditionKind(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Rendition_kind(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Rendition", field, false, false, "RenditionKind")
+}
+
+func (ec *executionContext) _Rendition_language(ctx context.Context, field graphql.CollectedField, obj *sqlc.Rendition) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Rendition_language(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Language, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Rendition_language(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Rendition", field, false, false, "String")
+}
+
+func (ec *executionContext) _Rendition_purpose(ctx context.Context, field graphql.CollectedField, obj *sqlc.Rendition) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Rendition_purpose(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Purpose, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_Rendition_purpose(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Rendition", field, false, false, "String")
+}
+
+func (ec *executionContext) _Rendition_overrides(ctx context.Context, field graphql.CollectedField, obj *sqlc.Rendition) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Rendition_overrides(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Overrides, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v jsontext.Value) graphql.Marshaler {
+			return ec.marshalNJSON2encodingᚋjsonᚋjsontextᚐValue(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Rendition_overrides(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Rendition", field, false, false, "JSON")
+}
+
+func (ec *executionContext) _Rendition_metadata(ctx context.Context, field graphql.CollectedField, obj *sqlc.Rendition) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Rendition_metadata(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Metadata, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v jsontext.Value) graphql.Marshaler {
+			return ec.marshalNJSON2encodingᚋjsonᚋjsontextᚐValue(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Rendition_metadata(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Rendition", field, false, false, "JSON")
+}
+
+func (ec *executionContext) _Rendition_createdAt(ctx context.Context, field graphql.CollectedField, obj *sqlc.Rendition) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Rendition_createdAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Rendition_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Rendition", field, false, false, "Time")
+}
+
+func (ec *executionContext) _Rendition_files(ctx context.Context, field graphql.CollectedField, obj *sqlc.Rendition) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Rendition_files(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Rendition().Files(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*sqlc.RenditionFile) graphql.Marshaler {
+			return ec.marshalNRenditionFile2ᚕᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐRenditionFileᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Rendition_files(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Rendition",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_RenditionFile(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Rendition_subtitleTracks(ctx context.Context, field graphql.CollectedField, obj *sqlc.Rendition) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Rendition_subtitleTracks(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Rendition().SubtitleTracks(ctx, obj, fc.Args["history"].(bool))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*sqlc.SubtitleTrack) graphql.Marshaler {
+			return ec.marshalNSubtitleTrack2ᚕᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐSubtitleTrackᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Rendition_subtitleTracks(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Rendition",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_SubtitleTrack(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Rendition_subtitleTracks_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _RenditionFile_renditionId(ctx context.Context, field graphql.CollectedField, obj *sqlc.RenditionFile) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RenditionFile_renditionId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.RenditionID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RenditionFile_renditionId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RenditionFile", field, false, false, "ID")
+}
+
+func (ec *executionContext) _RenditionFile_fileId(ctx context.Context, field graphql.CollectedField, obj *sqlc.RenditionFile) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RenditionFile_fileId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.FileID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RenditionFile_fileId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RenditionFile", field, false, false, "ID")
+}
+
+func (ec *executionContext) _RenditionFile_role(ctx context.Context, field graphql.CollectedField, obj *sqlc.RenditionFile) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RenditionFile_role(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Role, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v sqlc.FileRole) graphql.Marshaler {
+			return ec.marshalNFileRole2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐFileRole(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RenditionFile_role(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RenditionFile", field, false, false, "FileRole")
+}
+
+func (ec *executionContext) _RenditionFile_position(ctx context.Context, field graphql.CollectedField, obj *sqlc.RenditionFile) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RenditionFile_position(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Position, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RenditionFile_position(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("RenditionFile", field, false, false, "Int")
+}
+
+func (ec *executionContext) _RenditionFile_file(ctx context.Context, field graphql.CollectedField, obj *sqlc.RenditionFile) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_RenditionFile_file(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.RenditionFile().File(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *sqlc.File) graphql.Marshaler {
+			return ec.marshalNFile2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐFile(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_RenditionFile_file(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "RenditionFile",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_File(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _StorageLocation_id(ctx context.Context, field graphql.CollectedField, obj *sqlc.StorageLocation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_StorageLocation_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_StorageLocation_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("StorageLocation", field, false, false, "ID")
+}
+
+func (ec *executionContext) _StorageLocation_name(ctx context.Context, field graphql.CollectedField, obj *sqlc.StorageLocation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_StorageLocation_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_StorageLocation_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("StorageLocation", field, false, false, "String")
+}
+
+func (ec *executionContext) _StorageLocation_kind(ctx context.Context, field graphql.CollectedField, obj *sqlc.StorageLocation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_StorageLocation_kind(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Kind, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v sqlc.LocationKind) graphql.Marshaler {
+			return ec.marshalNLocationKind2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐLocationKind(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_StorageLocation_kind(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("StorageLocation", field, false, false, "LocationKind")
+}
+
+func (ec *executionContext) _StorageLocation_baseUri(ctx context.Context, field graphql.CollectedField, obj *sqlc.StorageLocation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_StorageLocation_baseUri(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.BaseUri, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_StorageLocation_baseUri(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("StorageLocation", field, false, false, "String")
+}
+
+func (ec *executionContext) _StorageLocation_online(ctx context.Context, field graphql.CollectedField, obj *sqlc.StorageLocation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_StorageLocation_online(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Online, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_StorageLocation_online(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("StorageLocation", field, false, false, "Boolean")
+}
+
+func (ec *executionContext) _StorageLocation_createdAt(ctx context.Context, field graphql.CollectedField, obj *sqlc.StorageLocation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_StorageLocation_createdAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_StorageLocation_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("StorageLocation", field, false, false, "Time")
+}
+
+func (ec *executionContext) _SubtitleCue_seq(ctx context.Context, field graphql.CollectedField, obj *sqlc.ListSubtitleCuesRow) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SubtitleCue_seq(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Seq, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SubtitleCue_seq(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SubtitleCue", field, false, false, "Int")
+}
+
+func (ec *executionContext) _SubtitleCue_startMs(ctx context.Context, field graphql.CollectedField, obj *sqlc.ListSubtitleCuesRow) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SubtitleCue_startMs(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.StartMs, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SubtitleCue_startMs(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SubtitleCue", field, false, false, "Int")
+}
+
+func (ec *executionContext) _SubtitleCue_endMs(ctx context.Context, field graphql.CollectedField, obj *sqlc.ListSubtitleCuesRow) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SubtitleCue_endMs(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.EndMs, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SubtitleCue_endMs(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SubtitleCue", field, false, false, "Int")
+}
+
+func (ec *executionContext) _SubtitleCue_text(ctx context.Context, field graphql.CollectedField, obj *sqlc.ListSubtitleCuesRow) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SubtitleCue_text(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Text, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SubtitleCue_text(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SubtitleCue", field, false, false, "String")
+}
+
+func (ec *executionContext) _SubtitleCue_speaker(ctx context.Context, field graphql.CollectedField, obj *sqlc.ListSubtitleCuesRow) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SubtitleCue_speaker(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Speaker, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_SubtitleCue_speaker(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SubtitleCue", field, false, false, "String")
+}
+
+func (ec *executionContext) _SubtitleTrack_id(ctx context.Context, field graphql.CollectedField, obj *sqlc.SubtitleTrack) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SubtitleTrack_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SubtitleTrack_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SubtitleTrack", field, false, false, "ID")
+}
+
+func (ec *executionContext) _SubtitleTrack_renditionId(ctx context.Context, field graphql.CollectedField, obj *sqlc.SubtitleTrack) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SubtitleTrack_renditionId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.RenditionID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SubtitleTrack_renditionId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SubtitleTrack", field, false, false, "ID")
+}
+
+func (ec *executionContext) _SubtitleTrack_assetId(ctx context.Context, field graphql.CollectedField, obj *sqlc.SubtitleTrack) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SubtitleTrack_assetId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.AssetID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SubtitleTrack_assetId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SubtitleTrack", field, false, false, "ID")
+}
+
+func (ec *executionContext) _SubtitleTrack_sourceFileId(ctx context.Context, field graphql.CollectedField, obj *sqlc.SubtitleTrack) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SubtitleTrack_sourceFileId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.SourceFileID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOID2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_SubtitleTrack_sourceFileId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SubtitleTrack", field, false, false, "ID")
+}
+
+func (ec *executionContext) _SubtitleTrack_language(ctx context.Context, field graphql.CollectedField, obj *sqlc.SubtitleTrack) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SubtitleTrack_language(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Language, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_SubtitleTrack_language(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SubtitleTrack", field, false, false, "String")
+}
+
+func (ec *executionContext) _SubtitleTrack_kind(ctx context.Context, field graphql.CollectedField, obj *sqlc.SubtitleTrack) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SubtitleTrack_kind(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Kind, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v sqlc.TrackKind) graphql.Marshaler {
+			return ec.marshalNTrackKind2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐTrackKind(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SubtitleTrack_kind(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SubtitleTrack", field, false, false, "TrackKind")
+}
+
+func (ec *executionContext) _SubtitleTrack_origin(ctx context.Context, field graphql.CollectedField, obj *sqlc.SubtitleTrack) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SubtitleTrack_origin(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Origin, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v sqlc.TrackOrigin) graphql.Marshaler {
+			return ec.marshalNTrackOrigin2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐTrackOrigin(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SubtitleTrack_origin(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SubtitleTrack", field, false, false, "TrackOrigin")
+}
+
+func (ec *executionContext) _SubtitleTrack_revision(ctx context.Context, field graphql.CollectedField, obj *sqlc.SubtitleTrack) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SubtitleTrack_revision(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Revision, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SubtitleTrack_revision(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SubtitleTrack", field, false, false, "Int")
+}
+
+func (ec *executionContext) _SubtitleTrack_parentId(ctx context.Context, field graphql.CollectedField, obj *sqlc.SubtitleTrack) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SubtitleTrack_parentId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ParentID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOID2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_SubtitleTrack_parentId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SubtitleTrack", field, false, false, "ID")
+}
+
+func (ec *executionContext) _SubtitleTrack_createdBy(ctx context.Context, field graphql.CollectedField, obj *sqlc.SubtitleTrack) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SubtitleTrack_createdBy(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedBy, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOID2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_SubtitleTrack_createdBy(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SubtitleTrack", field, false, false, "ID")
+}
+
+func (ec *executionContext) _SubtitleTrack_createdAt(ctx context.Context, field graphql.CollectedField, obj *sqlc.SubtitleTrack) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SubtitleTrack_createdAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SubtitleTrack_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SubtitleTrack", field, false, false, "Time")
+}
+
+func (ec *executionContext) _SubtitleTrack_cues(ctx context.Context, field graphql.CollectedField, obj *sqlc.SubtitleTrack) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SubtitleTrack_cues(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.SubtitleTrack().Cues(ctx, obj, fc.Args["limit"].(*int), fc.Args["offset"].(*int))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*sqlc.ListSubtitleCuesRow) graphql.Marshaler {
+			return ec.marshalNSubtitleCue2ᚕᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐListSubtitleCuesRowᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SubtitleTrack_cues(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SubtitleTrack",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_SubtitleCue(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_SubtitleTrack_cues_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SubtitleTrack_export(ctx context.Context, field graphql.CollectedField, obj *sqlc.SubtitleTrack) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SubtitleTrack_export(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.SubtitleTrack().Export(ctx, obj, fc.Args["format"].(subtitle.Format))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SubtitleTrack_export(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SubtitleTrack",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_SubtitleTrack_export_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _User_id(ctx context.Context, field graphql.CollectedField, obj *sqlc.AppUser) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_User_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_User_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("User", field, false, false, "ID")
+}
+
+func (ec *executionContext) _User_externalId(ctx context.Context, field graphql.CollectedField, obj *sqlc.AppUser) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_User_externalId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ExternalID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_User_externalId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("User", field, false, false, "String")
+}
+
+func (ec *executionContext) _User_email(ctx context.Context, field graphql.CollectedField, obj *sqlc.AppUser) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_User_email(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Email, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_User_email(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("User", field, false, false, "String")
+}
+
+func (ec *executionContext) _User_name(ctx context.Context, field graphql.CollectedField, obj *sqlc.AppUser) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_User_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_User_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("User", field, false, false, "String")
+}
+
+func (ec *executionContext) _User_active(ctx context.Context, field graphql.CollectedField, obj *sqlc.AppUser) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_User_active(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Active, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_User_active(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("User", field, false, false, "Boolean")
+}
+
+func (ec *executionContext) _User_isAdmin(ctx context.Context, field graphql.CollectedField, obj *sqlc.AppUser) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_User_isAdmin(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.IsAdmin, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_User_isAdmin(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("User", field, false, false, "Boolean")
+}
+
+func (ec *executionContext) _User_createdAt(ctx context.Context, field graphql.CollectedField, obj *sqlc.AppUser) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_User_createdAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_User_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("User", field, false, false, "Time")
+}
+
+func (ec *executionContext) _UserGroup_id(ctx context.Context, field graphql.CollectedField, obj *sqlc.UserGroup) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_UserGroup_id(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNID2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_UserGroup_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("UserGroup", field, false, false, "ID")
+}
+
+func (ec *executionContext) _UserGroup_name(ctx context.Context, field graphql.CollectedField, obj *sqlc.UserGroup) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_UserGroup_name(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_UserGroup_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("UserGroup", field, false, false, "String")
+}
+
+func (ec *executionContext) _UserGroup_externalId(ctx context.Context, field graphql.CollectedField, obj *sqlc.UserGroup) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_UserGroup_externalId(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.ExternalID, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_UserGroup_externalId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("UserGroup", field, false, false, "String")
+}
+
+func (ec *executionContext) _UserGroup_description(ctx context.Context, field graphql.CollectedField, obj *sqlc.UserGroup) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_UserGroup_description(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Description, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_UserGroup_description(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("UserGroup", field, false, false, "String")
 }
 
 func (ec *executionContext) ___Directive_name(ctx context.Context, field graphql.CollectedField, obj *introspection.Directive) (ret graphql.Marshaler) {
@@ -1978,6 +10986,1109 @@ func (ec *executionContext) fieldContext___Type_isOneOf(_ context.Context, field
 
 // region    **************************** input.gotpl *****************************
 
+func (ec *executionContext) unmarshalInputAssetFilter(ctx context.Context, obj any) (asset.Filter, error) {
+	var it asset.Filter
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"typeId", "projectId", "title", "legacyId"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "typeId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("typeId"))
+			data, err := ec.unmarshalOInt2ᚖint16(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TypeID = data
+		case "projectId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("projectId"))
+			data, err := ec.unmarshalOID2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ProjectID = data
+		case "title":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("title"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Title = data
+		case "legacyId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("legacyId"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.LegacyID = data
+		}
+	}
+	return it, nil
+}
+
+// UnmarshalAssetFilter unmarshals raw into the AssetFilter input type, using the
+// unmarshaler bound to ctx's request. Call it from a resolver to decode an input
+// object that was not passed as a field argument.
+//
+// ctx must come from a gqlgen request; outside one there is no unmarshaler to use
+// and the returned error says so.
+func UnmarshalAssetFilter(ctx context.Context, raw any) (asset.Filter, error) {
+	var out asset.Filter
+	err := graphql.UnmarshalNamedInputFromContext(ctx, "AssetFilter", raw, &out)
+	return out, err
+}
+
+func (ec *executionContext) unmarshalInputAssetInput(ctx context.Context, obj any) (asset.Input, error) {
+	var it asset.Input
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"typeId", "title", "description", "capturedAt", "camera", "reel", "metadata", "legacyIds", "originalLanguage"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "typeId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("typeId"))
+			data, err := ec.unmarshalNInt2int16(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TypeID = data
+		case "title":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("title"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Title = data
+		case "description":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("description"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Description = data
+		case "capturedAt":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("capturedAt"))
+			data, err := ec.unmarshalOTime2ᚖtimeᚐTime(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.CapturedAt = data
+		case "camera":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("camera"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Camera = data
+		case "reel":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("reel"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Reel = data
+		case "metadata":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("metadata"))
+			data, err := ec.unmarshalOJSON2encodingᚋjsonᚋjsontextᚐValue(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Metadata = data
+		case "legacyIds":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("legacyIds"))
+			data, err := ec.unmarshalOString2ᚕstringᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.LegacyIDs = data
+		case "originalLanguage":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("originalLanguage"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.OriginalLanguage = data
+		}
+	}
+	return it, nil
+}
+
+// UnmarshalAssetInput unmarshals raw into the AssetInput input type, using the
+// unmarshaler bound to ctx's request. Call it from a resolver to decode an input
+// object that was not passed as a field argument.
+//
+// ctx must come from a gqlgen request; outside one there is no unmarshaler to use
+// and the returned error says so.
+func UnmarshalAssetInput(ctx context.Context, raw any) (asset.Input, error) {
+	var out asset.Input
+	err := graphql.UnmarshalNamedInputFromContext(ctx, "AssetInput", raw, &out)
+	return out, err
+}
+
+func (ec *executionContext) unmarshalInputCreateProgramInput(ctx context.Context, obj any) (project.ProgramInput, error) {
+	var it project.ProgramInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"code", "name", "description", "metadata"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "code":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("code"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Code = data
+		case "name":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Name = data
+		case "description":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("description"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Description = data
+		case "metadata":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("metadata"))
+			data, err := ec.unmarshalOJSON2encodingᚋjsonᚋjsontextᚐValue(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Metadata = data
+		}
+	}
+	return it, nil
+}
+
+// UnmarshalCreateProgramInput unmarshals raw into the CreateProgramInput input type, using the
+// unmarshaler bound to ctx's request. Call it from a resolver to decode an input
+// object that was not passed as a field argument.
+//
+// ctx must come from a gqlgen request; outside one there is no unmarshaler to use
+// and the returned error says so.
+func UnmarshalCreateProgramInput(ctx context.Context, raw any) (project.ProgramInput, error) {
+	var out project.ProgramInput
+	err := graphql.UnmarshalNamedInputFromContext(ctx, "CreateProgramInput", raw, &out)
+	return out, err
+}
+
+func (ec *executionContext) unmarshalInputCreateProjectInput(ctx context.Context, obj any) (project.ProjectInput, error) {
+	var it project.ProjectInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"programId", "code", "name", "status", "startsOn", "endsOn", "metadata"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "programId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("programId"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ProgramID = data
+		case "code":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("code"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Code = data
+		case "name":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Name = data
+		case "status":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("status"))
+			data, err := ec.unmarshalOProjectStatus2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐProjectStatus(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Status = data
+		case "startsOn":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("startsOn"))
+			data, err := ec.unmarshalODate2ᚖtimeᚐTime(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.StartsOn = data
+		case "endsOn":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("endsOn"))
+			data, err := ec.unmarshalODate2ᚖtimeᚐTime(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.EndsOn = data
+		case "metadata":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("metadata"))
+			data, err := ec.unmarshalOJSON2encodingᚋjsonᚋjsontextᚐValue(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Metadata = data
+		}
+	}
+	return it, nil
+}
+
+// UnmarshalCreateProjectInput unmarshals raw into the CreateProjectInput input type, using the
+// unmarshaler bound to ctx's request. Call it from a resolver to decode an input
+// object that was not passed as a field argument.
+//
+// ctx must come from a gqlgen request; outside one there is no unmarshaler to use
+// and the returned error says so.
+func UnmarshalCreateProjectInput(ctx context.Context, raw any) (project.ProjectInput, error) {
+	var out project.ProjectInput
+	err := graphql.UnmarshalNamedInputFromContext(ctx, "CreateProjectInput", raw, &out)
+	return out, err
+}
+
+func (ec *executionContext) unmarshalInputCreateRenditionInput(ctx context.Context, obj any) (asset.RenditionInput, error) {
+	var it asset.RenditionInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"kind", "language", "purpose", "overrides", "metadata"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "kind":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("kind"))
+			data, err := ec.unmarshalNRenditionKind2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐRenditionKind(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Kind = data
+		case "language":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("language"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Language = data
+		case "purpose":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("purpose"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Purpose = data
+		case "overrides":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("overrides"))
+			data, err := ec.unmarshalOJSON2encodingᚋjsonᚋjsontextᚐValue(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Overrides = data
+		case "metadata":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("metadata"))
+			data, err := ec.unmarshalOJSON2encodingᚋjsonᚋjsontextᚐValue(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Metadata = data
+		}
+	}
+	return it, nil
+}
+
+// UnmarshalCreateRenditionInput unmarshals raw into the CreateRenditionInput input type, using the
+// unmarshaler bound to ctx's request. Call it from a resolver to decode an input
+// object that was not passed as a field argument.
+//
+// ctx must come from a gqlgen request; outside one there is no unmarshaler to use
+// and the returned error says so.
+func UnmarshalCreateRenditionInput(ctx context.Context, raw any) (asset.RenditionInput, error) {
+	var out asset.RenditionInput
+	err := graphql.UnmarshalNamedInputFromContext(ctx, "CreateRenditionInput", raw, &out)
+	return out, err
+}
+
+func (ec *executionContext) unmarshalInputFileCopyInput(ctx context.Context, obj any) (file.CopyInput, error) {
+	var it file.CopyInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"locationId", "path"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "locationId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("locationId"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.LocationID = data
+		case "path":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("path"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Path = data
+		}
+	}
+	return it, nil
+}
+
+// UnmarshalFileCopyInput unmarshals raw into the FileCopyInput input type, using the
+// unmarshaler bound to ctx's request. Call it from a resolver to decode an input
+// object that was not passed as a field argument.
+//
+// ctx must come from a gqlgen request; outside one there is no unmarshaler to use
+// and the returned error says so.
+func UnmarshalFileCopyInput(ctx context.Context, raw any) (file.CopyInput, error) {
+	var out file.CopyInput
+	err := graphql.UnmarshalNamedInputFromContext(ctx, "FileCopyInput", raw, &out)
+	return out, err
+}
+
+func (ec *executionContext) unmarshalInputFileHashInput(ctx context.Context, obj any) (file.HashInput, error) {
+	var it file.HashInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"algo", "value"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "algo":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("algo"))
+			data, err := ec.unmarshalNHashAlgo2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐHashAlgo(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Algo = data
+		case "value":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("value"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Value = data
+		}
+	}
+	return it, nil
+}
+
+// UnmarshalFileHashInput unmarshals raw into the FileHashInput input type, using the
+// unmarshaler bound to ctx's request. Call it from a resolver to decode an input
+// object that was not passed as a field argument.
+//
+// ctx must come from a gqlgen request; outside one there is no unmarshaler to use
+// and the returned error says so.
+func UnmarshalFileHashInput(ctx context.Context, raw any) (file.HashInput, error) {
+	var out file.HashInput
+	err := graphql.UnmarshalNamedInputFromContext(ctx, "FileHashInput", raw, &out)
+	return out, err
+}
+
+func (ec *executionContext) unmarshalInputGrantInput(ctx context.Context, obj any) (access.GrantInput, error) {
+	var it access.GrantInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"scope", "scopeId", "userId", "userEmail", "groupId", "level", "expiresAt"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "scope":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("scope"))
+			data, err := ec.unmarshalNGrantScope2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐGrantScope(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Scope = data
+		case "scopeId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("scopeId"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ScopeID = data
+		case "userId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("userId"))
+			data, err := ec.unmarshalOID2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.UserID = data
+		case "userEmail":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("userEmail"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.UserEmail = data
+		case "groupId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("groupId"))
+			data, err := ec.unmarshalOID2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.GroupID = data
+		case "level":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("level"))
+			data, err := ec.unmarshalNPermissionLevel2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐPermissionLevel(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Level = data
+		case "expiresAt":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("expiresAt"))
+			data, err := ec.unmarshalOTime2ᚖtimeᚐTime(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ExpiresAt = data
+		}
+	}
+	return it, nil
+}
+
+// UnmarshalGrantInput unmarshals raw into the GrantInput input type, using the
+// unmarshaler bound to ctx's request. Call it from a resolver to decode an input
+// object that was not passed as a field argument.
+//
+// ctx must come from a gqlgen request; outside one there is no unmarshaler to use
+// and the returned error says so.
+func UnmarshalGrantInput(ctx context.Context, raw any) (access.GrantInput, error) {
+	var out access.GrantInput
+	err := graphql.UnmarshalNamedInputFromContext(ctx, "GrantInput", raw, &out)
+	return out, err
+}
+
+func (ec *executionContext) unmarshalInputImportSubtitlesInput(ctx context.Context, obj any) (subtitle.ImportInput, error) {
+	var it subtitle.ImportInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"versionId", "language", "kind", "format", "content", "sourceFileId"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "versionId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("versionId"))
+			data, err := ec.unmarshalNID2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.VersionID = data
+		case "language":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("language"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Language = data
+		case "kind":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("kind"))
+			data, err := ec.unmarshalOTrackKind2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐTrackKind(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Kind = data
+		case "format":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("format"))
+			data, err := ec.unmarshalNSubtitleFormat2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋsubtitleᚐFormat(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Format = data
+		case "content":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("content"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Content = data
+		case "sourceFileId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sourceFileId"))
+			data, err := ec.unmarshalOID2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.SourceFileID = data
+		}
+	}
+	return it, nil
+}
+
+// UnmarshalImportSubtitlesInput unmarshals raw into the ImportSubtitlesInput input type, using the
+// unmarshaler bound to ctx's request. Call it from a resolver to decode an input
+// object that was not passed as a field argument.
+//
+// ctx must come from a gqlgen request; outside one there is no unmarshaler to use
+// and the returned error says so.
+func UnmarshalImportSubtitlesInput(ctx context.Context, raw any) (subtitle.ImportInput, error) {
+	var out subtitle.ImportInput
+	err := graphql.UnmarshalNamedInputFromContext(ctx, "ImportSubtitlesInput", raw, &out)
+	return out, err
+}
+
+func (ec *executionContext) unmarshalInputRegisterFileInput(ctx context.Context, obj any) (file.RegisterInput, error) {
+	var it file.RegisterInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"sizeBytes", "mimeType", "durationMs", "codec", "width", "height", "probe", "hashes", "copies"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "sizeBytes":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sizeBytes"))
+			data, err := ec.unmarshalNInt642int64(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.SizeBytes = data
+		case "mimeType":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("mimeType"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.MimeType = data
+		case "durationMs":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("durationMs"))
+			data, err := ec.unmarshalOInt642ᚖint64(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.DurationMs = data
+		case "codec":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("codec"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Codec = data
+		case "width":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("width"))
+			data, err := ec.unmarshalOInt2ᚖint32(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Width = data
+		case "height":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("height"))
+			data, err := ec.unmarshalOInt2ᚖint32(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Height = data
+		case "probe":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("probe"))
+			data, err := ec.unmarshalOJSON2encodingᚋjsonᚋjsontextᚐValue(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Probe = data
+		case "hashes":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("hashes"))
+			data, err := ec.unmarshalNFileHashInput2ᚕgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋfileᚐHashInputᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Hashes = data
+		case "copies":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("copies"))
+			data, err := ec.unmarshalOFileCopyInput2ᚕgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋfileᚐCopyInputᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Copies = data
+		}
+	}
+	return it, nil
+}
+
+// UnmarshalRegisterFileInput unmarshals raw into the RegisterFileInput input type, using the
+// unmarshaler bound to ctx's request. Call it from a resolver to decode an input
+// object that was not passed as a field argument.
+//
+// ctx must come from a gqlgen request; outside one there is no unmarshaler to use
+// and the returned error says so.
+func UnmarshalRegisterFileInput(ctx context.Context, raw any) (file.RegisterInput, error) {
+	var out file.RegisterInput
+	err := graphql.UnmarshalNamedInputFromContext(ctx, "RegisterFileInput", raw, &out)
+	return out, err
+}
+
+func (ec *executionContext) unmarshalInputStorageLocationInput(ctx context.Context, obj any) (file.LocationInput, error) {
+	var it file.LocationInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	if _, present := asMap["online"]; !present {
+		asMap["online"] = true
+	}
+
+	fieldsInOrder := [...]string{"name", "kind", "baseUri", "online"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "name":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Name = data
+		case "kind":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("kind"))
+			data, err := ec.unmarshalNLocationKind2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐLocationKind(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Kind = data
+		case "baseUri":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("baseUri"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.BaseURI = data
+		case "online":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("online"))
+			data, err := ec.unmarshalNBoolean2bool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Online = data
+		}
+	}
+	return it, nil
+}
+
+// UnmarshalStorageLocationInput unmarshals raw into the StorageLocationInput input type, using the
+// unmarshaler bound to ctx's request. Call it from a resolver to decode an input
+// object that was not passed as a field argument.
+//
+// ctx must come from a gqlgen request; outside one there is no unmarshaler to use
+// and the returned error says so.
+func UnmarshalStorageLocationInput(ctx context.Context, raw any) (file.LocationInput, error) {
+	var out file.LocationInput
+	err := graphql.UnmarshalNamedInputFromContext(ctx, "StorageLocationInput", raw, &out)
+	return out, err
+}
+
+func (ec *executionContext) unmarshalInputSubtitleCueInput(ctx context.Context, obj any) (subtitle.Cue, error) {
+	var it subtitle.Cue
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"startMs", "endMs", "text", "speaker"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "startMs":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("startMs"))
+			data, err := ec.unmarshalNInt2int32(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.StartMs = data
+		case "endMs":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("endMs"))
+			data, err := ec.unmarshalNInt2int32(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.EndMs = data
+		case "text":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("text"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Text = data
+		case "speaker":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("speaker"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Speaker = data
+		}
+	}
+	return it, nil
+}
+
+// UnmarshalSubtitleCueInput unmarshals raw into the SubtitleCueInput input type, using the
+// unmarshaler bound to ctx's request. Call it from a resolver to decode an input
+// object that was not passed as a field argument.
+//
+// ctx must come from a gqlgen request; outside one there is no unmarshaler to use
+// and the returned error says so.
+func UnmarshalSubtitleCueInput(ctx context.Context, raw any) (subtitle.Cue, error) {
+	var out subtitle.Cue
+	err := graphql.UnmarshalNamedInputFromContext(ctx, "SubtitleCueInput", raw, &out)
+	return out, err
+}
+
+func (ec *executionContext) unmarshalInputUpdateProgramInput(ctx context.Context, obj any) (project.ProgramInput, error) {
+	var it project.ProgramInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"name", "description", "metadata"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "name":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Name = data
+		case "description":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("description"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Description = data
+		case "metadata":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("metadata"))
+			data, err := ec.unmarshalOJSON2encodingᚋjsonᚋjsontextᚐValue(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Metadata = data
+		}
+	}
+	return it, nil
+}
+
+// UnmarshalUpdateProgramInput unmarshals raw into the UpdateProgramInput input type, using the
+// unmarshaler bound to ctx's request. Call it from a resolver to decode an input
+// object that was not passed as a field argument.
+//
+// ctx must come from a gqlgen request; outside one there is no unmarshaler to use
+// and the returned error says so.
+func UnmarshalUpdateProgramInput(ctx context.Context, raw any) (project.ProgramInput, error) {
+	var out project.ProgramInput
+	err := graphql.UnmarshalNamedInputFromContext(ctx, "UpdateProgramInput", raw, &out)
+	return out, err
+}
+
+func (ec *executionContext) unmarshalInputUpdateProjectInput(ctx context.Context, obj any) (project.ProjectInput, error) {
+	var it project.ProjectInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"name", "status", "startsOn", "endsOn", "metadata"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "name":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Name = data
+		case "status":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("status"))
+			data, err := ec.unmarshalOProjectStatus2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐProjectStatus(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Status = data
+		case "startsOn":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("startsOn"))
+			data, err := ec.unmarshalODate2ᚖtimeᚐTime(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.StartsOn = data
+		case "endsOn":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("endsOn"))
+			data, err := ec.unmarshalODate2ᚖtimeᚐTime(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.EndsOn = data
+		case "metadata":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("metadata"))
+			data, err := ec.unmarshalOJSON2encodingᚋjsonᚋjsontextᚐValue(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Metadata = data
+		}
+	}
+	return it, nil
+}
+
+// UnmarshalUpdateProjectInput unmarshals raw into the UpdateProjectInput input type, using the
+// unmarshaler bound to ctx's request. Call it from a resolver to decode an input
+// object that was not passed as a field argument.
+//
+// ctx must come from a gqlgen request; outside one there is no unmarshaler to use
+// and the returned error says so.
+func UnmarshalUpdateProjectInput(ctx context.Context, raw any) (project.ProjectInput, error) {
+	var out project.ProjectInput
+	err := graphql.UnmarshalNamedInputFromContext(ctx, "UpdateProjectInput", raw, &out)
+	return out, err
+}
+
+func (ec *executionContext) unmarshalInputUpdateRenditionInput(ctx context.Context, obj any) (asset.RenditionInput, error) {
+	var it asset.RenditionInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"language", "purpose", "overrides", "metadata"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "language":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("language"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Language = data
+		case "purpose":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("purpose"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Purpose = data
+		case "overrides":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("overrides"))
+			data, err := ec.unmarshalOJSON2encodingᚋjsonᚋjsontextᚐValue(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Overrides = data
+		case "metadata":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("metadata"))
+			data, err := ec.unmarshalOJSON2encodingᚋjsonᚋjsontextᚐValue(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Metadata = data
+		}
+	}
+	return it, nil
+}
+
+// UnmarshalUpdateRenditionInput unmarshals raw into the UpdateRenditionInput input type, using the
+// unmarshaler bound to ctx's request. Call it from a resolver to decode an input
+// object that was not passed as a field argument.
+//
+// ctx must come from a gqlgen request; outside one there is no unmarshaler to use
+// and the returned error says so.
+func UnmarshalUpdateRenditionInput(ctx context.Context, raw any) (asset.RenditionInput, error) {
+	var out asset.RenditionInput
+	err := graphql.UnmarshalNamedInputFromContext(ctx, "UpdateRenditionInput", raw, &out)
+	return out, err
+}
+
+func (ec *executionContext) unmarshalInputVersionInput(ctx context.Context, obj any) (asset.VersionInput, error) {
+	var it asset.VersionInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"label", "status"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "label":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("label"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Label = data
+		case "status":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("status"))
+			data, err := ec.unmarshalOVersionStatus2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐVersionStatus(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Status = data
+		}
+	}
+	return it, nil
+}
+
+// UnmarshalVersionInput unmarshals raw into the VersionInput input type, using the
+// unmarshaler bound to ctx's request. Call it from a resolver to decode an input
+// object that was not passed as a field argument.
+//
+// ctx must come from a gqlgen request; outside one there is no unmarshaler to use
+// and the returned error says so.
+func UnmarshalVersionInput(ctx context.Context, raw any) (asset.VersionInput, error) {
+	var out asset.VersionInput
+	err := graphql.UnmarshalNamedInputFromContext(ctx, "VersionInput", raw, &out)
+	return out, err
+}
+
 // endregion **************************** input.gotpl *****************************
 
 // region    ************************** interface.gotpl ***************************
@@ -1986,32 +12097,605 @@ func (ec *executionContext) fieldContext___Type_isOneOf(_ context.Context, field
 
 // region    **************************** object.gotpl ****************************
 
-var dummyImplementors = []string{"Dummy"}
+var assetImplementors = []string{"Asset"}
 
-func (ec *executionContext) _Dummy(ctx context.Context, sel ast.SelectionSet, obj *sqlc.Dummy) graphql.Marshaler {
-	fields := graphql.CollectFields(ec.OperationContext, sel, dummyImplementors)
+func (ec *executionContext) _Asset(ctx context.Context, sel ast.SelectionSet, obj *sqlc.Asset) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, assetImplementors)
 
 	out := graphql.NewFieldSet(fields)
 	deferred := graphql.NewDeferredGroup(ctx)
 	for i, field := range fields {
 		switch field.Name {
 		case "__typename":
-			out.Values[i] = graphql.MarshalString("Dummy")
+			out.Values[i] = graphql.MarshalString("Asset")
 		case "id":
+			out.Values[i] = ec._Asset_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "typeId":
+			out.Values[i] = ec._Asset_typeId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "title":
+			out.Values[i] = ec._Asset_title(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "description":
+			out.Values[i] = ec._Asset_description(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "capturedAt":
+			out.Values[i] = ec._Asset_capturedAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "camera":
+			out.Values[i] = ec._Asset_camera(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "reel":
+			out.Values[i] = ec._Asset_reel(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "metadata":
+			out.Values[i] = ec._Asset_metadata(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "legacyIds":
+			out.Values[i] = ec._Asset_legacyIds(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "originalLanguage":
+			out.Values[i] = ec._Asset_originalLanguage(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "createdAt":
+			out.Values[i] = ec._Asset_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "updatedAt":
+			out.Values[i] = ec._Asset_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "type":
 			out.ResolveConcurrently(ec.OperationContext, &deferred, i,
 				true, true,
 				func(ctx context.Context) graphql.Marshaler {
-					return ec._Dummy_id(ctx, field, obj)
+					return ec._Asset_type(ctx, field, obj)
 				})
-		case "name":
-			out.Values[i] = ec._Dummy_name(ctx, field, obj)
+		case "myLevel":
+			out.ResolveConcurrently(ec.OperationContext, &deferred, i,
+				true, true,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Asset_myLevel(ctx, field, obj)
+				})
+		case "versions":
+			out.ResolveConcurrently(ec.OperationContext, &deferred, i,
+				true, true,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Asset_versions(ctx, field, obj)
+				})
+		case "projects":
+			out.ResolveConcurrently(ec.OperationContext, &deferred, i,
+				true, true,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Asset_projects(ctx, field, obj)
+				})
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var assetProjectLinkImplementors = []string{"AssetProjectLink"}
+
+func (ec *executionContext) _AssetProjectLink(ctx context.Context, sel ast.SelectionSet, obj *sqlc.AssetProject) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, assetProjectLinkImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("AssetProjectLink")
+		case "assetId":
+			out.Values[i] = ec._AssetProjectLink_assetId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "projectId":
+			out.Values[i] = ec._AssetProjectLink_projectId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "role":
+			out.Values[i] = ec._AssetProjectLink_role(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "linkedBy":
+			out.Values[i] = ec._AssetProjectLink_linkedBy(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "createdAt":
-			out.Values[i] = ec._Dummy_createdAt(ctx, field, obj)
+			out.Values[i] = ec._AssetProjectLink_createdAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "project":
+			out.ResolveConcurrently(ec.OperationContext, &deferred, i,
+				true, false,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._AssetProjectLink_project(ctx, field, obj)
+				})
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var assetTypeImplementors = []string{"AssetType"}
+
+func (ec *executionContext) _AssetType(ctx context.Context, sel ast.SelectionSet, obj *sqlc.AssetType) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, assetTypeImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("AssetType")
+		case "id":
+			out.Values[i] = ec._AssetType_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._AssetType_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "description":
+			out.Values[i] = ec._AssetType_description(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var assetVersionImplementors = []string{"AssetVersion"}
+
+func (ec *executionContext) _AssetVersion(ctx context.Context, sel ast.SelectionSet, obj *sqlc.AssetVersion) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, assetVersionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("AssetVersion")
+		case "id":
+			out.Values[i] = ec._AssetVersion_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "assetId":
+			out.Values[i] = ec._AssetVersion_assetId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "number":
+			out.Values[i] = ec._AssetVersion_number(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "label":
+			out.Values[i] = ec._AssetVersion_label(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "status":
+			out.Values[i] = ec._AssetVersion_status(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "createdBy":
+			out.Values[i] = ec._AssetVersion_createdBy(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "createdAt":
+			out.Values[i] = ec._AssetVersion_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "renditions":
+			out.ResolveConcurrently(ec.OperationContext, &deferred, i,
+				true, true,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._AssetVersion_renditions(ctx, field, obj)
+				})
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var fileImplementors = []string{"File"}
+
+func (ec *executionContext) _File(ctx context.Context, sel ast.SelectionSet, obj *sqlc.File) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, fileImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("File")
+		case "id":
+			out.Values[i] = ec._File_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "sizeBytes":
+			out.Values[i] = ec._File_sizeBytes(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "mimeType":
+			out.Values[i] = ec._File_mimeType(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "durationMs":
+			out.Values[i] = ec._File_durationMs(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "codec":
+			out.Values[i] = ec._File_codec(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "width":
+			out.Values[i] = ec._File_width(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "height":
+			out.Values[i] = ec._File_height(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "probe":
+			out.Values[i] = ec._File_probe(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "createdAt":
+			out.Values[i] = ec._File_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "hashes":
+			out.ResolveConcurrently(ec.OperationContext, &deferred, i,
+				true, true,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._File_hashes(ctx, field, obj)
+				})
+		case "copies":
+			out.ResolveConcurrently(ec.OperationContext, &deferred, i,
+				true, true,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._File_copies(ctx, field, obj)
+				})
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var fileCopyImplementors = []string{"FileCopy"}
+
+func (ec *executionContext) _FileCopy(ctx context.Context, sel ast.SelectionSet, obj *sqlc.FileCopy) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, fileCopyImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("FileCopy")
+		case "id":
+			out.Values[i] = ec._FileCopy_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "fileId":
+			out.Values[i] = ec._FileCopy_fileId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "locationId":
+			out.Values[i] = ec._FileCopy_locationId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "path":
+			out.Values[i] = ec._FileCopy_path(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "status":
+			out.Values[i] = ec._FileCopy_status(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "lastSeenAt":
+			out.Values[i] = ec._FileCopy_lastSeenAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "lastVerifiedAt":
+			out.Values[i] = ec._FileCopy_lastVerifiedAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "location":
+			out.ResolveConcurrently(ec.OperationContext, &deferred, i,
+				true, true,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._FileCopy_location(ctx, field, obj)
+				})
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var fileHashImplementors = []string{"FileHash"}
+
+func (ec *executionContext) _FileHash(ctx context.Context, sel ast.SelectionSet, obj *sqlc.FileHash) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, fileHashImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("FileHash")
+		case "algo":
+			out.Values[i] = ec._FileHash_algo(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "value":
+			out.ResolveConcurrently(ec.OperationContext, &deferred, i,
+				true, true,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._FileHash_value(ctx, field, obj)
+				})
+		case "computedAt":
+			out.Values[i] = ec._FileHash_computedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var grantImplementors = []string{"Grant"}
+
+func (ec *executionContext) _Grant(ctx context.Context, sel ast.SelectionSet, obj *sqlc.PermissionGrant) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, grantImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("Grant")
+		case "id":
+			out.Values[i] = ec._Grant_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "scope":
+			out.Values[i] = ec._Grant_scope(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "scopeId":
+			out.Values[i] = ec._Grant_scopeId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "level":
+			out.Values[i] = ec._Grant_level(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "userId":
+			out.Values[i] = ec._Grant_userId(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "groupId":
+			out.Values[i] = ec._Grant_groupId(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "grantedBy":
+			out.Values[i] = ec._Grant_grantedBy(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "grantedAt":
+			out.Values[i] = ec._Grant_grantedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "expiresAt":
+			out.Values[i] = ec._Grant_expiresAt(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var languageImplementors = []string{"Language"}
+
+func (ec *executionContext) _Language(ctx context.Context, sel ast.SelectionSet, obj *sqlc.Language) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, languageImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("Language")
+		case "code":
+			out.Values[i] = ec._Language_code(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._Language_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "nativeName":
+			out.Values[i] = ec._Language_nativeName(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "modality":
+			out.Values[i] = ec._Language_modality(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "baseCode":
+			out.Values[i] = ec._Language_baseCode(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "altCodes":
+			out.Values[i] = ec._Language_altCodes(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "active":
+			out.Values[i] = ec._Language_active(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
 			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
@@ -2049,20 +12733,390 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		switch field.Name {
 		case "__typename":
 			out.Values[i] = graphql.MarshalString("Mutation")
-		case "createDummy":
+		case "grantAccess":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._Mutation_createDummy(ctx, field)
+				return ec._Mutation_grantAccess(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "deleteDummy":
+		case "revokeAccess":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._Mutation_deleteDummy(ctx, field)
+				return ec._Mutation_revokeAccess(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "setUserAdmin":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_setUserAdmin(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createAsset":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_createAsset(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updateAsset":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateAsset(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deleteAsset":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteAsset(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "linkAssetToProject":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_linkAssetToProject(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "unlinkAssetFromProject":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_unlinkAssetFromProject(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createAssetVersion":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_createAssetVersion(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updateAssetVersion":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateAssetVersion(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deleteAssetVersion":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteAssetVersion(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createRendition":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_createRendition(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updateRendition":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateRendition(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deleteRendition":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteRendition(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "attachFile":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_attachFile(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "detachFile":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_detachFile(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createStorageLocation":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_createStorageLocation(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updateStorageLocation":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateStorageLocation(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deleteStorageLocation":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteStorageLocation(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "registerFile":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_registerFile(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "addFileCopy":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_addFileCopy(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "setFileCopyStatus":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_setFileCopyStatus(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "removeFileCopy":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_removeFileCopy(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deleteFile":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteFile(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createProgram":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_createProgram(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updateProgram":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateProgram(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deleteProgram":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteProgram(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createProject":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_createProject(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updateProject":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateProject(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deleteProject":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteProject(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "importSubtitles":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_importSubtitles(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "editSubtitles":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_editSubtitles(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deleteSubtitleTrack":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteSubtitleTrack(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var programImplementors = []string{"Program"}
+
+func (ec *executionContext) _Program(ctx context.Context, sel ast.SelectionSet, obj *sqlc.Program) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, programImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("Program")
+		case "id":
+			out.Values[i] = ec._Program_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "code":
+			out.Values[i] = ec._Program_code(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "name":
+			out.Values[i] = ec._Program_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "description":
+			out.Values[i] = ec._Program_description(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "metadata":
+			out.Values[i] = ec._Program_metadata(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "createdAt":
+			out.Values[i] = ec._Program_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "updatedAt":
+			out.Values[i] = ec._Program_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "projects":
+			out.ResolveConcurrently(ec.OperationContext, &deferred, i,
+				true, true,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Program_projects(ctx, field, obj)
+				})
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var projectImplementors = []string{"Project"}
+
+func (ec *executionContext) _Project(ctx context.Context, sel ast.SelectionSet, obj *sqlc.Project) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, projectImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("Project")
+		case "id":
+			out.Values[i] = ec._Project_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "programId":
+			out.Values[i] = ec._Project_programId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "code":
+			out.Values[i] = ec._Project_code(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "name":
+			out.Values[i] = ec._Project_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "status":
+			out.Values[i] = ec._Project_status(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "startsOn":
+			out.Values[i] = ec._Project_startsOn(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "endsOn":
+			out.Values[i] = ec._Project_endsOn(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "metadata":
+			out.Values[i] = ec._Project_metadata(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "createdAt":
+			out.Values[i] = ec._Project_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "updatedAt":
+			out.Values[i] = ec._Project_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "program":
+			out.ResolveConcurrently(ec.OperationContext, &deferred, i,
+				true, true,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Project_program(ctx, field, obj)
+				})
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -2105,17 +13159,125 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 				func(ctx context.Context) graphql.Marshaler {
 					return ec._Query_ping(ctx, field)
 				})
-		case "dummy":
-			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
-				true, false,
-				func(ctx context.Context) graphql.Marshaler {
-					return ec._Query_dummy(ctx, field)
-				})
-		case "dummies":
+		case "me":
 			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
 				true, true,
 				func(ctx context.Context) graphql.Marshaler {
-					return ec._Query_dummies(ctx, field)
+					return ec._Query_me(ctx, field)
+				})
+		case "users":
+			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
+				true, true,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Query_users(ctx, field)
+				})
+		case "userGroups":
+			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
+				true, true,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Query_userGroups(ctx, field)
+				})
+		case "grants":
+			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
+				true, true,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Query_grants(ctx, field)
+				})
+		case "assetTypes":
+			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
+				true, true,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Query_assetTypes(ctx, field)
+				})
+		case "languages":
+			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
+				true, true,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Query_languages(ctx, field)
+				})
+		case "asset":
+			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
+				true, false,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Query_asset(ctx, field)
+				})
+		case "assets":
+			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
+				true, true,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Query_assets(ctx, field)
+				})
+		case "assetVersion":
+			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
+				true, false,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Query_assetVersion(ctx, field)
+				})
+		case "rendition":
+			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
+				true, false,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Query_rendition(ctx, field)
+				})
+		case "file":
+			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
+				true, false,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Query_file(ctx, field)
+				})
+		case "fileByHash":
+			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
+				true, false,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Query_fileByHash(ctx, field)
+				})
+		case "files":
+			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
+				true, true,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Query_files(ctx, field)
+				})
+		case "storageLocations":
+			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
+				true, true,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Query_storageLocations(ctx, field)
+				})
+		case "program":
+			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
+				true, false,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Query_program(ctx, field)
+				})
+		case "programs":
+			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
+				true, true,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Query_programs(ctx, field)
+				})
+		case "project":
+			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
+				true, false,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Query_project(ctx, field)
+				})
+		case "projects":
+			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
+				true, true,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Query_projects(ctx, field)
+				})
+		case "subtitleTrack":
+			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
+				true, false,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Query_subtitleTrack(ctx, field)
+				})
+		case "subtitleTracks":
+			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
+				true, true,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Query_subtitleTracks(ctx, field)
 				})
 		case "__type":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
@@ -2130,6 +13292,457 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			})
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var renditionImplementors = []string{"Rendition"}
+
+func (ec *executionContext) _Rendition(ctx context.Context, sel ast.SelectionSet, obj *sqlc.Rendition) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, renditionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("Rendition")
+		case "id":
+			out.Values[i] = ec._Rendition_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "versionId":
+			out.Values[i] = ec._Rendition_versionId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "kind":
+			out.Values[i] = ec._Rendition_kind(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "language":
+			out.Values[i] = ec._Rendition_language(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "purpose":
+			out.Values[i] = ec._Rendition_purpose(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "overrides":
+			out.Values[i] = ec._Rendition_overrides(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "metadata":
+			out.Values[i] = ec._Rendition_metadata(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "createdAt":
+			out.Values[i] = ec._Rendition_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "files":
+			out.ResolveConcurrently(ec.OperationContext, &deferred, i,
+				true, true,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Rendition_files(ctx, field, obj)
+				})
+		case "subtitleTracks":
+			out.ResolveConcurrently(ec.OperationContext, &deferred, i,
+				true, true,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._Rendition_subtitleTracks(ctx, field, obj)
+				})
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var renditionFileImplementors = []string{"RenditionFile"}
+
+func (ec *executionContext) _RenditionFile(ctx context.Context, sel ast.SelectionSet, obj *sqlc.RenditionFile) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, renditionFileImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("RenditionFile")
+		case "renditionId":
+			out.Values[i] = ec._RenditionFile_renditionId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "fileId":
+			out.Values[i] = ec._RenditionFile_fileId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "role":
+			out.Values[i] = ec._RenditionFile_role(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "position":
+			out.Values[i] = ec._RenditionFile_position(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "file":
+			out.ResolveConcurrently(ec.OperationContext, &deferred, i,
+				true, true,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._RenditionFile_file(ctx, field, obj)
+				})
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var storageLocationImplementors = []string{"StorageLocation"}
+
+func (ec *executionContext) _StorageLocation(ctx context.Context, sel ast.SelectionSet, obj *sqlc.StorageLocation) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, storageLocationImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("StorageLocation")
+		case "id":
+			out.Values[i] = ec._StorageLocation_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._StorageLocation_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "kind":
+			out.Values[i] = ec._StorageLocation_kind(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "baseUri":
+			out.Values[i] = ec._StorageLocation_baseUri(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "online":
+			out.Values[i] = ec._StorageLocation_online(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._StorageLocation_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var subtitleCueImplementors = []string{"SubtitleCue"}
+
+func (ec *executionContext) _SubtitleCue(ctx context.Context, sel ast.SelectionSet, obj *sqlc.ListSubtitleCuesRow) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, subtitleCueImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("SubtitleCue")
+		case "seq":
+			out.Values[i] = ec._SubtitleCue_seq(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "startMs":
+			out.Values[i] = ec._SubtitleCue_startMs(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "endMs":
+			out.Values[i] = ec._SubtitleCue_endMs(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "text":
+			out.Values[i] = ec._SubtitleCue_text(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "speaker":
+			out.Values[i] = ec._SubtitleCue_speaker(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var subtitleTrackImplementors = []string{"SubtitleTrack"}
+
+func (ec *executionContext) _SubtitleTrack(ctx context.Context, sel ast.SelectionSet, obj *sqlc.SubtitleTrack) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, subtitleTrackImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("SubtitleTrack")
+		case "id":
+			out.Values[i] = ec._SubtitleTrack_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "renditionId":
+			out.Values[i] = ec._SubtitleTrack_renditionId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "assetId":
+			out.Values[i] = ec._SubtitleTrack_assetId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "sourceFileId":
+			out.Values[i] = ec._SubtitleTrack_sourceFileId(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "language":
+			out.Values[i] = ec._SubtitleTrack_language(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "kind":
+			out.Values[i] = ec._SubtitleTrack_kind(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "origin":
+			out.Values[i] = ec._SubtitleTrack_origin(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "revision":
+			out.Values[i] = ec._SubtitleTrack_revision(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "parentId":
+			out.Values[i] = ec._SubtitleTrack_parentId(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "createdBy":
+			out.Values[i] = ec._SubtitleTrack_createdBy(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "createdAt":
+			out.Values[i] = ec._SubtitleTrack_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "cues":
+			out.ResolveConcurrently(ec.OperationContext, &deferred, i,
+				true, true,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._SubtitleTrack_cues(ctx, field, obj)
+				})
+		case "export":
+			out.ResolveConcurrently(ec.OperationContext, &deferred, i,
+				true, true,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._SubtitleTrack_export(ctx, field, obj)
+				})
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var userImplementors = []string{"User"}
+
+func (ec *executionContext) _User(ctx context.Context, sel ast.SelectionSet, obj *sqlc.AppUser) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, userImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("User")
+		case "id":
+			out.Values[i] = ec._User_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "externalId":
+			out.Values[i] = ec._User_externalId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "email":
+			out.Values[i] = ec._User_email(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._User_name(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "active":
+			out.Values[i] = ec._User_active(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "isAdmin":
+			out.Values[i] = ec._User_isAdmin(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._User_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var userGroupImplementors = []string{"UserGroup"}
+
+func (ec *executionContext) _UserGroup(ctx context.Context, sel ast.SelectionSet, obj *sqlc.UserGroup) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, userGroupImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("UserGroup")
+		case "id":
+			out.Values[i] = ec._UserGroup_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "name":
+			out.Values[i] = ec._UserGroup_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "externalId":
+			out.Values[i] = ec._UserGroup_externalId(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		case "description":
+			out.Values[i] = ec._UserGroup_description(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
 			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
@@ -2510,6 +14123,107 @@ func (ec *executionContext) ___Type(ctx context.Context, sel ast.SelectionSet, o
 
 // region    ***************************** type.gotpl *****************************
 
+func (ec *executionContext) marshalNAsset2ᚕᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐAssetᚄ(ctx context.Context, sel ast.SelectionSet, v []*sqlc.Asset) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNAsset2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐAsset(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNAsset2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐAsset(ctx context.Context, sel ast.SelectionSet, v *sqlc.Asset) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "Asset!")
+		return graphql.Null
+	}
+	return ec._Asset(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNAssetInput2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋassetᚐInput(ctx context.Context, v any) (asset.Input, error) {
+	res, err := ec.unmarshalInputAssetInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNAssetProjectLink2ᚕᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐAssetProjectᚄ(ctx context.Context, sel ast.SelectionSet, v []*sqlc.AssetProject) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNAssetProjectLink2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐAssetProject(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNAssetProjectLink2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐAssetProject(ctx context.Context, sel ast.SelectionSet, v *sqlc.AssetProject) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "AssetProjectLink!")
+		return graphql.Null
+	}
+	return ec._AssetProjectLink(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNAssetType2ᚕᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐAssetTypeᚄ(ctx context.Context, sel ast.SelectionSet, v []*sqlc.AssetType) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNAssetType2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐAssetType(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNAssetType2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐAssetType(ctx context.Context, sel ast.SelectionSet, v *sqlc.AssetType) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "AssetType!")
+		return graphql.Null
+	}
+	return ec._AssetType(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNAssetVersion2ᚕᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐAssetVersionᚄ(ctx context.Context, sel ast.SelectionSet, v []*sqlc.AssetVersion) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNAssetVersion2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐAssetVersion(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNAssetVersion2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐAssetVersion(ctx context.Context, sel ast.SelectionSet, v *sqlc.AssetVersion) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "AssetVersion!")
+		return graphql.Null
+	}
+	return ec._AssetVersion(ctx, sel, v)
+}
+
 func (ec *executionContext) unmarshalNBoolean2bool(ctx context.Context, v any) (bool, error) {
 	res, err := graphql.UnmarshalBoolean(v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -2524,11 +14238,54 @@ func (ec *executionContext) marshalNBoolean2bool(ctx context.Context, sel ast.Se
 	return res
 }
 
-func (ec *executionContext) marshalNDummy2ᚕᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐDummyᚄ(ctx context.Context, sel ast.SelectionSet, v []*sqlc.Dummy) graphql.Marshaler {
+func (ec *executionContext) unmarshalNCopyStatus2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐCopyStatus(ctx context.Context, v any) (sqlc.CopyStatus, error) {
+	tmp, err := graphql.UnmarshalString(v)
+	res := unmarshalNCopyStatus2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐCopyStatus[tmp]
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNCopyStatus2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐCopyStatus(ctx context.Context, sel ast.SelectionSet, v sqlc.CopyStatus) graphql.Marshaler {
+	_ = sel
+	res := graphql.MarshalString(marshalNCopyStatus2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐCopyStatus[v])
+	if res == graphql.Null {
+		graphql.AddInvalidNullFromMarshaler(ctx, "CopyStatus!")
+	}
+	return res
+}
+
+var (
+	unmarshalNCopyStatus2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐCopyStatus = map[string]sqlc.CopyStatus{
+		"PRESENT":  sqlc.CopyStatusPresent,
+		"MISSING":  sqlc.CopyStatusMissing,
+		"MISMATCH": sqlc.CopyStatusMismatch,
+	}
+	marshalNCopyStatus2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐCopyStatus = map[sqlc.CopyStatus]string{
+		sqlc.CopyStatusPresent:  "PRESENT",
+		sqlc.CopyStatusMissing:  "MISSING",
+		sqlc.CopyStatusMismatch: "MISMATCH",
+	}
+)
+
+func (ec *executionContext) unmarshalNCreateProgramInput2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋprojectᚐProgramInput(ctx context.Context, v any) (project.ProgramInput, error) {
+	res, err := ec.unmarshalInputCreateProgramInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNCreateProjectInput2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋprojectᚐProjectInput(ctx context.Context, v any) (project.ProjectInput, error) {
+	res, err := ec.unmarshalInputCreateProjectInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNCreateRenditionInput2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋassetᚐRenditionInput(ctx context.Context, v any) (asset.RenditionInput, error) {
+	res, err := ec.unmarshalInputCreateRenditionInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNFile2ᚕᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐFileᚄ(ctx context.Context, sel ast.SelectionSet, v []*sqlc.File) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNDummy2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐDummy(ctx, sel, v[i])
+		return ec.marshalNFile2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐFile(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -2540,13 +14297,204 @@ func (ec *executionContext) marshalNDummy2ᚕᚖgithubᚗcomᚋbccᚑmediaᚋmed
 	return ret
 }
 
-func (ec *executionContext) marshalNDummy2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐDummy(ctx context.Context, sel ast.SelectionSet, v *sqlc.Dummy) graphql.Marshaler {
+func (ec *executionContext) marshalNFile2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐFile(ctx context.Context, sel ast.SelectionSet, v *sqlc.File) graphql.Marshaler {
 	if v == nil {
-		graphql.AddInvalidNullError(ctx, "Dummy!")
+		graphql.AddInvalidNullError(ctx, "File!")
 		return graphql.Null
 	}
-	return ec._Dummy(ctx, sel, v)
+	return ec._File(ctx, sel, v)
 }
+
+func (ec *executionContext) marshalNFileCopy2ᚕᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐFileCopyᚄ(ctx context.Context, sel ast.SelectionSet, v []*sqlc.FileCopy) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNFileCopy2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐFileCopy(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNFileCopy2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐFileCopy(ctx context.Context, sel ast.SelectionSet, v *sqlc.FileCopy) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "FileCopy!")
+		return graphql.Null
+	}
+	return ec._FileCopy(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNFileCopyInput2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋfileᚐCopyInput(ctx context.Context, v any) (file.CopyInput, error) {
+	res, err := ec.unmarshalInputFileCopyInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNFileHash2ᚕᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐFileHashᚄ(ctx context.Context, sel ast.SelectionSet, v []*sqlc.FileHash) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNFileHash2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐFileHash(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNFileHash2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐFileHash(ctx context.Context, sel ast.SelectionSet, v *sqlc.FileHash) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "FileHash!")
+		return graphql.Null
+	}
+	return ec._FileHash(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNFileHashInput2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋfileᚐHashInput(ctx context.Context, v any) (file.HashInput, error) {
+	res, err := ec.unmarshalInputFileHashInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNFileHashInput2ᚕgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋfileᚐHashInputᚄ(ctx context.Context, v any) ([]file.HashInput, error) {
+	vSlice := graphql.CoerceList(v)
+	var err error
+	res := make([]file.HashInput, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNFileHashInput2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋfileᚐHashInput(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) unmarshalNFileRole2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐFileRole(ctx context.Context, v any) (sqlc.FileRole, error) {
+	tmp, err := graphql.UnmarshalString(v)
+	res := unmarshalNFileRole2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐFileRole[tmp]
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNFileRole2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐFileRole(ctx context.Context, sel ast.SelectionSet, v sqlc.FileRole) graphql.Marshaler {
+	_ = sel
+	res := graphql.MarshalString(marshalNFileRole2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐFileRole[v])
+	if res == graphql.Null {
+		graphql.AddInvalidNullFromMarshaler(ctx, "FileRole!")
+	}
+	return res
+}
+
+var (
+	unmarshalNFileRole2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐFileRole = map[string]sqlc.FileRole{
+		"VIDEO":    sqlc.FileRoleVideo,
+		"AUDIO":    sqlc.FileRoleAudio,
+		"SUBTITLE": sqlc.FileRoleSubtitle,
+		"SIDECAR":  sqlc.FileRoleSidecar,
+		"PACKAGE":  sqlc.FileRolePackage,
+	}
+	marshalNFileRole2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐFileRole = map[sqlc.FileRole]string{
+		sqlc.FileRoleVideo:    "VIDEO",
+		sqlc.FileRoleAudio:    "AUDIO",
+		sqlc.FileRoleSubtitle: "SUBTITLE",
+		sqlc.FileRoleSidecar:  "SIDECAR",
+		sqlc.FileRolePackage:  "PACKAGE",
+	}
+)
+
+func (ec *executionContext) marshalNGrant2ᚕᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐPermissionGrantᚄ(ctx context.Context, sel ast.SelectionSet, v []*sqlc.PermissionGrant) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNGrant2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐPermissionGrant(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNGrant2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐPermissionGrant(ctx context.Context, sel ast.SelectionSet, v *sqlc.PermissionGrant) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "Grant!")
+		return graphql.Null
+	}
+	return ec._Grant(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNGrantInput2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋaccessᚐGrantInput(ctx context.Context, v any) (access.GrantInput, error) {
+	res, err := ec.unmarshalInputGrantInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNGrantScope2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐGrantScope(ctx context.Context, v any) (sqlc.GrantScope, error) {
+	tmp, err := graphql.UnmarshalString(v)
+	res := unmarshalNGrantScope2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐGrantScope[tmp]
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNGrantScope2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐGrantScope(ctx context.Context, sel ast.SelectionSet, v sqlc.GrantScope) graphql.Marshaler {
+	_ = sel
+	res := graphql.MarshalString(marshalNGrantScope2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐGrantScope[v])
+	if res == graphql.Null {
+		graphql.AddInvalidNullFromMarshaler(ctx, "GrantScope!")
+	}
+	return res
+}
+
+var (
+	unmarshalNGrantScope2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐGrantScope = map[string]sqlc.GrantScope{
+		"PROGRAM": sqlc.GrantScopeProgram,
+		"PROJECT": sqlc.GrantScopeProject,
+		"ASSET":   sqlc.GrantScopeAsset,
+	}
+	marshalNGrantScope2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐGrantScope = map[sqlc.GrantScope]string{
+		sqlc.GrantScopeProgram: "PROGRAM",
+		sqlc.GrantScopeProject: "PROJECT",
+		sqlc.GrantScopeAsset:   "ASSET",
+	}
+)
+
+func (ec *executionContext) unmarshalNHashAlgo2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐHashAlgo(ctx context.Context, v any) (sqlc.HashAlgo, error) {
+	tmp, err := graphql.UnmarshalString(v)
+	res := unmarshalNHashAlgo2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐHashAlgo[tmp]
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNHashAlgo2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐHashAlgo(ctx context.Context, sel ast.SelectionSet, v sqlc.HashAlgo) graphql.Marshaler {
+	_ = sel
+	res := graphql.MarshalString(marshalNHashAlgo2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐHashAlgo[v])
+	if res == graphql.Null {
+		graphql.AddInvalidNullFromMarshaler(ctx, "HashAlgo!")
+	}
+	return res
+}
+
+var (
+	unmarshalNHashAlgo2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐHashAlgo = map[string]sqlc.HashAlgo{
+		"XXH3_128": sqlc.HashAlgoXxh3128,
+		"BLAKE3":   sqlc.HashAlgoBlake3,
+		"SHA256":   sqlc.HashAlgoSha256,
+		"MD5":      sqlc.HashAlgoMd5,
+	}
+	marshalNHashAlgo2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐHashAlgo = map[sqlc.HashAlgo]string{
+		sqlc.HashAlgoXxh3128: "XXH3_128",
+		sqlc.HashAlgoBlake3:  "BLAKE3",
+		sqlc.HashAlgoSha256:  "SHA256",
+		sqlc.HashAlgoMd5:     "MD5",
+	}
+)
 
 func (ec *executionContext) unmarshalNID2string(ctx context.Context, v any) (string, error) {
 	res, err := graphql.UnmarshalID(v)
@@ -2560,6 +14508,451 @@ func (ec *executionContext) marshalNID2string(ctx context.Context, sel ast.Selec
 		graphql.AddInvalidNullFromMarshaler(ctx, "ID!")
 	}
 	return res
+}
+
+func (ec *executionContext) unmarshalNImportSubtitlesInput2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋsubtitleᚐImportInput(ctx context.Context, v any) (subtitle.ImportInput, error) {
+	res, err := ec.unmarshalInputImportSubtitlesInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNInt2int(ctx context.Context, v any) (int, error) {
+	res, err := graphql.UnmarshalInt(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNInt2int(ctx context.Context, sel ast.SelectionSet, v int) graphql.Marshaler {
+	_ = sel
+	res := graphql.MarshalInt(v)
+	if res == graphql.Null {
+		graphql.AddInvalidNullFromMarshaler(ctx, "Int!")
+	}
+	return res
+}
+
+func (ec *executionContext) unmarshalNInt2int16(ctx context.Context, v any) (int16, error) {
+	res, err := graphql.UnmarshalInt16(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNInt2int16(ctx context.Context, sel ast.SelectionSet, v int16) graphql.Marshaler {
+	_ = sel
+	res := graphql.MarshalInt16(v)
+	if res == graphql.Null {
+		graphql.AddInvalidNullFromMarshaler(ctx, "Int!")
+	}
+	return res
+}
+
+func (ec *executionContext) unmarshalNInt2int32(ctx context.Context, v any) (int32, error) {
+	res, err := graphql.UnmarshalInt32(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNInt2int32(ctx context.Context, sel ast.SelectionSet, v int32) graphql.Marshaler {
+	_ = sel
+	res := graphql.MarshalInt32(v)
+	if res == graphql.Null {
+		graphql.AddInvalidNullFromMarshaler(ctx, "Int!")
+	}
+	return res
+}
+
+func (ec *executionContext) unmarshalNInt642int64(ctx context.Context, v any) (int64, error) {
+	res, err := graphql.UnmarshalInt64(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNInt642int64(ctx context.Context, sel ast.SelectionSet, v int64) graphql.Marshaler {
+	_ = sel
+	res := graphql.MarshalInt64(v)
+	if res == graphql.Null {
+		graphql.AddInvalidNullFromMarshaler(ctx, "Int64!")
+	}
+	return res
+}
+
+func (ec *executionContext) unmarshalNJSON2encodingᚋjsonᚋjsontextᚐValue(ctx context.Context, v any) (jsontext.Value, error) {
+	res, err := scalar.UnmarshalJSON(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNJSON2encodingᚋjsonᚋjsontextᚐValue(ctx context.Context, sel ast.SelectionSet, v jsontext.Value) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "JSON!")
+		return graphql.Null
+	}
+	_ = sel
+	res := scalar.MarshalJSON(v)
+	if res == graphql.Null {
+		graphql.AddInvalidNullFromMarshaler(ctx, "JSON!")
+	}
+	return res
+}
+
+func (ec *executionContext) marshalNLanguage2ᚕᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐLanguageᚄ(ctx context.Context, sel ast.SelectionSet, v []*sqlc.Language) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNLanguage2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐLanguage(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNLanguage2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐLanguage(ctx context.Context, sel ast.SelectionSet, v *sqlc.Language) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "Language!")
+		return graphql.Null
+	}
+	return ec._Language(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNLanguageModality2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐLanguageModality(ctx context.Context, v any) (sqlc.LanguageModality, error) {
+	tmp, err := graphql.UnmarshalString(v)
+	res := unmarshalNLanguageModality2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐLanguageModality[tmp]
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNLanguageModality2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐLanguageModality(ctx context.Context, sel ast.SelectionSet, v sqlc.LanguageModality) graphql.Marshaler {
+	_ = sel
+	res := graphql.MarshalString(marshalNLanguageModality2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐLanguageModality[v])
+	if res == graphql.Null {
+		graphql.AddInvalidNullFromMarshaler(ctx, "LanguageModality!")
+	}
+	return res
+}
+
+var (
+	unmarshalNLanguageModality2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐLanguageModality = map[string]sqlc.LanguageModality{
+		"SPOKEN":  sqlc.LanguageModalitySpoken,
+		"SIGNED":  sqlc.LanguageModalitySigned,
+		"NONE":    sqlc.LanguageModalityNone,
+		"SPECIAL": sqlc.LanguageModalitySpecial,
+	}
+	marshalNLanguageModality2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐLanguageModality = map[sqlc.LanguageModality]string{
+		sqlc.LanguageModalitySpoken:  "SPOKEN",
+		sqlc.LanguageModalitySigned:  "SIGNED",
+		sqlc.LanguageModalityNone:    "NONE",
+		sqlc.LanguageModalitySpecial: "SPECIAL",
+	}
+)
+
+func (ec *executionContext) unmarshalNLinkOrigin2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐLinkOrigin(ctx context.Context, v any) (sqlc.LinkOrigin, error) {
+	tmp, err := graphql.UnmarshalString(v)
+	res := unmarshalNLinkOrigin2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐLinkOrigin[tmp]
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNLinkOrigin2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐLinkOrigin(ctx context.Context, sel ast.SelectionSet, v sqlc.LinkOrigin) graphql.Marshaler {
+	_ = sel
+	res := graphql.MarshalString(marshalNLinkOrigin2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐLinkOrigin[v])
+	if res == graphql.Null {
+		graphql.AddInvalidNullFromMarshaler(ctx, "LinkOrigin!")
+	}
+	return res
+}
+
+var (
+	unmarshalNLinkOrigin2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐLinkOrigin = map[string]sqlc.LinkOrigin{
+		"FOLDER": sqlc.LinkOriginFolder,
+		"MANUAL": sqlc.LinkOriginManual,
+	}
+	marshalNLinkOrigin2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐLinkOrigin = map[sqlc.LinkOrigin]string{
+		sqlc.LinkOriginFolder: "FOLDER",
+		sqlc.LinkOriginManual: "MANUAL",
+	}
+)
+
+func (ec *executionContext) unmarshalNLinkRole2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐLinkRole(ctx context.Context, v any) (sqlc.LinkRole, error) {
+	tmp, err := graphql.UnmarshalString(v)
+	res := unmarshalNLinkRole2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐLinkRole[tmp]
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNLinkRole2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐLinkRole(ctx context.Context, sel ast.SelectionSet, v sqlc.LinkRole) graphql.Marshaler {
+	_ = sel
+	res := graphql.MarshalString(marshalNLinkRole2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐLinkRole[v])
+	if res == graphql.Null {
+		graphql.AddInvalidNullFromMarshaler(ctx, "LinkRole!")
+	}
+	return res
+}
+
+var (
+	unmarshalNLinkRole2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐLinkRole = map[string]sqlc.LinkRole{
+		"SOURCE":      sqlc.LinkRoleSource,
+		"DELIVERABLE": sqlc.LinkRoleDeliverable,
+		"REFERENCE":   sqlc.LinkRoleReference,
+	}
+	marshalNLinkRole2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐLinkRole = map[sqlc.LinkRole]string{
+		sqlc.LinkRoleSource:      "SOURCE",
+		sqlc.LinkRoleDeliverable: "DELIVERABLE",
+		sqlc.LinkRoleReference:   "REFERENCE",
+	}
+)
+
+func (ec *executionContext) unmarshalNLocationKind2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐLocationKind(ctx context.Context, v any) (sqlc.LocationKind, error) {
+	tmp, err := graphql.UnmarshalString(v)
+	res := unmarshalNLocationKind2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐLocationKind[tmp]
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNLocationKind2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐLocationKind(ctx context.Context, sel ast.SelectionSet, v sqlc.LocationKind) graphql.Marshaler {
+	_ = sel
+	res := graphql.MarshalString(marshalNLocationKind2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐLocationKind[v])
+	if res == graphql.Null {
+		graphql.AddInvalidNullFromMarshaler(ctx, "LocationKind!")
+	}
+	return res
+}
+
+var (
+	unmarshalNLocationKind2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐLocationKind = map[string]sqlc.LocationKind{
+		"NAS":   sqlc.LocationKindNas,
+		"LTO":   sqlc.LocationKindLto,
+		"S3":    sqlc.LocationKindS3,
+		"LOCAL": sqlc.LocationKindLocal,
+	}
+	marshalNLocationKind2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐLocationKind = map[sqlc.LocationKind]string{
+		sqlc.LocationKindNas:   "NAS",
+		sqlc.LocationKindLto:   "LTO",
+		sqlc.LocationKindS3:    "S3",
+		sqlc.LocationKindLocal: "LOCAL",
+	}
+)
+
+func (ec *executionContext) unmarshalNPermissionLevel2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐPermissionLevel(ctx context.Context, v any) (sqlc.PermissionLevel, error) {
+	tmp, err := graphql.UnmarshalString(v)
+	res := unmarshalNPermissionLevel2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐPermissionLevel[tmp]
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNPermissionLevel2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐPermissionLevel(ctx context.Context, sel ast.SelectionSet, v sqlc.PermissionLevel) graphql.Marshaler {
+	_ = sel
+	res := graphql.MarshalString(marshalNPermissionLevel2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐPermissionLevel[v])
+	if res == graphql.Null {
+		graphql.AddInvalidNullFromMarshaler(ctx, "PermissionLevel!")
+	}
+	return res
+}
+
+var (
+	unmarshalNPermissionLevel2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐPermissionLevel = map[string]sqlc.PermissionLevel{
+		"VIEW":              sqlc.PermissionLevelView,
+		"DOWNLOAD_ORIGINAL": sqlc.PermissionLevelDownloadOriginal,
+		"EDIT":              sqlc.PermissionLevelEdit,
+		"DELETE":            sqlc.PermissionLevelDelete,
+		"ADMIN":             sqlc.PermissionLevelAdmin,
+	}
+	marshalNPermissionLevel2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐPermissionLevel = map[sqlc.PermissionLevel]string{
+		sqlc.PermissionLevelView:             "VIEW",
+		sqlc.PermissionLevelDownloadOriginal: "DOWNLOAD_ORIGINAL",
+		sqlc.PermissionLevelEdit:             "EDIT",
+		sqlc.PermissionLevelDelete:           "DELETE",
+		sqlc.PermissionLevelAdmin:            "ADMIN",
+	}
+)
+
+func (ec *executionContext) marshalNProgram2ᚕᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐProgramᚄ(ctx context.Context, sel ast.SelectionSet, v []*sqlc.Program) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNProgram2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐProgram(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNProgram2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐProgram(ctx context.Context, sel ast.SelectionSet, v *sqlc.Program) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "Program!")
+		return graphql.Null
+	}
+	return ec._Program(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNProject2ᚕᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐProjectᚄ(ctx context.Context, sel ast.SelectionSet, v []*sqlc.Project) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNProject2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐProject(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNProject2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐProject(ctx context.Context, sel ast.SelectionSet, v *sqlc.Project) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "Project!")
+		return graphql.Null
+	}
+	return ec._Project(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNProjectStatus2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐProjectStatus(ctx context.Context, v any) (sqlc.ProjectStatus, error) {
+	tmp, err := graphql.UnmarshalString(v)
+	res := unmarshalNProjectStatus2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐProjectStatus[tmp]
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNProjectStatus2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐProjectStatus(ctx context.Context, sel ast.SelectionSet, v sqlc.ProjectStatus) graphql.Marshaler {
+	_ = sel
+	res := graphql.MarshalString(marshalNProjectStatus2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐProjectStatus[v])
+	if res == graphql.Null {
+		graphql.AddInvalidNullFromMarshaler(ctx, "ProjectStatus!")
+	}
+	return res
+}
+
+var (
+	unmarshalNProjectStatus2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐProjectStatus = map[string]sqlc.ProjectStatus{
+		"PLANNED":   sqlc.ProjectStatusPlanned,
+		"ACTIVE":    sqlc.ProjectStatusActive,
+		"DELIVERED": sqlc.ProjectStatusDelivered,
+		"ARCHIVED":  sqlc.ProjectStatusArchived,
+	}
+	marshalNProjectStatus2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐProjectStatus = map[sqlc.ProjectStatus]string{
+		sqlc.ProjectStatusPlanned:   "PLANNED",
+		sqlc.ProjectStatusActive:    "ACTIVE",
+		sqlc.ProjectStatusDelivered: "DELIVERED",
+		sqlc.ProjectStatusArchived:  "ARCHIVED",
+	}
+)
+
+func (ec *executionContext) unmarshalNRegisterFileInput2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋfileᚐRegisterInput(ctx context.Context, v any) (file.RegisterInput, error) {
+	res, err := ec.unmarshalInputRegisterFileInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNRendition2ᚕᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐRenditionᚄ(ctx context.Context, sel ast.SelectionSet, v []*sqlc.Rendition) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNRendition2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐRendition(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNRendition2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐRendition(ctx context.Context, sel ast.SelectionSet, v *sqlc.Rendition) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "Rendition!")
+		return graphql.Null
+	}
+	return ec._Rendition(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNRenditionFile2ᚕᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐRenditionFileᚄ(ctx context.Context, sel ast.SelectionSet, v []*sqlc.RenditionFile) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNRenditionFile2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐRenditionFile(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNRenditionFile2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐRenditionFile(ctx context.Context, sel ast.SelectionSet, v *sqlc.RenditionFile) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "RenditionFile!")
+		return graphql.Null
+	}
+	return ec._RenditionFile(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNRenditionKind2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐRenditionKind(ctx context.Context, v any) (sqlc.RenditionKind, error) {
+	tmp, err := graphql.UnmarshalString(v)
+	res := unmarshalNRenditionKind2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐRenditionKind[tmp]
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNRenditionKind2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐRenditionKind(ctx context.Context, sel ast.SelectionSet, v sqlc.RenditionKind) graphql.Marshaler {
+	_ = sel
+	res := graphql.MarshalString(marshalNRenditionKind2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐRenditionKind[v])
+	if res == graphql.Null {
+		graphql.AddInvalidNullFromMarshaler(ctx, "RenditionKind!")
+	}
+	return res
+}
+
+var (
+	unmarshalNRenditionKind2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐRenditionKind = map[string]sqlc.RenditionKind{
+		"MASTER":   sqlc.RenditionKindMaster,
+		"ENCODE":   sqlc.RenditionKindEncode,
+		"DUB":      sqlc.RenditionKindDub,
+		"SIGN":     sqlc.RenditionKindSign,
+		"SUBTITLE": sqlc.RenditionKindSubtitle,
+		"AUDIO":    sqlc.RenditionKindAudio,
+		"OTHER":    sqlc.RenditionKindOther,
+	}
+	marshalNRenditionKind2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐRenditionKind = map[sqlc.RenditionKind]string{
+		sqlc.RenditionKindMaster:   "MASTER",
+		sqlc.RenditionKindEncode:   "ENCODE",
+		sqlc.RenditionKindDub:      "DUB",
+		sqlc.RenditionKindSign:     "SIGN",
+		sqlc.RenditionKindSubtitle: "SUBTITLE",
+		sqlc.RenditionKindAudio:    "AUDIO",
+		sqlc.RenditionKindOther:    "OTHER",
+	}
+)
+
+func (ec *executionContext) marshalNStorageLocation2ᚕᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐStorageLocationᚄ(ctx context.Context, sel ast.SelectionSet, v []*sqlc.StorageLocation) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNStorageLocation2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐStorageLocation(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNStorageLocation2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐStorageLocation(ctx context.Context, sel ast.SelectionSet, v *sqlc.StorageLocation) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "StorageLocation!")
+		return graphql.Null
+	}
+	return ec._StorageLocation(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNStorageLocationInput2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋfileᚐLocationInput(ctx context.Context, v any) (file.LocationInput, error) {
+	res, err := ec.unmarshalInputStorageLocationInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) unmarshalNString2string(ctx context.Context, v any) (string, error) {
@@ -2576,6 +14969,128 @@ func (ec *executionContext) marshalNString2string(ctx context.Context, sel ast.S
 	return res
 }
 
+func (ec *executionContext) unmarshalNString2ᚕstringᚄ(ctx context.Context, v any) ([]string, error) {
+	vSlice := graphql.CoerceList(v)
+	var err error
+	res := make([]string, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNString2string(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) marshalNString2ᚕstringᚄ(ctx context.Context, sel ast.SelectionSet, v []string) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	for i := range v {
+		ret[i] = ec.marshalNString2string(ctx, sel, v[i])
+	}
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNSubtitleCue2ᚕᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐListSubtitleCuesRowᚄ(ctx context.Context, sel ast.SelectionSet, v []*sqlc.ListSubtitleCuesRow) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNSubtitleCue2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐListSubtitleCuesRow(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNSubtitleCue2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐListSubtitleCuesRow(ctx context.Context, sel ast.SelectionSet, v *sqlc.ListSubtitleCuesRow) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "SubtitleCue!")
+		return graphql.Null
+	}
+	return ec._SubtitleCue(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNSubtitleCueInput2ᚕᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋsubtitleᚐCueᚄ(ctx context.Context, v any) ([]*subtitle.Cue, error) {
+	vSlice := graphql.CoerceList(v)
+	var err error
+	res := make([]*subtitle.Cue, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNSubtitleCueInput2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋsubtitleᚐCue(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) unmarshalNSubtitleCueInput2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋsubtitleᚐCue(ctx context.Context, v any) (*subtitle.Cue, error) {
+	res, err := ec.unmarshalInputSubtitleCueInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNSubtitleFormat2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋsubtitleᚐFormat(ctx context.Context, v any) (subtitle.Format, error) {
+	tmp, err := graphql.UnmarshalString(v)
+	res := unmarshalNSubtitleFormat2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋsubtitleᚐFormat[tmp]
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNSubtitleFormat2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋsubtitleᚐFormat(ctx context.Context, sel ast.SelectionSet, v subtitle.Format) graphql.Marshaler {
+	_ = sel
+	res := graphql.MarshalString(marshalNSubtitleFormat2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋsubtitleᚐFormat[v])
+	if res == graphql.Null {
+		graphql.AddInvalidNullFromMarshaler(ctx, "SubtitleFormat!")
+	}
+	return res
+}
+
+var (
+	unmarshalNSubtitleFormat2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋsubtitleᚐFormat = map[string]subtitle.Format{
+		"SRT": subtitle.SRT,
+		"VTT": subtitle.VTT,
+	}
+	marshalNSubtitleFormat2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋsubtitleᚐFormat = map[subtitle.Format]string{
+		subtitle.SRT: "SRT",
+		subtitle.VTT: "VTT",
+	}
+)
+
+func (ec *executionContext) marshalNSubtitleTrack2ᚕᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐSubtitleTrackᚄ(ctx context.Context, sel ast.SelectionSet, v []*sqlc.SubtitleTrack) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNSubtitleTrack2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐSubtitleTrack(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNSubtitleTrack2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐSubtitleTrack(ctx context.Context, sel ast.SelectionSet, v *sqlc.SubtitleTrack) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "SubtitleTrack!")
+		return graphql.Null
+	}
+	return ec._SubtitleTrack(ctx, sel, v)
+}
+
 func (ec *executionContext) unmarshalNTime2timeᚐTime(ctx context.Context, v any) (time.Time, error) {
 	res, err := graphql.UnmarshalTime(v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -2589,6 +15104,160 @@ func (ec *executionContext) marshalNTime2timeᚐTime(ctx context.Context, sel as
 	}
 	return res
 }
+
+func (ec *executionContext) unmarshalNTrackKind2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐTrackKind(ctx context.Context, v any) (sqlc.TrackKind, error) {
+	tmp, err := graphql.UnmarshalString(v)
+	res := unmarshalNTrackKind2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐTrackKind[tmp]
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNTrackKind2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐTrackKind(ctx context.Context, sel ast.SelectionSet, v sqlc.TrackKind) graphql.Marshaler {
+	_ = sel
+	res := graphql.MarshalString(marshalNTrackKind2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐTrackKind[v])
+	if res == graphql.Null {
+		graphql.AddInvalidNullFromMarshaler(ctx, "TrackKind!")
+	}
+	return res
+}
+
+var (
+	unmarshalNTrackKind2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐTrackKind = map[string]sqlc.TrackKind{
+		"SUBTITLE":   sqlc.TrackKindSubtitle,
+		"CC":         sqlc.TrackKindCc,
+		"TRANSCRIPT": sqlc.TrackKindTranscript,
+	}
+	marshalNTrackKind2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐTrackKind = map[sqlc.TrackKind]string{
+		sqlc.TrackKindSubtitle:   "SUBTITLE",
+		sqlc.TrackKindCc:         "CC",
+		sqlc.TrackKindTranscript: "TRANSCRIPT",
+	}
+)
+
+func (ec *executionContext) unmarshalNTrackOrigin2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐTrackOrigin(ctx context.Context, v any) (sqlc.TrackOrigin, error) {
+	tmp, err := graphql.UnmarshalString(v)
+	res := unmarshalNTrackOrigin2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐTrackOrigin[tmp]
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNTrackOrigin2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐTrackOrigin(ctx context.Context, sel ast.SelectionSet, v sqlc.TrackOrigin) graphql.Marshaler {
+	_ = sel
+	res := graphql.MarshalString(marshalNTrackOrigin2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐTrackOrigin[v])
+	if res == graphql.Null {
+		graphql.AddInvalidNullFromMarshaler(ctx, "TrackOrigin!")
+	}
+	return res
+}
+
+var (
+	unmarshalNTrackOrigin2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐTrackOrigin = map[string]sqlc.TrackOrigin{
+		"IMPORT": sqlc.TrackOriginImport,
+		"ASR":    sqlc.TrackOriginAsr,
+		"MANUAL": sqlc.TrackOriginManual,
+	}
+	marshalNTrackOrigin2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐTrackOrigin = map[sqlc.TrackOrigin]string{
+		sqlc.TrackOriginImport: "IMPORT",
+		sqlc.TrackOriginAsr:    "ASR",
+		sqlc.TrackOriginManual: "MANUAL",
+	}
+)
+
+func (ec *executionContext) unmarshalNUpdateProgramInput2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋprojectᚐProgramInput(ctx context.Context, v any) (project.ProgramInput, error) {
+	res, err := ec.unmarshalInputUpdateProgramInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNUpdateProjectInput2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋprojectᚐProjectInput(ctx context.Context, v any) (project.ProjectInput, error) {
+	res, err := ec.unmarshalInputUpdateProjectInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNUpdateRenditionInput2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋassetᚐRenditionInput(ctx context.Context, v any) (asset.RenditionInput, error) {
+	res, err := ec.unmarshalInputUpdateRenditionInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNUser2ᚕᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐAppUserᚄ(ctx context.Context, sel ast.SelectionSet, v []*sqlc.AppUser) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNUser2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐAppUser(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNUser2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐAppUser(ctx context.Context, sel ast.SelectionSet, v *sqlc.AppUser) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "User!")
+		return graphql.Null
+	}
+	return ec._User(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNUserGroup2ᚕᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐUserGroupᚄ(ctx context.Context, sel ast.SelectionSet, v []*sqlc.UserGroup) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNUserGroup2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐUserGroup(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNUserGroup2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐUserGroup(ctx context.Context, sel ast.SelectionSet, v *sqlc.UserGroup) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "UserGroup!")
+		return graphql.Null
+	}
+	return ec._UserGroup(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNVersionInput2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋassetᚐVersionInput(ctx context.Context, v any) (asset.VersionInput, error) {
+	res, err := ec.unmarshalInputVersionInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNVersionStatus2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐVersionStatus(ctx context.Context, v any) (sqlc.VersionStatus, error) {
+	tmp, err := graphql.UnmarshalString(v)
+	res := unmarshalNVersionStatus2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐVersionStatus[tmp]
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNVersionStatus2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐVersionStatus(ctx context.Context, sel ast.SelectionSet, v sqlc.VersionStatus) graphql.Marshaler {
+	_ = sel
+	res := graphql.MarshalString(marshalNVersionStatus2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐVersionStatus[v])
+	if res == graphql.Null {
+		graphql.AddInvalidNullFromMarshaler(ctx, "VersionStatus!")
+	}
+	return res
+}
+
+var (
+	unmarshalNVersionStatus2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐVersionStatus = map[string]sqlc.VersionStatus{
+		"DRAFT":    sqlc.VersionStatusDraft,
+		"REVIEW":   sqlc.VersionStatusReview,
+		"APPROVED": sqlc.VersionStatusApproved,
+		"FINAL":    sqlc.VersionStatusFinal,
+	}
+	marshalNVersionStatus2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐVersionStatus = map[sqlc.VersionStatus]string{
+		sqlc.VersionStatusDraft:    "DRAFT",
+		sqlc.VersionStatusReview:   "REVIEW",
+		sqlc.VersionStatusApproved: "APPROVED",
+		sqlc.VersionStatusFinal:    "FINAL",
+	}
+)
 
 func (ec *executionContext) marshalN__Directive2githubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚋintrospectionᚐDirective(ctx context.Context, sel ast.SelectionSet, v introspection.Directive) graphql.Marshaler {
 	return ec.___Directive(ctx, sel, &v)
@@ -2732,6 +15401,28 @@ func (ec *executionContext) marshalN__TypeKind2string(ctx context.Context, sel a
 	return res
 }
 
+func (ec *executionContext) marshalOAsset2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐAsset(ctx context.Context, sel ast.SelectionSet, v *sqlc.Asset) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._Asset(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalOAssetFilter2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋassetᚐFilter(ctx context.Context, v any) (*asset.Filter, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := ec.unmarshalInputAssetFilter(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOAssetVersion2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐAssetVersion(ctx context.Context, sel ast.SelectionSet, v *sqlc.AssetVersion) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._AssetVersion(ctx, sel, v)
+}
+
 func (ec *executionContext) unmarshalOBoolean2bool(ctx context.Context, v any) (bool, error) {
 	res, err := graphql.UnmarshalBoolean(v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -2762,11 +15453,64 @@ func (ec *executionContext) marshalOBoolean2ᚖbool(ctx context.Context, sel ast
 	return res
 }
 
-func (ec *executionContext) marshalODummy2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐDummy(ctx context.Context, sel ast.SelectionSet, v *sqlc.Dummy) graphql.Marshaler {
+func (ec *executionContext) unmarshalODate2ᚖtimeᚐTime(ctx context.Context, v any) (*time.Time, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := scalar.UnmarshalDate(v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalODate2ᚖtimeᚐTime(ctx context.Context, sel ast.SelectionSet, v *time.Time) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
-	return ec._Dummy(ctx, sel, v)
+	_ = sel
+	_ = ctx
+	res := scalar.MarshalDate(*v)
+	return res
+}
+
+func (ec *executionContext) marshalOFile2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐFile(ctx context.Context, sel ast.SelectionSet, v *sqlc.File) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._File(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalOFileCopyInput2ᚕgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋfileᚐCopyInputᚄ(ctx context.Context, v any) ([]file.CopyInput, error) {
+	if v == nil {
+		return nil, nil
+	}
+	vSlice := graphql.CoerceList(v)
+	var err error
+	res := make([]file.CopyInput, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNFileCopyInput2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋfileᚐCopyInput(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) unmarshalOID2ᚖstring(ctx context.Context, v any) (*string, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := graphql.UnmarshalID(v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOID2ᚖstring(ctx context.Context, sel ast.SelectionSet, v *string) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	_ = sel
+	_ = ctx
+	res := graphql.MarshalID(*v)
+	return res
 }
 
 func (ec *executionContext) unmarshalOInt2ᚖint(ctx context.Context, v any) (*int, error) {
@@ -2787,6 +15531,168 @@ func (ec *executionContext) marshalOInt2ᚖint(ctx context.Context, sel ast.Sele
 	return res
 }
 
+func (ec *executionContext) unmarshalOInt2ᚖint16(ctx context.Context, v any) (*int16, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := graphql.UnmarshalInt16(v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOInt2ᚖint16(ctx context.Context, sel ast.SelectionSet, v *int16) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	_ = sel
+	_ = ctx
+	res := graphql.MarshalInt16(*v)
+	return res
+}
+
+func (ec *executionContext) unmarshalOInt2ᚖint32(ctx context.Context, v any) (*int32, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := graphql.UnmarshalInt32(v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOInt2ᚖint32(ctx context.Context, sel ast.SelectionSet, v *int32) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	_ = sel
+	_ = ctx
+	res := graphql.MarshalInt32(*v)
+	return res
+}
+
+func (ec *executionContext) unmarshalOInt642ᚖint64(ctx context.Context, v any) (*int64, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := graphql.UnmarshalInt64(v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOInt642ᚖint64(ctx context.Context, sel ast.SelectionSet, v *int64) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	_ = sel
+	_ = ctx
+	res := graphql.MarshalInt64(*v)
+	return res
+}
+
+func (ec *executionContext) unmarshalOJSON2encodingᚋjsonᚋjsontextᚐValue(ctx context.Context, v any) (jsontext.Value, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := scalar.UnmarshalJSON(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOJSON2encodingᚋjsonᚋjsontextᚐValue(ctx context.Context, sel ast.SelectionSet, v jsontext.Value) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	_ = sel
+	_ = ctx
+	res := scalar.MarshalJSON(v)
+	return res
+}
+
+func (ec *executionContext) marshalOProgram2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐProgram(ctx context.Context, sel ast.SelectionSet, v *sqlc.Program) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._Program(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOProject2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐProject(ctx context.Context, sel ast.SelectionSet, v *sqlc.Project) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._Project(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalOProjectStatus2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐProjectStatus(ctx context.Context, v any) (*sqlc.ProjectStatus, error) {
+	if v == nil {
+		return nil, nil
+	}
+	tmp, err := graphql.UnmarshalString(v)
+	res := unmarshalOProjectStatus2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐProjectStatus[tmp]
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOProjectStatus2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐProjectStatus(ctx context.Context, sel ast.SelectionSet, v *sqlc.ProjectStatus) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	_ = sel
+	_ = ctx
+	res := graphql.MarshalString(marshalOProjectStatus2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐProjectStatus[*v])
+	return res
+}
+
+var (
+	unmarshalOProjectStatus2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐProjectStatus = map[string]sqlc.ProjectStatus{
+		"PLANNED":   sqlc.ProjectStatusPlanned,
+		"ACTIVE":    sqlc.ProjectStatusActive,
+		"DELIVERED": sqlc.ProjectStatusDelivered,
+		"ARCHIVED":  sqlc.ProjectStatusArchived,
+	}
+	marshalOProjectStatus2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐProjectStatus = map[sqlc.ProjectStatus]string{
+		sqlc.ProjectStatusPlanned:   "PLANNED",
+		sqlc.ProjectStatusActive:    "ACTIVE",
+		sqlc.ProjectStatusDelivered: "DELIVERED",
+		sqlc.ProjectStatusArchived:  "ARCHIVED",
+	}
+)
+
+func (ec *executionContext) marshalORendition2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐRendition(ctx context.Context, sel ast.SelectionSet, v *sqlc.Rendition) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._Rendition(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalOString2ᚕstringᚄ(ctx context.Context, v any) ([]string, error) {
+	if v == nil {
+		return nil, nil
+	}
+	vSlice := graphql.CoerceList(v)
+	var err error
+	res := make([]string, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNString2string(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) marshalOString2ᚕstringᚄ(ctx context.Context, sel ast.SelectionSet, v []string) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	ret := make(graphql.Array, len(v))
+	for i := range v {
+		ret[i] = ec.marshalNString2string(ctx, sel, v[i])
+	}
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
 func (ec *executionContext) unmarshalOString2ᚖstring(ctx context.Context, v any) (*string, error) {
 	if v == nil {
 		return nil, nil
@@ -2804,6 +15710,97 @@ func (ec *executionContext) marshalOString2ᚖstring(ctx context.Context, sel as
 	res := graphql.MarshalString(*v)
 	return res
 }
+
+func (ec *executionContext) marshalOSubtitleTrack2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐSubtitleTrack(ctx context.Context, sel ast.SelectionSet, v *sqlc.SubtitleTrack) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._SubtitleTrack(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalOTime2ᚖtimeᚐTime(ctx context.Context, v any) (*time.Time, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := graphql.UnmarshalTime(v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOTime2ᚖtimeᚐTime(ctx context.Context, sel ast.SelectionSet, v *time.Time) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	_ = sel
+	_ = ctx
+	res := graphql.MarshalTime(*v)
+	return res
+}
+
+func (ec *executionContext) unmarshalOTrackKind2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐTrackKind(ctx context.Context, v any) (*sqlc.TrackKind, error) {
+	if v == nil {
+		return nil, nil
+	}
+	tmp, err := graphql.UnmarshalString(v)
+	res := unmarshalOTrackKind2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐTrackKind[tmp]
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOTrackKind2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐTrackKind(ctx context.Context, sel ast.SelectionSet, v *sqlc.TrackKind) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	_ = sel
+	_ = ctx
+	res := graphql.MarshalString(marshalOTrackKind2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐTrackKind[*v])
+	return res
+}
+
+var (
+	unmarshalOTrackKind2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐTrackKind = map[string]sqlc.TrackKind{
+		"SUBTITLE":   sqlc.TrackKindSubtitle,
+		"CC":         sqlc.TrackKindCc,
+		"TRANSCRIPT": sqlc.TrackKindTranscript,
+	}
+	marshalOTrackKind2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐTrackKind = map[sqlc.TrackKind]string{
+		sqlc.TrackKindSubtitle:   "SUBTITLE",
+		sqlc.TrackKindCc:         "CC",
+		sqlc.TrackKindTranscript: "TRANSCRIPT",
+	}
+)
+
+func (ec *executionContext) unmarshalOVersionStatus2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐVersionStatus(ctx context.Context, v any) (*sqlc.VersionStatus, error) {
+	if v == nil {
+		return nil, nil
+	}
+	tmp, err := graphql.UnmarshalString(v)
+	res := unmarshalOVersionStatus2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐVersionStatus[tmp]
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOVersionStatus2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐVersionStatus(ctx context.Context, sel ast.SelectionSet, v *sqlc.VersionStatus) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	_ = sel
+	_ = ctx
+	res := graphql.MarshalString(marshalOVersionStatus2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐVersionStatus[*v])
+	return res
+}
+
+var (
+	unmarshalOVersionStatus2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐVersionStatus = map[string]sqlc.VersionStatus{
+		"DRAFT":    sqlc.VersionStatusDraft,
+		"REVIEW":   sqlc.VersionStatusReview,
+		"APPROVED": sqlc.VersionStatusApproved,
+		"FINAL":    sqlc.VersionStatusFinal,
+	}
+	marshalOVersionStatus2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐVersionStatus = map[sqlc.VersionStatus]string{
+		sqlc.VersionStatusDraft:    "DRAFT",
+		sqlc.VersionStatusReview:   "REVIEW",
+		sqlc.VersionStatusApproved: "APPROVED",
+		sqlc.VersionStatusFinal:    "FINAL",
+	}
+)
 
 func (ec *executionContext) marshalO__EnumValue2ᚕgithubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚋintrospectionᚐEnumValueᚄ(ctx context.Context, sel ast.SelectionSet, v []introspection.EnumValue) graphql.Marshaler {
 	if v == nil {

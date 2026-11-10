@@ -6,7 +6,7 @@ MIGRATIONS := internal/db/migrations
 MB         := go run ./cmd/mediabrain
 
 .PHONY: help dev db-up db-down db-reset migrate-up migrate-down migrate-status migrate-new \
-        seed seed-list reset-data generate run build vet test test-e2e cover check hooks clean
+        seed seed-list reset-data admin-grant admin-revoke generate fmt run build vet test test-e2e cover check hooks clean
 
 help: ## Show targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  %-16s %s\n",$$1,$$2}'
@@ -36,7 +36,7 @@ migrate-new: ## Create a migration: make migrate-new name=add_foo
 	@test -n "$(name)" || (echo "usage: make migrate-new name=..." && exit 1)
 	go tool goose -dir $(MIGRATIONS) -s create $(name) sql
 
-seed: ## Run a dev-data scenario: make seed s=dummies args="-reset count=100"
+seed: ## Run a dev-data scenario: make seed s=catalog args="-reset -seed 42 assets=20"
 	@test -n "$(s)" || (echo 'usage: make seed s=<scenario> [args="..."]  (see make seed-list)' && exit 1)
 	$(MB) seed $(s) $(args)
 
@@ -45,6 +45,17 @@ seed-list: ## List dev-data scenarios
 
 reset-data: ## Truncate all application tables
 	$(MB) reset-data
+
+admin-grant: ## Make a signed-in user a system administrator: make admin-grant u=me@example.com
+	@test -n "$(u)" || (echo "usage: make admin-grant u=<email or user id>" && exit 1)
+	$(MB) admin grant $(u)
+
+admin-revoke: ## Remove system administrator rights: make admin-revoke u=me@example.com
+	@test -n "$(u)" || (echo "usage: make admin-revoke u=<email or user id>" && exit 1)
+	$(MB) admin revoke $(u)
+
+fmt: ## gofmt all Go files
+	gofmt -w cmd internal e2e
 
 generate: ## Regenerate sqlc + gqlgen code
 	go tool sqlc generate

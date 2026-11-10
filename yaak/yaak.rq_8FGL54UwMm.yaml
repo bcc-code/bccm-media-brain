@@ -1,0 +1,52 @@
+type: http_request
+model: http_request
+id: rq_8FGL54UwMm
+createdAt: 2026-11-10T23:30:00
+updatedAt: 2026-11-10T23:30:00
+workspaceId: wk_tPlK1TUEUQ
+folderId: fl_2bO5cZUFxn
+authentication: {}
+authenticationType: null
+body:
+  query: |
+    mutation($fileId: ID!, $copy: FileCopyInput!) {
+      addFileCopy(fileId: $fileId, copy: $copy) { id path status lastSeenAt }
+    }
+  variables: |-
+    {
+      "fileId": "${[ file_id ]}",
+      "copy": {
+        "locationId": "${[ location_id ]}",
+        "path": "backup/A001_C003.mov"
+      }
+    }
+bodyType: graphql
+description: Put the returned id into copy_id.
+headers:
+- enabled: true
+  name: Content-Type
+  value: application/json
+  id: sx56GTkPuH
+method: POST
+name: Add file copy (admin)
+sortPriority: 9000.0
+url: ${[ base_url ]}/query
+urlParameters: []
+settingSendCookies:
+  enabled: false
+  value: true
+settingStoreCookies:
+  enabled: false
+  value: true
+settingValidateCertificates:
+  enabled: false
+  value: true
+settingFollowRedirects:
+  enabled: false
+  value: true
+settingRequestTimeout:
+  enabled: false
+  value: 0
+settingHttpVersion:
+  enabled: false
+  value: auto

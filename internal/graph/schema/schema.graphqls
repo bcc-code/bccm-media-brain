@@ -1,4 +1,10 @@
 scalar Time
+"Calendar date, YYYY-MM-DD."
+scalar Date
+"Any JSON value. Metadata fields must be JSON objects."
+scalar JSON
+"64-bit integer, sent as a JSON number."
+scalar Int64
 
 type Query {
   "Liveness check that also proves the GraphQL stack is wired."

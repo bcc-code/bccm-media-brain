@@ -1,0 +1,61 @@
+type: http_request
+model: http_request
+id: rq_snXLvxFRVE
+createdAt: 2026-11-10T23:30:00
+updatedAt: 2026-11-10T23:30:00
+workspaceId: wk_tPlK1TUEUQ
+folderId: fl_2oyt2p4sIh
+authentication: {}
+authenticationType: null
+body:
+  query: |
+    mutation($trackId: ID!, $cues: [SubtitleCueInput!]!) {
+      editSubtitles(trackId: $trackId, cues: $cues) { id revision parentId origin }
+    }
+  variables: |-
+    {
+      "trackId": "${[ track_id ]}",
+      "cues": [
+        {
+          "startMs": 1000,
+          "endMs": 3500,
+          "text": "Welcome back, everyone.",
+          "speaker": "Host"
+        },
+        {
+          "startMs": 4000,
+          "endMs": 6000,
+          "text": "Let's begin."
+        }
+      ]
+    }
+bodyType: graphql
+description: Writes a new revision with exactly these cues. Only the latest revision can be edited; put the new id into track_id to edit again.
+headers:
+- enabled: true
+  name: Content-Type
+  value: application/json
+  id: bNseaQ7OMj
+method: POST
+name: Edit subtitles
+sortPriority: 5000.0
+url: ${[ base_url ]}/query
+urlParameters: []
+settingSendCookies:
+  enabled: false
+  value: true
+settingStoreCookies:
+  enabled: false
+  value: true
+settingValidateCertificates:
+  enabled: false
+  value: true
+settingFollowRedirects:
+  enabled: false
+  value: true
+settingRequestTimeout:
+  enabled: false
+  value: 0
+settingHttpVersion:
+  enabled: false
+  value: auto

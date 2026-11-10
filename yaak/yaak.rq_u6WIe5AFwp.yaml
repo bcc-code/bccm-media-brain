@@ -1,0 +1,54 @@
+type: http_request
+model: http_request
+id: rq_u6WIe5AFwp
+createdAt: 2026-11-10T23:30:00
+updatedAt: 2026-11-10T23:30:00
+workspaceId: wk_tPlK1TUEUQ
+folderId: fl_2bO5cZUFxn
+authentication: {}
+authenticationType: null
+body:
+  query: |
+    mutation($id: ID!, $in: StorageLocationInput!) {
+      updateStorageLocation(id: $id, input: $in) { id name kind baseUri online }
+    }
+  variables: |-
+    {
+      "id": "${[ location_id ]}",
+      "in": {
+        "name": "nas-main",
+        "kind": "NAS",
+        "baseUri": "smb://nas01/media",
+        "online": false
+      }
+    }
+bodyType: graphql
+description: ''
+headers:
+- enabled: true
+  name: Content-Type
+  value: application/json
+  id: kMq5oDhdZ0
+method: POST
+name: Update storage location (admin)
+sortPriority: 3000.0
+url: ${[ base_url ]}/query
+urlParameters: []
+settingSendCookies:
+  enabled: false
+  value: true
+settingStoreCookies:
+  enabled: false
+  value: true
+settingValidateCertificates:
+  enabled: false
+  value: true
+settingFollowRedirects:
+  enabled: false
+  value: true
+settingRequestTimeout:
+  enabled: false
+  value: 0
+settingHttpVersion:
+  enabled: false
+  value: auto

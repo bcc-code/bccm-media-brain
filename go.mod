@@ -12,6 +12,7 @@ tool (
 require (
 	github.com/99designs/gqlgen v0.17.98
 	github.com/brianvoe/gofakeit/v7 v7.18.1
+	github.com/go-jose/go-jose/v4 v4.1.6
 	github.com/jackc/pgx/v5 v5.12.0
 	github.com/joho/godotenv v1.5.1
 	github.com/pgvector/pgvector-go v0.4.1

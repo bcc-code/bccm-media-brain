@@ -23,7 +23,9 @@ cat <<MSG
   MediaBrain dev server (live reload)
     GraphQL playground   http://localhost:${port}/
     Debug / dev data     http://localhost:${port}/debug/
-    Seed from CLI        make seed s=dummies args="count=100"
+    Seed from CLI        make seed s=catalog args="-reset assets=20"
+
+  Requests run as DEBUG_USER (.env) unless you pick someone under "Act as user" in the debug UI.
 
 MSG
 

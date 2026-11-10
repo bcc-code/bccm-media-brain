@@ -1,0 +1,51 @@
+type: http_request
+model: http_request
+id: rq_GACnHyc894
+createdAt: 2026-11-10T23:30:00
+updatedAt: 2026-11-10T23:30:00
+workspaceId: wk_tPlK1TUEUQ
+folderId: fl_Xz143881TC
+authentication: {}
+authenticationType: null
+body:
+  query: |
+    mutation($renditionId: ID!, $fileId: ID!, $role: FileRole!, $position: Int!) {
+      attachFile(renditionId: $renditionId, fileId: $fileId, role: $role, position: $position) { role position file { id } }
+    }
+  variables: |-
+    {
+      "renditionId": "${[ rendition_id ]}",
+      "fileId": "${[ file_id ]}",
+      "role": "VIDEO",
+      "position": 0
+    }
+bodyType: graphql
+description: 'role: VIDEO | AUDIO | SUBTITLE | SIDECAR | PACKAGE. You must already be able to see the file.'
+headers:
+- enabled: true
+  name: Content-Type
+  value: application/json
+  id: G9Bunaocja
+method: POST
+name: Attach file to rendition
+sortPriority: 15000.0
+url: ${[ base_url ]}/query
+urlParameters: []
+settingSendCookies:
+  enabled: false
+  value: true
+settingStoreCookies:
+  enabled: false
+  value: true
+settingValidateCertificates:
+  enabled: false
+  value: true
+settingFollowRedirects:
+  enabled: false
+  value: true
+settingRequestTimeout:
+  enabled: false
+  value: 0
+settingHttpVersion:
+  enabled: false
+  value: auto

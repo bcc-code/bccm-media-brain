@@ -1,0 +1,196 @@
+enum LinkRole {
+  SOURCE
+  DELIVERABLE
+  REFERENCE
+}
+
+enum LinkOrigin {
+  FOLDER
+  MANUAL
+}
+
+enum VersionStatus {
+  DRAFT
+  REVIEW
+  APPROVED
+  FINAL
+}
+
+enum RenditionKind {
+  MASTER
+  ENCODE
+  DUB
+  SIGN
+  SUBTITLE
+  AUDIO
+  OTHER
+}
+
+enum FileRole {
+  VIDEO
+  AUDIO
+  SUBTITLE
+  SIDECAR
+  PACKAGE
+}
+
+enum LanguageModality {
+  SPOKEN
+  SIGNED
+  NONE
+  SPECIAL
+}
+
+type AssetType {
+  id: Int!
+  name: String!
+  description: String
+}
+
+type Language {
+  "BCP 47 tag."
+  code: String!
+  name: String!
+  nativeName: String
+  modality: LanguageModality!
+  baseCode: String
+  altCodes: [String!]!
+  active: Boolean!
+}
+
+"The logical item, for example one camera clip or one finished programme."
+type Asset {
+  id: ID!
+  typeId: Int!
+  title: String!
+  description: String
+  capturedAt: Time
+  camera: String
+  reel: String
+  metadata: JSON!
+  legacyIds: [String!]!
+  originalLanguage: String
+  createdAt: Time!
+  updatedAt: Time!
+  type: AssetType!
+  "The caller's permission level on this asset."
+  myLevel: PermissionLevel!
+  versions: [AssetVersion!]!
+  projects: [AssetProjectLink!]!
+}
+
+type AssetProjectLink {
+  assetId: ID!
+  projectId: ID!
+  role: LinkRole!
+  linkedBy: LinkOrigin!
+  createdAt: Time!
+  "Null when the caller may not see the project."
+  project: Project
+}
+
+"One edit of an asset: rough cut, review 1, final."
+type AssetVersion {
+  id: ID!
+  assetId: ID!
+  number: Int!
+  label: String
+  status: VersionStatus!
+  createdBy: ID
+  createdAt: Time!
+  renditions: [Rendition!]!
+}
+
+"One concrete form of a version: master, encode, dub, subtitles."
+type Rendition {
+  id: ID!
+  versionId: ID!
+  kind: RenditionKind!
+  language: String
+  purpose: String
+  overrides: JSON!
+  metadata: JSON!
+  createdAt: Time!
+  files: [RenditionFile!]!
+  "The latest revision, or every revision with history."
+  subtitleTracks(history: Boolean! = false): [SubtitleTrack!]!
+}
+
+type RenditionFile {
+  renditionId: ID!
+  fileId: ID!
+  role: FileRole!
+  position: Int!
+  file: File!
+}
+
+input AssetInput {
+  typeId: Int!
+  title: String!
+  description: String
+  capturedAt: Time
+  camera: String
+  reel: String
+  metadata: JSON
+  legacyIds: [String!]
+  originalLanguage: String
+}
+
+input AssetFilter {
+  typeId: Int
+  projectId: ID
+  "Case-insensitive part of the title."
+  title: String
+  legacyId: String
+}
+
+input VersionInput {
+  label: String
+  status: VersionStatus
+}
+
+input CreateRenditionInput {
+  kind: RenditionKind!
+  language: String
+  purpose: String
+  overrides: JSON
+  metadata: JSON
+}
+
+input UpdateRenditionInput {
+  language: String
+  purpose: String
+  overrides: JSON
+  metadata: JSON
+}
+
+extend type Query {
+  assetTypes: [AssetType!]!
+  languages(activeOnly: Boolean! = true): [Language!]!
+  asset(id: ID!): Asset
+  "Newest first."
+  assets(filter: AssetFilter, limit: Int = 50, offset: Int = 0): [Asset!]!
+  assetVersion(id: ID!): AssetVersion
+  rendition(id: ID!): Rendition
+}
+
+extend type Mutation {
+  "Needs EDIT on the project. Only administrators may leave projectId out."
+  createAsset(projectId: ID, input: AssetInput!): Asset!
+  "Replaces all editable fields."
+  updateAsset(id: ID!, input: AssetInput!): Asset!
+  "Removes the asset with its versions, renditions and subtitles. Files stay."
+  deleteAsset(id: ID!): Boolean!
+  "Needs EDIT on both the asset and the project."
+  linkAssetToProject(assetId: ID!, projectId: ID!, role: LinkRole!): AssetProjectLink!
+  unlinkAssetFromProject(assetId: ID!, projectId: ID!, role: LinkRole!): Boolean!
+  createAssetVersion(assetId: ID!, input: VersionInput!): AssetVersion!
+  updateAssetVersion(id: ID!, input: VersionInput!): AssetVersion!
+  deleteAssetVersion(id: ID!): Boolean!
+  createRendition(versionId: ID!, input: CreateRenditionInput!): Rendition!
+  updateRendition(id: ID!, input: UpdateRenditionInput!): Rendition!
+  deleteRendition(id: ID!): Boolean!
+  "The caller must already be able to see the file."
+  attachFile(renditionId: ID!, fileId: ID!, role: FileRole!, position: Int! = 0): RenditionFile!
+  detachFile(renditionId: ID!, fileId: ID!, role: FileRole!): Boolean!
+}

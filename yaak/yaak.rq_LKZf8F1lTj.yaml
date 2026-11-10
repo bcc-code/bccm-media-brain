@@ -1,0 +1,54 @@
+type: http_request
+model: http_request
+id: rq_LKZf8F1lTj
+createdAt: 2026-11-10T23:30:00
+updatedAt: 2026-11-10T23:30:00
+workspaceId: wk_tPlK1TUEUQ
+folderId: fl_qi020BBQ4W
+authentication: {}
+authenticationType: null
+body:
+  query: |
+    mutation($id: ID!, $in: UpdateProjectInput!) {
+      updateProject(id: $id, input: $in) { id name status startsOn endsOn updatedAt }
+    }
+  variables: |-
+    {
+      "id": "${[ project_id ]}",
+      "in": {
+        "name": "Season 1, episode 3",
+        "status": "DELIVERED",
+        "startsOn": "2026-11-01",
+        "endsOn": "2026-12-15"
+      }
+    }
+bodyType: graphql
+description: ''
+headers:
+- enabled: true
+  name: Content-Type
+  value: application/json
+  id: e6kA4LZgFM
+method: POST
+name: Update project
+sortPriority: 9000.0
+url: ${[ base_url ]}/query
+urlParameters: []
+settingSendCookies:
+  enabled: false
+  value: true
+settingStoreCookies:
+  enabled: false
+  value: true
+settingValidateCertificates:
+  enabled: false
+  value: true
+settingFollowRedirects:
+  enabled: false
+  value: true
+settingRequestTimeout:
+  enabled: false
+  value: 0
+settingHttpVersion:
+  enabled: false
+  value: auto

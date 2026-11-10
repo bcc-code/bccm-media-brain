@@ -1,0 +1,54 @@
+type: http_request
+model: http_request
+id: rq_9MmtddPUP1
+createdAt: 2026-11-10T23:30:00
+updatedAt: 2026-11-10T23:30:00
+workspaceId: wk_tPlK1TUEUQ
+folderId: fl_2oyt2p4sIh
+authentication: {}
+authenticationType: null
+body:
+  query: |
+    mutation($in: ImportSubtitlesInput!) {
+      importSubtitles(input: $in) { id renditionId language kind origin revision parentId }
+    }
+  variables: |-
+    {
+      "in": {
+        "versionId": "${[ version_id ]}",
+        "language": "en",
+        "kind": "SUBTITLE",
+        "format": "SRT",
+        "content": "1\n00:00:01,000 --> 00:00:03,500\nWelcome back.\n\n2\n00:00:04,000 --> 00:00:06,000\nLet's begin.\n"
+      }
+    }
+bodyType: graphql
+description: 'format: SRT | VTT. Each language gets its own subtitle rendition; importing again adds a revision. Put the returned id into track_id.'
+headers:
+- enabled: true
+  name: Content-Type
+  value: application/json
+  id: ZSrP0rk91v
+method: POST
+name: Import subtitles
+sortPriority: 1000.0
+url: ${[ base_url ]}/query
+urlParameters: []
+settingSendCookies:
+  enabled: false
+  value: true
+settingStoreCookies:
+  enabled: false
+  value: true
+settingValidateCertificates:
+  enabled: false
+  value: true
+settingFollowRedirects:
+  enabled: false
+  value: true
+settingRequestTimeout:
+  enabled: false
+  value: 0
+settingHttpVersion:
+  enabled: false
+  value: auto

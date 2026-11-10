@@ -25,16 +25,22 @@ func TestLoadFrom(t *testing.T) {
 		{
 			name: "defaults",
 			env:  map[string]string{"DATABASE_URL": "postgres://x"},
-			want: Config{DatabaseURL: "postgres://x", HTTPAddr: ":8080", AutoMigrate: true, Playground: true, LogFormat: "text"},
+			want: Config{DatabaseURL: "postgres://x", HTTPAddr: ":8080", AutoMigrate: true, LogFormat: "text", AuthHeader: "Authorization", AuthGroupsClaim: "groups"},
 		},
 		{
 			name: "overrides",
 			env: map[string]string{
 				"DATABASE_URL": "postgres://x", "HTTP_ADDR": ":9000",
-				"AUTO_MIGRATE": "false", "GRAPHQL_PLAYGROUND": "0", "DEBUG": "true",
+				"AUTO_MIGRATE": "false", "GRAPHQL_PLAYGROUND": "1", "DEBUG": "true", "DEBUG_USER": "dev@example.test",
 				"LOG_FORMAT": "json", "LOG_LEVEL": "debug",
+				"AUTH_HEADER": "X-Token", "AUTH_TRUSTED_PROXIES": "10.0.0.0/8", "AUTH_ISSUER": "https://idp",
+				"AUTH_AUDIENCE": "mb", "AUTH_JWKS_URL": "https://idp/keys", "AUTH_GROUPS_CLAIM": "roles",
 			},
-			want: Config{DatabaseURL: "postgres://x", HTTPAddr: ":9000", Debug: true, LogFormat: "json", LogLevel: slog.LevelDebug},
+			want: Config{
+				DatabaseURL: "postgres://x", HTTPAddr: ":9000", Debug: true, DebugUser: "dev@example.test", Playground: true, LogFormat: "json", LogLevel: slog.LevelDebug,
+				AuthHeader: "X-Token", AuthTrustedProxies: "10.0.0.0/8", AuthIssuer: "https://idp",
+				AuthAudience: "mb", AuthJWKSURL: "https://idp/keys", AuthGroupsClaim: "roles",
+			},
 		},
 		{name: "bad auto migrate", env: map[string]string{"DATABASE_URL": "x", "AUTO_MIGRATE": "nope"}, anyErr: true},
 		{name: "bad log level", env: map[string]string{"DATABASE_URL": "x", "LOG_LEVEL": "loud"}, anyErr: true},
@@ -62,6 +68,23 @@ func TestLoadFrom(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestValidate(t *testing.T) {
+	full := Config{AuthIssuer: "i", AuthAudience: "a", AuthJWKSURL: "j", AuthTrustedProxies: "127.0.0.1"}
+	if err := full.Validate(); err != nil {
+		t.Fatalf("configured auth: %v", err)
+	}
+	if err := (Config{Debug: true}).Validate(); err != nil {
+		t.Fatalf("debug without auth: %v", err)
+	}
+	partial := full
+	partial.AuthTrustedProxies = ""
+	for _, c := range []Config{{}, partial} {
+		if err := c.Validate(); !errors.Is(err, ErrAuthNotConfigured) {
+			t.Fatalf("%+v: err = %v", c, err)
+		}
 	}
 }
 

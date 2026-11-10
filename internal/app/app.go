@@ -12,25 +12,42 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/bcc-media/mediabrain/internal/access"
+	"github.com/bcc-media/mediabrain/internal/asset"
+	"github.com/bcc-media/mediabrain/internal/auth"
 	"github.com/bcc-media/mediabrain/internal/config"
 	"github.com/bcc-media/mediabrain/internal/db"
 	"github.com/bcc-media/mediabrain/internal/db/sqlc"
 	"github.com/bcc-media/mediabrain/internal/devdata"
-	"github.com/bcc-media/mediabrain/internal/dummy"
+	"github.com/bcc-media/mediabrain/internal/file"
 	"github.com/bcc-media/mediabrain/internal/graph"
+	"github.com/bcc-media/mediabrain/internal/project"
+	"github.com/bcc-media/mediabrain/internal/subtitle"
 )
 
-const shutdownTimeout = 10 * time.Second
+const (
+	shutdownTimeout = 10 * time.Second
+	// sweepInterval bounds how long an expired grant keeps giving access to assets.
+	sweepInterval = time.Minute
+)
 
 // App is a fully wired, listening application.
 type App struct {
-	pool *pgxpool.Pool
-	ln   net.Listener
-	srv  *http.Server
+	pool   *pgxpool.Pool
+	ln     net.Listener
+	srv    *http.Server
+	access *access.Service
 }
 
 // New connects to the database, optionally migrates, and binds the listener.
 func New(ctx context.Context, cfg config.Config) (*App, error) {
+	if err := cfg.Validate(); err != nil {
+		return nil, err
+	}
+	proxies, err := auth.ParseProxies(cfg.AuthTrustedProxies)
+	if err != nil {
+		return nil, err
+	}
 	if cfg.AutoMigrate {
 		if err := db.MigrateUp(ctx, cfg.DatabaseURL); err != nil {
 			return nil, err
@@ -46,17 +63,35 @@ func New(ctx context.Context, cfg config.Config) (*App, error) {
 		return nil, fmt.Errorf("app: listen %s: %w", cfg.HTTPAddr, err)
 	}
 
-	resolver := &graph.Resolver{DummySvc: dummy.NewService(sqlc.New(pool))}
-	opts := HandlerOptions{Playground: cfg.Playground}
+	q, tx := sqlc.New(pool), db.PoolTx(pool)
+	accessSvc := access.NewService(q, tx)
+	resolver := &graph.Resolver{
+		AccessSvc:    accessSvc,
+		ProjectsSvc:  project.NewService(q, tx),
+		FilesSvc:     file.NewService(q, tx),
+		AssetsSvc:    asset.NewService(q, tx),
+		SubtitlesSvc: subtitle.NewService(q, tx),
+	}
+	opts := HandlerOptions{
+		Playground: cfg.Playground,
+		Auth:       auth.Options{Header: cfg.AuthHeader, TrustedProxies: proxies, Users: accessSvc, Debug: cfg.Debug, DebugUser: cfg.DebugUser},
+	}
+	if cfg.AuthConfigured() {
+		opts.Auth.Verifier = &auth.JWKSVerifier{
+			Issuer: cfg.AuthIssuer, Audience: cfg.AuthAudience, JWKSURL: cfg.AuthJWKSURL, GroupsClaim: cfg.AuthGroupsClaim,
+		}
+	}
 	if cfg.Debug {
-		slog.Warn("DEBUG enabled: /debug/ can wipe and generate data — never enable in production")
+		slog.Warn("DEBUG enabled: /debug/ can wipe data and requests can act as any user — never enable in production")
 		opts.Debug = devdata.Handler(devdata.NewStore(pool))
 	}
 	srv := &http.Server{
 		Handler:           NewHandler(resolver, pool, opts),
 		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       60 * time.Second,
+		IdleTimeout:       120 * time.Second,
 	}
-	return &App{pool: pool, ln: ln, srv: srv}, nil
+	return &App{pool: pool, ln: ln, srv: srv, access: accessSvc}, nil
 }
 
 // Addr returns the address the server is listening on.
@@ -69,6 +104,7 @@ func (a *App) Serve(ctx context.Context) error {
 	errc := make(chan error, 1)
 	go func() { errc <- a.srv.Serve(a.ln) }()
 	slog.Info("listening", "addr", a.Addr())
+	go a.sweep(ctx)
 
 	select {
 	case err := <-errc:
@@ -94,4 +130,21 @@ func Run(ctx context.Context, cfg config.Config) error {
 		return err
 	}
 	return a.Serve(ctx)
+}
+
+func (a *App) sweep(ctx context.Context) {
+	t := time.NewTicker(sweepInterval)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			if n, err := a.access.Sweep(ctx); err != nil {
+				slog.ErrorContext(ctx, "access: sweep expired grants", "error", err.Error())
+			} else if n > 0 {
+				slog.InfoContext(ctx, "access: removed expired grants", "count", n)
+			}
+		}
+	}
 }

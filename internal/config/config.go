@@ -14,10 +14,35 @@ type Config struct {
 	DatabaseURL string     // DATABASE_URL (required)
 	HTTPAddr    string     // HTTP_ADDR (default ":8080")
 	AutoMigrate bool       // AUTO_MIGRATE (default true)
-	Playground  bool       // GRAPHQL_PLAYGROUND (default true)
+	Playground  bool       // GRAPHQL_PLAYGROUND (default false): playground at / and schema introspection
 	Debug       bool       // DEBUG (default false): enables /debug UI and dev-data API. Never in production.
+	DebugUser   string     // DEBUG_USER: with DEBUG, requests that name no user act as this email (created as admin if missing)
 	LogFormat   string     // LOG_FORMAT: "text" (default) or "json"
 	LogLevel    slog.Level // LOG_LEVEL: debug|info|warn|error (default info)
+
+	// Sign-in is done by a proxy in front of MediaBrain that forwards a signed JWT.
+	AuthHeader         string // AUTH_HEADER (default "Authorization"): header carrying the JWT
+	AuthTrustedProxies string // AUTH_TRUSTED_PROXIES: comma-separated IPs/CIDRs allowed to call /query
+	AuthIssuer         string // AUTH_ISSUER: expected "iss"
+	AuthAudience       string // AUTH_AUDIENCE: expected "aud"
+	AuthJWKSURL        string // AUTH_JWKS_URL: where the proxy's signing keys are published
+	AuthGroupsClaim    string // AUTH_GROUPS_CLAIM (default "groups"): claim listing SSO groups
+}
+
+// ErrAuthNotConfigured is returned when the AUTH_* settings are missing outside debug mode.
+var ErrAuthNotConfigured = errors.New("config: AUTH_ISSUER, AUTH_AUDIENCE, AUTH_JWKS_URL and AUTH_TRUSTED_PROXIES are required unless DEBUG=true")
+
+// AuthConfigured reports whether tokens can be verified.
+func (c Config) AuthConfigured() bool {
+	return c.AuthIssuer != "" && c.AuthAudience != "" && c.AuthJWKSURL != "" && c.AuthTrustedProxies != ""
+}
+
+// Validate refuses to run without authentication unless debug mode provides the bypass.
+func (c Config) Validate() error {
+	if !c.Debug && !c.AuthConfigured() {
+		return ErrAuthNotConfigured
+	}
+	return nil
 }
 
 // ErrMissingDatabaseURL is returned when DATABASE_URL is not set.
@@ -40,7 +65,7 @@ func Load() (Config, error) {
 
 // LoadFrom reads configuration using the given lookup function.
 func LoadFrom(lookup func(string) (string, bool)) (Config, error) {
-	cfg := Config{HTTPAddr: ":8080", AutoMigrate: true, Playground: true, LogFormat: "text"}
+	cfg := Config{HTTPAddr: ":8080", AutoMigrate: true, LogFormat: "text", AuthHeader: "Authorization", AuthGroupsClaim: "groups"}
 
 	url, ok := lookup("DATABASE_URL")
 	if !ok || url == "" {
@@ -67,6 +92,16 @@ func LoadFrom(lookup func(string) (string, bool)) (Config, error) {
 	if v, ok := lookup("LOG_LEVEL"); ok && v != "" {
 		if err := cfg.LogLevel.UnmarshalText([]byte(v)); err != nil {
 			return Config{}, fmt.Errorf("config: LOG_LEVEL: %w", err)
+		}
+	}
+	for key, dst := range map[string]*string{
+		"DEBUG_USER":  &cfg.DebugUser,
+		"AUTH_HEADER": &cfg.AuthHeader, "AUTH_TRUSTED_PROXIES": &cfg.AuthTrustedProxies,
+		"AUTH_ISSUER": &cfg.AuthIssuer, "AUTH_AUDIENCE": &cfg.AuthAudience,
+		"AUTH_JWKS_URL": &cfg.AuthJWKSURL, "AUTH_GROUPS_CLAIM": &cfg.AuthGroupsClaim,
+	} {
+		if v, ok := lookup(key); ok && v != "" {
+			*dst = v
 		}
 	}
 	return cfg, nil

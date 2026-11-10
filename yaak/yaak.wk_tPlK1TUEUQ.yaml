@@ -1,0 +1,19 @@
+type: workspace
+model: workspace
+id: wk_tPlK1TUEUQ
+createdAt: 2026-11-10T23:30:00
+updatedAt: 2026-11-10T23:30:00
+authentication: {}
+authenticationType: null
+description: Standard operations against the MediaBrain GraphQL API. Set the variables in the Local environment; see yaak/README.md.
+headers: []
+name: MediaBrain
+encryptionKeyChallenge: null
+settingValidateCertificates: true
+settingFollowRedirects: true
+settingRequestTimeout: 0
+settingRequestMessageSize: 67108864
+settingDnsOverrides: []
+settingSendCookies: true
+settingStoreCookies: true
+settingHttpVersion: auto

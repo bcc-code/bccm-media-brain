@@ -1,15 +1,36 @@
 package fake
 
-import "testing"
+import (
+	"reflect"
+	"testing"
+
+	"github.com/bcc-media/mediabrain/internal/subtitle"
+)
+
+func build(seed uint64) []any {
+	x := New(seed)
+	prog := x.Program()
+	return []any{
+		x.User(), prog, x.Project("PG-1", prog.Code), x.Location(), x.VideoFile(), x.SubtitleFile("x"),
+		x.Asset(1), x.Path("mov"), x.SRT(5), x.VTT(5), x.Int(1, 9), Pick(x, "a", "b", "c"),
+	}
+}
 
 func TestDeterministic(t *testing.T) {
-	a, b := New(42).Dummies(3), New(42).Dummies(3)
-	for i := range a {
-		if a[i] != b[i] {
-			t.Fatalf("same seed produced different data: %v vs %v", a[i], b[i])
-		}
-		if a[i].ID != int64(i+1) || a[i].Name == "" || a[i].CreatedAt.IsZero() {
-			t.Fatalf("incomplete dummy: %+v", a[i])
+	if !reflect.DeepEqual(build(42), build(42)) {
+		t.Fatal("same seed must give the same data")
+	}
+	if reflect.DeepEqual(build(42), build(43)) {
+		t.Fatal("different seeds should differ")
+	}
+}
+
+func TestSubtitleTextParses(t *testing.T) {
+	x := New(7)
+	for format, text := range map[subtitle.Format]string{subtitle.SRT: x.SRT(20), subtitle.VTT: x.VTT(20)} {
+		cues, err := subtitle.Parse(format, text)
+		if err != nil || len(cues) != 20 {
+			t.Fatalf("%s: %d cues, %v", format, len(cues), err)
 		}
 	}
 }

@@ -1,0 +1,49 @@
+type: http_request
+model: http_request
+id: rq_mCjVkXJHEh
+createdAt: 2026-11-10T23:30:00
+updatedAt: 2026-11-10T23:30:00
+workspaceId: wk_tPlK1TUEUQ
+folderId: fl_2bO5cZUFxn
+authentication: {}
+authenticationType: null
+body:
+  query: |
+    mutation($id: ID!, $status: CopyStatus!) {
+      setFileCopyStatus(id: $id, status: $status) { id status lastSeenAt lastVerifiedAt }
+    }
+  variables: |-
+    {
+      "id": "${[ copy_id ]}",
+      "status": "MISSING"
+    }
+bodyType: graphql
+description: 'status: PRESENT | MISSING | MISMATCH'
+headers:
+- enabled: true
+  name: Content-Type
+  value: application/json
+  id: GTVffG5xwf
+method: POST
+name: Set file copy status (admin)
+sortPriority: 10000.0
+url: ${[ base_url ]}/query
+urlParameters: []
+settingSendCookies:
+  enabled: false
+  value: true
+settingStoreCookies:
+  enabled: false
+  value: true
+settingValidateCertificates:
+  enabled: false
+  value: true
+settingFollowRedirects:
+  enabled: false
+  value: true
+settingRequestTimeout:
+  enabled: false
+  value: 0
+settingHttpVersion:
+  enabled: false
+  value: auto

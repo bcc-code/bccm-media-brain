@@ -1,0 +1,55 @@
+type: http_request
+model: http_request
+id: rq_6VpS6y1ZB6
+createdAt: 2026-11-10T23:30:00
+updatedAt: 2026-11-10T23:30:00
+workspaceId: wk_tPlK1TUEUQ
+folderId: fl_qi020BBQ4W
+authentication: {}
+authenticationType: null
+body:
+  query: |
+    mutation($in: CreateProjectInput!) {
+      createProject(input: $in) { id code name status }
+    }
+  variables: |-
+    {
+      "in": {
+        "programId": "${[ program_id ]}",
+        "code": "JOSH_S01_E03",
+        "name": "Season 1, episode 3",
+        "status": "ACTIVE",
+        "startsOn": "2026-11-01",
+        "endsOn": "2026-12-15"
+      }
+    }
+bodyType: graphql
+description: The code must start with the program code and an underscore. Put the returned id into project_id.
+headers:
+- enabled: true
+  name: Content-Type
+  value: application/json
+  id: tF630am0La
+method: POST
+name: Create project
+sortPriority: 8000.0
+url: ${[ base_url ]}/query
+urlParameters: []
+settingSendCookies:
+  enabled: false
+  value: true
+settingStoreCookies:
+  enabled: false
+  value: true
+settingValidateCertificates:
+  enabled: false
+  value: true
+settingFollowRedirects:
+  enabled: false
+  value: true
+settingRequestTimeout:
+  enabled: false
+  value: 0
+settingHttpVersion:
+  enabled: false
+  value: auto

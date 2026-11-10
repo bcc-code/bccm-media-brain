@@ -16,6 +16,8 @@ resolver:
   dir: internal/graph
   filename_template: "{name}.resolvers.go"
 
+# Types bind straight to the sqlc models and the services' input structs, so there is no
+# mapping layer. A field that is not a plain column gets `resolver: true`.
 models:
   ID:
     model:
@@ -23,11 +25,335 @@ models:
   Int:
     model:
       - github.com/99designs/gqlgen/graphql.Int
-  Dummy:
+      - github.com/99designs/gqlgen/graphql.Int32
+      - github.com/99designs/gqlgen/graphql.Int16
+  Int64:
     model:
-      - github.com/bcc-media/mediabrain/internal/db/sqlc.Dummy
+      - github.com/99designs/gqlgen/graphql.Int64
+  Date:
+    model:
+      - github.com/bcc-media/mediabrain/internal/graph/scalar.Date
+  JSON:
+    model:
+      - github.com/bcc-media/mediabrain/internal/graph/scalar.JSON
+  User:
+    model:
+      - github.com/bcc-media/mediabrain/internal/db/sqlc.AppUser
+  UserGroup:
+    model:
+      - github.com/bcc-media/mediabrain/internal/db/sqlc.UserGroup
+  Grant:
+    model:
+      - github.com/bcc-media/mediabrain/internal/db/sqlc.PermissionGrant
+  GrantInput:
+    model:
+      - github.com/bcc-media/mediabrain/internal/access.GrantInput
+  Program:
+    model:
+      - github.com/bcc-media/mediabrain/internal/db/sqlc.Program
     fields:
-      id:
+      projects:
         resolver: true
+  Project:
+    model:
+      - github.com/bcc-media/mediabrain/internal/db/sqlc.Project
+    fields:
+      program:
+        resolver: true
+  CreateProgramInput:
+    model:
+      - github.com/bcc-media/mediabrain/internal/project.ProgramInput
+  UpdateProgramInput:
+    model:
+      - github.com/bcc-media/mediabrain/internal/project.ProgramInput
+  CreateProjectInput:
+    model:
+      - github.com/bcc-media/mediabrain/internal/project.ProjectInput
+  UpdateProjectInput:
+    model:
+      - github.com/bcc-media/mediabrain/internal/project.ProjectInput
+  StorageLocation:
+    model:
+      - github.com/bcc-media/mediabrain/internal/db/sqlc.StorageLocation
+  File:
+    model:
+      - github.com/bcc-media/mediabrain/internal/db/sqlc.File
+    fields:
+      hashes:
+        resolver: true
+      copies:
+        resolver: true
+  FileHash:
+    model:
+      - github.com/bcc-media/mediabrain/internal/db/sqlc.FileHash
+    fields:
+      value:
+        resolver: true
+  FileCopy:
+    model:
+      - github.com/bcc-media/mediabrain/internal/db/sqlc.FileCopy
+    fields:
+      location:
+        resolver: true
+  StorageLocationInput:
+    model:
+      - github.com/bcc-media/mediabrain/internal/file.LocationInput
+  FileHashInput:
+    model:
+      - github.com/bcc-media/mediabrain/internal/file.HashInput
+  FileCopyInput:
+    model:
+      - github.com/bcc-media/mediabrain/internal/file.CopyInput
+  RegisterFileInput:
+    model:
+      - github.com/bcc-media/mediabrain/internal/file.RegisterInput
+  AssetType:
+    model:
+      - github.com/bcc-media/mediabrain/internal/db/sqlc.AssetType
+  Language:
+    model:
+      - github.com/bcc-media/mediabrain/internal/db/sqlc.Language
+  Asset:
+    model:
+      - github.com/bcc-media/mediabrain/internal/db/sqlc.Asset
+    fields:
+      type:
+        resolver: true
+      myLevel:
+        resolver: true
+      versions:
+        resolver: true
+      projects:
+        resolver: true
+  AssetProjectLink:
+    model:
+      - github.com/bcc-media/mediabrain/internal/db/sqlc.AssetProject
+    fields:
+      project:
+        resolver: true
+  AssetVersion:
+    model:
+      - github.com/bcc-media/mediabrain/internal/db/sqlc.AssetVersion
+    fields:
+      renditions:
+        resolver: true
+  Rendition:
+    model:
+      - github.com/bcc-media/mediabrain/internal/db/sqlc.Rendition
+    fields:
+      files:
+        resolver: true
+      subtitleTracks:
+        resolver: true
+  RenditionFile:
+    model:
+      - github.com/bcc-media/mediabrain/internal/db/sqlc.RenditionFile
+    fields:
+      file:
+        resolver: true
+  AssetInput:
+    model:
+      - github.com/bcc-media/mediabrain/internal/asset.Input
+  AssetFilter:
+    model:
+      - github.com/bcc-media/mediabrain/internal/asset.Filter
+  VersionInput:
+    model:
+      - github.com/bcc-media/mediabrain/internal/asset.VersionInput
+  CreateRenditionInput:
+    model:
+      - github.com/bcc-media/mediabrain/internal/asset.RenditionInput
+  UpdateRenditionInput:
+    model:
+      - github.com/bcc-media/mediabrain/internal/asset.RenditionInput
+  SubtitleTrack:
+    model:
+      - github.com/bcc-media/mediabrain/internal/db/sqlc.SubtitleTrack
+    fields:
+      cues:
+        resolver: true
+      export:
+        resolver: true
+  SubtitleCue:
+    model:
+      - github.com/bcc-media/mediabrain/internal/db/sqlc.ListSubtitleCuesRow
+  ImportSubtitlesInput:
+    model:
+      - github.com/bcc-media/mediabrain/internal/subtitle.ImportInput
+  SubtitleCueInput:
+    model:
+      - github.com/bcc-media/mediabrain/internal/subtitle.Cue
+  PermissionLevel:
+    model:
+      - github.com/bcc-media/mediabrain/internal/db/sqlc.PermissionLevel
+    enum_values:
+      VIEW:
+        value: github.com/bcc-media/mediabrain/internal/db/sqlc.PermissionLevelView
+      DOWNLOAD_ORIGINAL:
+        value: github.com/bcc-media/mediabrain/internal/db/sqlc.PermissionLevelDownloadOriginal
+      EDIT:
+        value: github.com/bcc-media/mediabrain/internal/db/sqlc.PermissionLevelEdit
+      DELETE:
+        value: github.com/bcc-media/mediabrain/internal/db/sqlc.PermissionLevelDelete
+      ADMIN:
+        value: github.com/bcc-media/mediabrain/internal/db/sqlc.PermissionLevelAdmin
+  GrantScope:
+    model:
+      - github.com/bcc-media/mediabrain/internal/db/sqlc.GrantScope
+    enum_values:
+      PROGRAM:
+        value: github.com/bcc-media/mediabrain/internal/db/sqlc.GrantScopeProgram
+      PROJECT:
+        value: github.com/bcc-media/mediabrain/internal/db/sqlc.GrantScopeProject
+      ASSET:
+        value: github.com/bcc-media/mediabrain/internal/db/sqlc.GrantScopeAsset
+  ProjectStatus:
+    model:
+      - github.com/bcc-media/mediabrain/internal/db/sqlc.ProjectStatus
+    enum_values:
+      PLANNED:
+        value: github.com/bcc-media/mediabrain/internal/db/sqlc.ProjectStatusPlanned
+      ACTIVE:
+        value: github.com/bcc-media/mediabrain/internal/db/sqlc.ProjectStatusActive
+      DELIVERED:
+        value: github.com/bcc-media/mediabrain/internal/db/sqlc.ProjectStatusDelivered
+      ARCHIVED:
+        value: github.com/bcc-media/mediabrain/internal/db/sqlc.ProjectStatusArchived
+  LocationKind:
+    model:
+      - github.com/bcc-media/mediabrain/internal/db/sqlc.LocationKind
+    enum_values:
+      NAS:
+        value: github.com/bcc-media/mediabrain/internal/db/sqlc.LocationKindNas
+      LTO:
+        value: github.com/bcc-media/mediabrain/internal/db/sqlc.LocationKindLto
+      S3:
+        value: github.com/bcc-media/mediabrain/internal/db/sqlc.LocationKindS3
+      LOCAL:
+        value: github.com/bcc-media/mediabrain/internal/db/sqlc.LocationKindLocal
+  HashAlgo:
+    model:
+      - github.com/bcc-media/mediabrain/internal/db/sqlc.HashAlgo
+    enum_values:
+      XXH3_128:
+        value: github.com/bcc-media/mediabrain/internal/db/sqlc.HashAlgoXxh3128
+      BLAKE3:
+        value: github.com/bcc-media/mediabrain/internal/db/sqlc.HashAlgoBlake3
+      SHA256:
+        value: github.com/bcc-media/mediabrain/internal/db/sqlc.HashAlgoSha256
+      MD5:
+        value: github.com/bcc-media/mediabrain/internal/db/sqlc.HashAlgoMd5
+  CopyStatus:
+    model:
+      - github.com/bcc-media/mediabrain/internal/db/sqlc.CopyStatus
+    enum_values:
+      PRESENT:
+        value: github.com/bcc-media/mediabrain/internal/db/sqlc.CopyStatusPresent
+      MISSING:
+        value: github.com/bcc-media/mediabrain/internal/db/sqlc.CopyStatusMissing
+      MISMATCH:
+        value: github.com/bcc-media/mediabrain/internal/db/sqlc.CopyStatusMismatch
+  LinkRole:
+    model:
+      - github.com/bcc-media/mediabrain/internal/db/sqlc.LinkRole
+    enum_values:
+      SOURCE:
+        value: github.com/bcc-media/mediabrain/internal/db/sqlc.LinkRoleSource
+      DELIVERABLE:
+        value: github.com/bcc-media/mediabrain/internal/db/sqlc.LinkRoleDeliverable
+      REFERENCE:
+        value: github.com/bcc-media/mediabrain/internal/db/sqlc.LinkRoleReference
+  LinkOrigin:
+    model:
+      - github.com/bcc-media/mediabrain/internal/db/sqlc.LinkOrigin
+    enum_values:
+      FOLDER:
+        value: github.com/bcc-media/mediabrain/internal/db/sqlc.LinkOriginFolder
+      MANUAL:
+        value: github.com/bcc-media/mediabrain/internal/db/sqlc.LinkOriginManual
+  VersionStatus:
+    model:
+      - github.com/bcc-media/mediabrain/internal/db/sqlc.VersionStatus
+    enum_values:
+      DRAFT:
+        value: github.com/bcc-media/mediabrain/internal/db/sqlc.VersionStatusDraft
+      REVIEW:
+        value: github.com/bcc-media/mediabrain/internal/db/sqlc.VersionStatusReview
+      APPROVED:
+        value: github.com/bcc-media/mediabrain/internal/db/sqlc.VersionStatusApproved
+      FINAL:
+        value: github.com/bcc-media/mediabrain/internal/db/sqlc.VersionStatusFinal
+  RenditionKind:
+    model:
+      - github.com/bcc-media/mediabrain/internal/db/sqlc.RenditionKind
+    enum_values:
+      MASTER:
+        value: github.com/bcc-media/mediabrain/internal/db/sqlc.RenditionKindMaster
+      ENCODE:
+        value: github.com/bcc-media/mediabrain/internal/db/sqlc.RenditionKindEncode
+      DUB:
+        value: github.com/bcc-media/mediabrain/internal/db/sqlc.RenditionKindDub
+      SIGN:
+        value: github.com/bcc-media/mediabrain/internal/db/sqlc.RenditionKindSign
+      SUBTITLE:
+        value: github.com/bcc-media/mediabrain/internal/db/sqlc.RenditionKindSubtitle
+      AUDIO:
+        value: github.com/bcc-media/mediabrain/internal/db/sqlc.RenditionKindAudio
+      OTHER:
+        value: github.com/bcc-media/mediabrain/internal/db/sqlc.RenditionKindOther
+  FileRole:
+    model:
+      - github.com/bcc-media/mediabrain/internal/db/sqlc.FileRole
+    enum_values:
+      VIDEO:
+        value: github.com/bcc-media/mediabrain/internal/db/sqlc.FileRoleVideo
+      AUDIO:
+        value: github.com/bcc-media/mediabrain/internal/db/sqlc.FileRoleAudio
+      SUBTITLE:
+        value: github.com/bcc-media/mediabrain/internal/db/sqlc.FileRoleSubtitle
+      SIDECAR:
+        value: github.com/bcc-media/mediabrain/internal/db/sqlc.FileRoleSidecar
+      PACKAGE:
+        value: github.com/bcc-media/mediabrain/internal/db/sqlc.FileRolePackage
+  LanguageModality:
+    model:
+      - github.com/bcc-media/mediabrain/internal/db/sqlc.LanguageModality
+    enum_values:
+      SPOKEN:
+        value: github.com/bcc-media/mediabrain/internal/db/sqlc.LanguageModalitySpoken
+      SIGNED:
+        value: github.com/bcc-media/mediabrain/internal/db/sqlc.LanguageModalitySigned
+      NONE:
+        value: github.com/bcc-media/mediabrain/internal/db/sqlc.LanguageModalityNone
+      SPECIAL:
+        value: github.com/bcc-media/mediabrain/internal/db/sqlc.LanguageModalitySpecial
+  TrackKind:
+    model:
+      - github.com/bcc-media/mediabrain/internal/db/sqlc.TrackKind
+    enum_values:
+      SUBTITLE:
+        value: github.com/bcc-media/mediabrain/internal/db/sqlc.TrackKindSubtitle
+      CC:
+        value: github.com/bcc-media/mediabrain/internal/db/sqlc.TrackKindCc
+      TRANSCRIPT:
+        value: github.com/bcc-media/mediabrain/internal/db/sqlc.TrackKindTranscript
+  TrackOrigin:
+    model:
+      - github.com/bcc-media/mediabrain/internal/db/sqlc.TrackOrigin
+    enum_values:
+      IMPORT:
+        value: github.com/bcc-media/mediabrain/internal/db/sqlc.TrackOriginImport
+      ASR:
+        value: github.com/bcc-media/mediabrain/internal/db/sqlc.TrackOriginAsr
+      MANUAL:
+        value: github.com/bcc-media/mediabrain/internal/db/sqlc.TrackOriginManual
+  SubtitleFormat:
+    model:
+      - github.com/bcc-media/mediabrain/internal/subtitle.Format
+    enum_values:
+      SRT:
+        value: github.com/bcc-media/mediabrain/internal/subtitle.SRT
+      VTT:
+        value: github.com/bcc-media/mediabrain/internal/subtitle.VTT
 
 skip_mod_tidy: true

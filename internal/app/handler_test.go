@@ -11,6 +11,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/bcc-media/mediabrain/internal/access"
+	"github.com/bcc-media/mediabrain/internal/auth"
 	"github.com/bcc-media/mediabrain/internal/graph"
 )
 
@@ -43,11 +45,62 @@ func TestHealthz(t *testing.T) {
 	}
 }
 
+type anyUser struct{}
+
+func (anyUser) SignIn(context.Context, access.Identity) (access.Principal, error) {
+	return access.Principal{}, errors.New("unused")
+}
+
+func (anyUser) Impersonate(_ context.Context, ref string) (access.Principal, error) {
+	return access.Principal{UserID: ref}, nil
+}
+
+func (anyUser) DebugAdmin(_ context.Context, email string) (access.Principal, error) {
+	return access.Principal{UserID: email, Admin: true}, nil
+}
+
+// query posts a GraphQL request as the debug user "US-1", or anonymously.
+func query(h http.Handler, body string, authenticated bool) *httptest.ResponseRecorder {
+	req := httptest.NewRequest(http.MethodPost, "/query", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	if authenticated {
+		req.Header.Set(auth.DebugUserHeader, "US-1")
+	}
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	return rec
+}
+
 func TestQueryEndpoint(t *testing.T) {
-	h := NewHandler(&graph.Resolver{}, okPing, HandlerOptions{})
-	rec := do(t, h, http.MethodPost, "/query", `{"query":"{ ping }"}`)
+	opts := HandlerOptions{Auth: auth.Options{Users: anyUser{}, Debug: true}}
+	h := NewHandler(&graph.Resolver{}, okPing, opts)
+
+	rec := query(h, `{"query":"{ ping }"}`, true)
 	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"pong"`) {
 		t.Fatalf("query = %d %s", rec.Code, rec.Body)
+	}
+	if rec.Header().Get("X-Content-Type-Options") != "nosniff" {
+		t.Error("missing nosniff header")
+	}
+	if rec := query(h, `{"query":"{ ping }"}`, false); rec.Code != http.StatusUnauthorized || !strings.Contains(rec.Body.String(), "UNAUTHENTICATED") {
+		t.Fatalf("anonymous = %d %s", rec.Code, rec.Body)
+	}
+	if rec := query(h, `{"query":"{ __schema { types { name } } }"}`, true); !strings.Contains(rec.Body.String(), "introspection disabled") {
+		t.Fatalf("introspection without playground = %s", rec.Body)
+	}
+	huge := `{"query":"{ ping }","variables":{"x":"` + strings.Repeat("a", maxBody) + `"}}`
+	if rec := query(h, huge, true); strings.Contains(rec.Body.String(), `"pong"`) {
+		t.Fatalf("oversized body was accepted: %d", rec.Code)
+	}
+	deep := "{" + strings.Repeat(" a: ping", graph.ComplexityLimit+1) + " }"
+	if rec := query(h, `{"query":"`+deep+`"}`, true); !strings.Contains(rec.Body.String(), "complexity") {
+		t.Fatalf("complexity limit = %s", rec.Body.String()[:200])
+	}
+
+	opts.Playground = true
+	open := NewHandler(&graph.Resolver{}, okPing, opts)
+	if rec := query(open, `{"query":"{ __schema { queryType { name } } }"}`, true); !strings.Contains(rec.Body.String(), `"Query"`) {
+		t.Fatalf("introspection with playground = %s", rec.Body)
 	}
 }
 

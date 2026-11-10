@@ -1,0 +1,48 @@
+type: http_request
+model: http_request
+id: rq_0AUso2amPk
+createdAt: 2026-11-10T23:30:00
+updatedAt: 2026-11-10T23:30:00
+workspaceId: wk_tPlK1TUEUQ
+folderId: fl_qi020BBQ4W
+authentication: {}
+authenticationType: null
+body:
+  query: |
+    query($id: ID!) {
+      program(id: $id) { id code name description metadata createdAt updatedAt projects { id code name status startsOn endsOn } }
+    }
+  variables: |-
+    {
+      "id": "${[ program_id ]}"
+    }
+bodyType: graphql
+description: ''
+headers:
+- enabled: true
+  name: Content-Type
+  value: application/json
+  id: Z2cHbfxD4U
+method: POST
+name: Program
+sortPriority: 2000.0
+url: ${[ base_url ]}/query
+urlParameters: []
+settingSendCookies:
+  enabled: false
+  value: true
+settingStoreCookies:
+  enabled: false
+  value: true
+settingValidateCertificates:
+  enabled: false
+  value: true
+settingFollowRedirects:
+  enabled: false
+  value: true
+settingRequestTimeout:
+  enabled: false
+  value: 0
+settingHttpVersion:
+  enabled: false
+  value: auto

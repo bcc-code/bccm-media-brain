@@ -1,0 +1,86 @@
+enum ProjectStatus {
+  PLANNED
+  ACTIVE
+  DELIVERED
+  ARCHIVED
+}
+
+type Program {
+  id: ID!
+  code: String!
+  name: String!
+  description: String
+  metadata: JSON!
+  createdAt: Time!
+  updatedAt: Time!
+  "The projects the caller may see."
+  projects: [Project!]!
+}
+
+type Project {
+  id: ID!
+  programId: ID!
+  code: String!
+  name: String!
+  status: ProjectStatus!
+  startsOn: Date
+  endsOn: Date
+  metadata: JSON!
+  createdAt: Time!
+  updatedAt: Time!
+  program: Program!
+}
+
+input CreateProgramInput {
+  "4-5 capital letters."
+  code: String!
+  name: String!
+  description: String
+  metadata: JSON
+}
+
+input UpdateProgramInput {
+  name: String!
+  description: String
+  metadata: JSON
+}
+
+input CreateProjectInput {
+  programId: ID!
+  "The program's code, an underscore, then letters, digits or underscores."
+  code: String!
+  name: String!
+  status: ProjectStatus
+  startsOn: Date
+  endsOn: Date
+  metadata: JSON
+}
+
+input UpdateProjectInput {
+  name: String!
+  status: ProjectStatus
+  startsOn: Date
+  endsOn: Date
+  metadata: JSON
+}
+
+extend type Query {
+  program(id: ID!): Program
+  programs(limit: Int = 50, offset: Int = 0): [Program!]!
+  project(id: ID!): Project
+  projects(programId: ID, status: ProjectStatus, limit: Int = 50, offset: Int = 0): [Project!]!
+}
+
+extend type Mutation {
+  "Administrators only."
+  createProgram(input: CreateProgramInput!): Program!
+  "Replaces all editable fields."
+  updateProgram(id: ID!, input: UpdateProgramInput!): Program!
+  "Administrators only. Fails while the program has projects."
+  deleteProgram(id: ID!): Boolean!
+  "Needs EDIT on the program."
+  createProject(input: CreateProjectInput!): Project!
+  "Replaces all editable fields."
+  updateProject(id: ID!, input: UpdateProjectInput!): Project!
+  deleteProject(id: ID!): Boolean!
+}

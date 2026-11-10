@@ -1,0 +1,113 @@
+# Security
+
+## Sign-in
+
+MediaBrain does not log users in. **A proxy in front of it does**, and forwards a signed JWT with
+every request. MediaBrain:
+
+1. accepts `/query` requests only from **trusted proxy addresses** (`AUTH_TRUSTED_PROXIES`),
+2. reads the JWT from `AUTH_HEADER` (default `Authorization`, `Bearer ` optional),
+3. **verifies it itself** against the keys at `AUTH_JWKS_URL`: signature (asymmetric algorithms
+   only), issuer, audience, expiry. A reachable port and a forged header are not enough,
+4. creates or updates the user from the claims (`sub`, `email`, `name`) and syncs their groups
+   from `AUTH_GROUPS_CLAIM`. Groups from the token are marked `sso`; leaving a group at the
+   identity provider removes the membership at the next sign-in.
+
+The server **refuses to start** without `AUTH_ISSUER`, `AUTH_AUDIENCE`, `AUTH_JWKS_URL` and
+`AUTH_TRUSTED_PROXIES`, unless `DEBUG=true`.
+
+Details worth knowing:
+
+- An email already used by another account is not taken over: the new user is stored without it.
+- Inactive users (`app_user.active = false`) get HTTP 403.
+- A verified token's user is cached for one minute, so a change to `is_admin`, `active` or group
+  membership can take that long to apply.
+- Tokens are verified with go-jose. Keys are fetched on first use and re-fetched (at most every
+  10 s) when a token names an unknown key, so key rotation needs no restart.
+
+### Debug bypass (development only)
+
+With `DEBUG=true` a request may name the user to act as, without a token:
+
+- the debug UI (`/debug/`, "Act as user") sets the `mb_debug_user` cookie, so the playground on
+  the same origin runs as that user,
+- `X-Debug-User: <email or user id>` does the same for curl.
+
+With `DEBUG_USER=<email>` set (it is in `.env.example`), a request that names nobody acts as that
+user, who is created as an administrator when missing. That is what makes `make dev` usable
+straight away: the playground and API clients such as the Yaak workspace work on an empty or
+freshly reset database. Any other user must exist (run a scenario or add one in the debug UI).
+
+`DEBUG` also exposes the data-wiping debug API. It must never be on in production.
+
+## Administrators
+
+`app_user.is_admin` marks system administrators. They bypass grant checks and are the only ones
+who manage programs (create/delete), storage locations and files.
+
+- First administrator: `mediabrain admin grant <email>` (`make admin-grant u=...`). The user must
+  have signed in once; promoting an address nobody has proven they own would be a takeover path.
+- Further ones: `setUserAdmin` (administrators only).
+
+## Permissions
+
+Access is given by **grants**: a user or group gets a level on a program, a project or an asset.
+
+| Level | Allows (each level includes the ones above it) |
+|---|---|
+| `VIEW` | Read the asset, versions, renditions, file metadata, subtitles (incl. export) |
+| `DOWNLOAD_ORIGINAL` | Also see where files are stored (copies: location and path) |
+| `EDIT` | Change asset, versions, renditions; attach/detach files; import and edit subtitles; link to a project |
+| `DELETE` | Delete the asset, versions, renditions, subtitle tracks |
+| `ADMIN` | Grant and revoke access on that object |
+
+Rules:
+
+- **Inheritance.** A grant on a program applies to its projects; a grant on a project applies to
+  the assets linked to it. The highest of all applicable grants (own and via groups) counts.
+- **`asset_access`** is the derived table every asset read and list checks. It is rebuilt in the
+  same transaction whenever a grant, a project link or a project changes.
+- **Expiry.** Grants can have `expiresAt`. Project and program checks compare it to the clock
+  directly. For assets, a sweeper in the server removes expired grants and their access once a
+  minute, so asset access can outlive its grant by up to a minute.
+- **No existence leaks.** Without at least `VIEW`, every read and every mutation behaves exactly
+  as if the object did not exist (`null` or `NOT_FOUND`). With `VIEW` but too low a level the
+  answer is `FORBIDDEN`.
+- **Programs and projects.** Creating a project needs `EDIT` on the program. A program is
+  visible to anyone who can see one of its projects (with only those projects listed).
+  A grant on a single asset does not reveal its project.
+- **New assets.** Non-administrators create an asset inside a project they can edit, so every
+  asset has someone with access from the start.
+- **Files** have no grants of their own. A file is visible through an asset the caller can view.
+  A file can only be attached to a rendition by someone who can already see it; otherwise
+  attaching would be a way to read any file.
+- **Sharing** (`grantAccess`) takes a user id, a user's email (they must have signed in once) or
+  a group id. Listing users and groups is for administrators.
+
+Permission checks live in the domain services (`internal/access`), so they apply the same way
+to every caller. Dev-data scenarios and the CLI run as an explicit system principal.
+
+## Hardening
+
+- Schema introspection and the playground are off unless `GRAPHQL_PLAYGROUND=true`.
+- One operation may select at most 2000 fields; request bodies are limited to 8 MB (a subtitle
+  file to 5 MB); the server has header, read and idle timeouts.
+- Unexpected errors reach the client only as `INTERNAL` / "internal error"; the cause is logged.
+- Audit log (`slog`): every mutation (`audit: mutation`, with user and object ids) and every
+  refusal (`audit: denied`). Refused sign-ins are logged with the reason. Tokens are not logged.
+
+## How this is tested
+
+`e2e/access_test.go` runs every operation as users with no grant, each level, group and inherited
+grants, and expired or revoked grants. `e2e/auth_test.go` and `internal/auth` cover tokens
+(missing, malformed, expired, wrong issuer or audience, foreign key, tampered, `alg: none`),
+untrusted proxies, inactive users and the debug bypass. `e2e/graph_test.go` fails every database
+statement of every operation in turn and requires a clean `INTERNAL` error each time.
+
+## Not covered yet
+
+- Machine clients (an ingest service) need a user with a token from the proxy; there are no
+  service tokens.
+- Grants on asset groups, collections, saved searches and notes (the tables allow them).
+- Managing local groups through the API (dev data creates them; SSO groups sync automatically).
+- Rate limiting and CORS (no browser client on another origin yet).

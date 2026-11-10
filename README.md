@@ -14,12 +14,16 @@ make dev
 
 This creates `.env`, starts Postgres, applies migrations and runs the server with live reload.
 
+- Debug UI (generate dev data, choose the user to act as): http://localhost:8080/debug/
 - GraphQL playground: http://localhost:8080/
-- Debug UI (generate dev data from scenarios): http://localhost:8080/debug/
+
+The API refuses anonymous requests. In development (`DEBUG=true`, `DEBUG_USER` set as in
+`.env.example`) requests run as the administrator `admin@example.test` unless you pick another
+user: run the `access` scenario in the debug UI and click "Act as" to see what that user sees.
 
 ```sh
-make seed-list                                  # available scenarios
-make seed s=dummies args="-reset count=100"     # generate data from the CLI
+make seed-list                                        # available scenarios
+make seed s=catalog args="-reset -seed 42 assets=20"  # generate data from the CLI
 ```
 
 ## Development
@@ -30,5 +34,9 @@ make help         # all targets
 make check        # vet + unit + e2e + ≥90% coverage gate
 ```
 
+[`yaak/`](yaak/README.md) is a [Yaak](https://yaak.app) workspace with requests for the standard
+API operations.
+
 The binary reads `.env` itself, so `go run ./cmd/mediabrain help` works without make.
-See [AGENTS.md](AGENTS.md) for layout, conventions and workflows.
+See [AGENTS.md](AGENTS.md) for layout, conventions and workflows, and [docs/](docs/README.md) for what
+has been built and why.

@@ -1,0 +1,36 @@
+type: http_request
+model: http_request
+id: rq_3KzScQ4EJS
+createdAt: 2026-11-10T23:30:00
+updatedAt: 2026-11-10T23:30:00
+workspaceId: wk_tPlK1TUEUQ
+folderId: null
+authentication: {}
+authenticationType: null
+body: {}
+bodyType: null
+description: No authentication needed.
+headers: []
+method: GET
+name: Health
+sortPriority: 1000.0
+url: ${[ base_url ]}/healthz
+urlParameters: []
+settingSendCookies:
+  enabled: false
+  value: true
+settingStoreCookies:
+  enabled: false
+  value: true
+settingValidateCertificates:
+  enabled: false
+  value: true
+settingFollowRedirects:
+  enabled: false
+  value: true
+settingRequestTimeout:
+  enabled: false
+  value: 0
+settingHttpVersion:
+  enabled: false
+  value: auto

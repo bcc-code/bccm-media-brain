@@ -9,7 +9,10 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/bcc-media/mediabrain/internal/access"
+	"github.com/bcc-media/mediabrain/internal/db"
 	"github.com/bcc-media/mediabrain/internal/db/sqlc"
+	"github.com/bcc-media/mediabrain/internal/domain"
 	"github.com/bcc-media/mediabrain/internal/fake"
 )
 
@@ -77,6 +80,7 @@ func (s *Store) Apply(ctx context.Context, name string, req ApplyRequest) (Resul
 	}
 	reset := req.Reset || sc.AlwaysReset
 	start := time.Now()
+	ctx = access.With(ctx, access.System())
 
 	var summary string
 	err = pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
@@ -93,6 +97,44 @@ func (s *Store) Apply(ctx context.Context, name string, req ApplyRequest) (Resul
 		return Result{}, fmt.Errorf("devdata: scenario %s: %w", name, err)
 	}
 	return Result{Scenario: name, Seed: seed, Reset: reset, Summary: summary, Duration: time.Since(start)}, nil
+}
+
+// User is one row of the debug UI's user switcher.
+type User struct {
+	ID     string  `json:"id"`
+	Email  *string `json:"email"`
+	Name   *string `json:"name"`
+	Admin  bool    `json:"admin"`
+	Active bool    `json:"active"`
+}
+
+func (s *Store) accessService() *access.Service {
+	return access.NewService(sqlc.New(s.pool), db.PoolTx(s.pool))
+}
+
+// Users lists the users one can act as from the debug UI.
+func (s *Store) Users(ctx context.Context) ([]User, error) {
+	rows, err := s.accessService().Users(access.With(ctx, access.System()), domain.MaxLimit, 0)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]User, len(rows))
+	for i, u := range rows {
+		out[i] = User{ID: u.ID, Email: u.Email, Name: u.Name, Admin: u.IsAdmin, Active: u.Active}
+	}
+	return out, nil
+}
+
+// CreateUser adds a user to act as, without going through the identity provider.
+func (s *Store) CreateUser(ctx context.Context, email string, admin bool) (User, error) {
+	email, err := domain.Required("email", email)
+	if err != nil {
+		return User{}, err
+	}
+	u, err := s.accessService().CreateUser(access.With(ctx, access.System()), access.UserInput{
+		ExternalID: "debug|" + email, Email: email, Name: email, Admin: admin,
+	})
+	return User{ID: u.ID, Email: u.Email, Name: u.Name, Admin: u.IsAdmin, Active: u.Active}, err
 }
 
 // Reset truncates every application table except the reference tables.

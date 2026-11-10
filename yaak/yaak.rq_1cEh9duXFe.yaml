@@ -1,0 +1,52 @@
+type: http_request
+model: http_request
+id: rq_1cEh9duXFe
+createdAt: 2026-11-10T23:30:00
+updatedAt: 2026-11-10T23:30:00
+workspaceId: wk_tPlK1TUEUQ
+folderId: fl_2bO5cZUFxn
+authentication: {}
+authenticationType: null
+body:
+  query: |
+    query($id: ID!) {
+      file(id: $id) {
+        id sizeBytes mimeType durationMs codec width height probe createdAt
+        hashes { algo value computedAt }
+        copies { id path status lastSeenAt lastVerifiedAt location { id name baseUri } }
+      }
+    }
+  variables: |-
+    {
+      "id": "${[ file_id ]}"
+    }
+bodyType: graphql
+description: copies is empty below DOWNLOAD_ORIGINAL.
+headers:
+- enabled: true
+  name: Content-Type
+  value: application/json
+  id: Bv3O8fnYkT
+method: POST
+name: File
+sortPriority: 6000.0
+url: ${[ base_url ]}/query
+urlParameters: []
+settingSendCookies:
+  enabled: false
+  value: true
+settingStoreCookies:
+  enabled: false
+  value: true
+settingValidateCertificates:
+  enabled: false
+  value: true
+settingFollowRedirects:
+  enabled: false
+  value: true
+settingRequestTimeout:
+  enabled: false
+  value: 0
+settingHttpVersion:
+  enabled: false
+  value: auto

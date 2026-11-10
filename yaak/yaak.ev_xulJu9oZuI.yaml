@@ -1,0 +1,66 @@
+type: environment
+model: environment
+id: ev_xulJu9oZuI
+workspaceId: wk_tPlK1TUEUQ
+createdAt: 2026-11-10T23:30:00
+updatedAt: 2026-11-10T23:30:00
+name: Global Variables
+public: true
+base: true
+parentModel: workspace
+parentId: null
+variables:
+- enabled: true
+  name: base_url
+  value: http://localhost:8080
+  id: IzIi88wSLC
+- enabled: true
+  name: user
+  value: admin@example.test
+  id: Uz0UolKRFI
+- enabled: true
+  name: token
+  value: ''
+  id: nj8knqVeet
+- enabled: true
+  name: program_id
+  value: ''
+  id: 7EdflTW88y
+- enabled: true
+  name: project_id
+  value: ''
+  id: PpE5lfnI4D
+- enabled: true
+  name: location_id
+  value: ''
+  id: BfNXiZbfrw
+- enabled: true
+  name: file_id
+  value: ''
+  id: j4nVZFtien
+- enabled: true
+  name: copy_id
+  value: ''
+  id: dL5sLb1Nub
+- enabled: true
+  name: asset_id
+  value: ''
+  id: 4CmWpWODy3
+- enabled: true
+  name: version_id
+  value: ''
+  id: kYSDmCaSra
+- enabled: true
+  name: rendition_id
+  value: ''
+  id: ZsuAl1HPwd
+- enabled: true
+  name: track_id
+  value: ''
+  id: caDRd9ifAe
+- enabled: true
+  name: grant_id
+  value: ''
+  id: 40Qbp99HLj
+color: null
+sortPriority: 0.0

@@ -1,0 +1,49 @@
+type: http_request
+model: http_request
+id: rq_8IFv7CjHif
+createdAt: 2026-11-10T23:30:00
+updatedAt: 2026-11-10T23:30:00
+workspaceId: wk_tPlK1TUEUQ
+folderId: fl_2bO5cZUFxn
+authentication: {}
+authenticationType: null
+body:
+  query: |
+    query($limit: Int, $offset: Int) {
+      files(limit: $limit, offset: $offset) { id sizeBytes mimeType codec createdAt }
+    }
+  variables: |-
+    {
+      "limit": 50,
+      "offset": 0
+    }
+bodyType: graphql
+description: ''
+headers:
+- enabled: true
+  name: Content-Type
+  value: application/json
+  id: FnGjC5MPFy
+method: POST
+name: List files (admin)
+sortPriority: 8000.0
+url: ${[ base_url ]}/query
+urlParameters: []
+settingSendCookies:
+  enabled: false
+  value: true
+settingStoreCookies:
+  enabled: false
+  value: true
+settingValidateCertificates:
+  enabled: false
+  value: true
+settingFollowRedirects:
+  enabled: false
+  value: true
+settingRequestTimeout:
+  enabled: false
+  value: 0
+settingHttpVersion:
+  enabled: false
+  value: auto

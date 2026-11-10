@@ -43,6 +43,9 @@
   #log { font: 12px/1.5 ui-monospace, monospace; background: var(--code); border-radius: 8px; padding: 10px; max-height: 420px; overflow: auto; white-space: pre-wrap; word-break: break-word; }
   .ok { color: var(--ok); } .err { color: var(--danger); }
   .always { font-size: 11px; color: var(--danger); margin-left: 6px; }
+  .hint { color: var(--muted); margin: 0 0 8px; }
+  tr.current td { font-weight: 700; }
+  td button { padding: 3px 10px; }
 </style>
 </head>
 <body>
@@ -63,6 +66,16 @@
         <button class="ghost" id="refresh">Refresh</button>
         <button class="danger" id="reset">Reset all data</button>
       </div>
+    </section>
+    <section class="card">
+      <h2>Act as user</h2>
+      <p id="acting" class="hint"></p>
+      <table id="users"><tr><td>Loading…</td></tr></table>
+      <form id="newuser" class="fields" style="margin-top:12px">
+        <label>Email<input type="text" name="email" placeholder="me@example.test"></label>
+        <label class="inline"><input type="checkbox" name="admin" checked>Admin</label>
+        <button type="submit" class="ghost">Add</button>
+      </form>
     </section>
     <section>
       <h2>Log</h2>
@@ -127,7 +140,7 @@ function card(s) {
     try {
       const r = await api('scenarios/' + encodeURIComponent(s.name), { method: 'POST', body: JSON.stringify(body) });
       log(`${r.scenario}: ${r.summary} (seed ${r.seed}${r.reset ? ', reset' : ''}, ${(r.durationNs / 1e6).toFixed(0)} ms)`, 'ok');
-      loadStats();
+      loadStats(); loadUsers();
     } catch (e) { log(`${s.name}: ${e.message}`, 'err'); }
     finally { btn.disabled = false; }
   };
@@ -142,14 +155,53 @@ async function loadScenarios() {
   catch (e) { box.textContent = 'Failed to load scenarios: ' + e.message; }
 }
 
-document.getElementById('refresh').onclick = loadStats;
+// The chosen user is kept in a cookie that /query reads in debug mode, so the playground
+// on this origin acts as that user.
+const COOKIE = 'mb_debug_user';
+const actingAs = () => (document.cookie.split('; ').find(c => c.startsWith(COOKIE + '=')) || '').slice(COOKIE.length + 1);
+function actAs(id) {
+  document.cookie = `${COOKIE}=${id}; path=/; SameSite=Strict` + (id ? '' : '; max-age=0');
+  loadUsers();
+}
+
+async function loadUsers() {
+  const t = document.getElementById('users');
+  try {
+    const users = await api('users');
+    const current = actingAs();
+    const me = users.find(u => u.id === current);
+    document.getElementById('acting').textContent = me
+      ? `GraphQL requests from this browser run as ${me.email || me.id}.`
+      : 'No user chosen: GraphQL requests from this browser are refused.';
+    t.replaceChildren(...(users.length ? users.map(u => el('tr', { className: u.id === current ? 'current' : '' },
+      el('td', { title: u.id }, u.email || u.id, ...(u.admin ? [el('span', { className: 'always' }, 'admin')] : []), ...(u.active ? [] : [el('span', { className: 'always' }, 'inactive')])),
+      el('td', { className: 'n' }, u.id === current
+        ? el('button', { className: 'ghost', onclick: () => actAs('') }, 'Stop')
+        : el('button', { className: 'ghost', onclick: () => actAs(u.id) }, 'Act as'))))
+      : [el('tr', {}, el('td', {}, 'No users yet. Add one below or run a scenario.'))]));
+  } catch (e) { log('users: ' + e.message, 'err'); }
+}
+
+document.getElementById('newuser').onsubmit = async ev => {
+  ev.preventDefault();
+  const f = ev.target;
+  try {
+    const u = await api('users', { method: 'POST', body: JSON.stringify({ email: f.email.value, admin: f.admin.checked }) });
+    log(`user ${u.email} created`, 'ok');
+    f.email.value = '';
+    actAs(u.id);
+  } catch (e) { log('add user: ' + e.message, 'err'); }
+};
+
+document.getElementById('refresh').onclick = () => { loadStats(); loadUsers(); };
 document.getElementById('reset').onclick = async () => {
   if (!confirm('Delete ALL data in every table?')) return;
-  try { await api('reset', { method: 'POST' }); log('all data reset', 'ok'); loadStats(); }
+  try { await api('reset', { method: 'POST' }); log('all data reset', 'ok'); loadStats(); loadUsers(); }
   catch (e) { log('reset: ' + e.message, 'err'); }
 };
 loadScenarios();
 loadStats();
+loadUsers();
 </script>
 </body>
 </html>

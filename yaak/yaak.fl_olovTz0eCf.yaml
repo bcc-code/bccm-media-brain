@@ -1,0 +1,40 @@
+type: folder
+model: folder
+id: fl_olovTz0eCf
+createdAt: 2026-11-10T23:30:00
+updatedAt: 2026-11-10T23:30:00
+workspaceId: wk_tPlK1TUEUQ
+folderId: null
+authentication:
+  disabled: true
+  token: ${[ token ]}
+authenticationType: bearer
+description: Who am I, users, sharing.
+headers:
+- enabled: true
+  name: X-Debug-User
+  value: ${[ user ]}
+  id: cgJzYRWQoS
+name: Access
+sortPriority: 1000.0
+settingSendCookies:
+  enabled: false
+  value: true
+settingStoreCookies:
+  enabled: false
+  value: true
+settingValidateCertificates:
+  enabled: false
+  value: true
+settingFollowRedirects:
+  enabled: false
+  value: true
+settingRequestTimeout:
+  enabled: false
+  value: 0
+settingRequestMessageSize:
+  enabled: false
+  value: 67108864
+settingHttpVersion:
+  enabled: false
+  value: auto

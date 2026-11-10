@@ -10,7 +10,8 @@ tmp_dir = "tmp"
   cmd = "./scripts/dev-codegen.sh && go build -o ./tmp/mediabrain ./cmd/mediabrain"
   entrypoint = ["./tmp/mediabrain", "serve"]
   include_ext = ["go", "sql", "graphqls", "html", "yaml", "yml"]
-  exclude_dir = ["tmp", "bin", "coverage", "web", "e2e", "deploy", "scripts", ".git", ".claude",
+  # yaak/ is rewritten by the Yaak app whenever the workspace is open.
+  exclude_dir = ["tmp", "bin", "coverage", "web", "e2e", "deploy", "scripts", "docs", "yaak", ".git", ".claude",
                  "internal/db/sqlc", "internal/graph/generated"]
   exclude_regex = ["_test\\.go$", "models_gen\\.go$"]
   delay = 300

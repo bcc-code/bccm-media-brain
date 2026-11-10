@@ -1,0 +1,53 @@
+type: http_request
+model: http_request
+id: rq_gMKCCCZ7Cg
+createdAt: 2026-11-10T23:30:00
+updatedAt: 2026-11-10T23:30:00
+workspaceId: wk_tPlK1TUEUQ
+folderId: fl_Xz143881TC
+authentication: {}
+authenticationType: null
+body:
+  query: |
+    mutation($versionId: ID!, $in: CreateRenditionInput!) {
+      createRendition(versionId: $versionId, input: $in) { id kind language purpose }
+    }
+  variables: |-
+    {
+      "versionId": "${[ version_id ]}",
+      "in": {
+        "kind": "MASTER",
+        "language": "nb",
+        "purpose": "archive"
+      }
+    }
+bodyType: graphql
+description: 'kind: MASTER | ENCODE | DUB | SIGN | SUBTITLE | AUDIO | OTHER. Put the returned id into rendition_id.'
+headers:
+- enabled: true
+  name: Content-Type
+  value: application/json
+  id: eYxA67RitV
+method: POST
+name: Create rendition
+sortPriority: 12000.0
+url: ${[ base_url ]}/query
+urlParameters: []
+settingSendCookies:
+  enabled: false
+  value: true
+settingStoreCookies:
+  enabled: false
+  value: true
+settingValidateCertificates:
+  enabled: false
+  value: true
+settingFollowRedirects:
+  enabled: false
+  value: true
+settingRequestTimeout:
+  enabled: false
+  value: 0
+settingHttpVersion:
+  enabled: false
+  value: auto

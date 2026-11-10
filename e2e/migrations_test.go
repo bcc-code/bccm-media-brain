@@ -37,7 +37,7 @@ func TestMigrationsRoundTrip(t *testing.T) {
 		}
 		defer pool.Close()
 		var ok bool
-		if err := pool.QueryRow(ctx, `SELECT to_regclass('public.dummy') IS NOT NULL`).Scan(&ok); err != nil {
+		if err := pool.QueryRow(ctx, `SELECT to_regclass('public.asset') IS NOT NULL`).Scan(&ok); err != nil {
 			t.Fatal(err)
 		}
 		return ok

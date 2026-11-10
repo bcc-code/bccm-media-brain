@@ -1,0 +1,63 @@
+type: http_request
+model: http_request
+id: rq_htgz90XUlN
+createdAt: 2026-11-10T23:30:00
+updatedAt: 2026-11-10T23:30:00
+workspaceId: wk_tPlK1TUEUQ
+folderId: fl_Xz143881TC
+authentication: {}
+authenticationType: null
+body:
+  query: |
+    mutation($projectId: ID, $in: AssetInput!) {
+      createAsset(projectId: $projectId, input: $in) { id title myLevel }
+    }
+  variables: |-
+    {
+      "projectId": "${[ project_id ]}",
+      "in": {
+        "typeId": 1,
+        "title": "A001 C003",
+        "description": "Interview, wide",
+        "capturedAt": "2026-11-03T09:30:00Z",
+        "camera": "Sony FX6",
+        "reel": "A001",
+        "metadata": {
+          "scene": 12
+        },
+        "legacyIds": [
+          "LEG-000123"
+        ],
+        "originalLanguage": "nb"
+      }
+    }
+bodyType: graphql
+description: Needs EDIT on the project; only administrators may leave projectId out. Put the returned id into asset_id.
+headers:
+- enabled: true
+  name: Content-Type
+  value: application/json
+  id: 7kQm2EOVwl
+method: POST
+name: Create asset
+sortPriority: 4000.0
+url: ${[ base_url ]}/query
+urlParameters: []
+settingSendCookies:
+  enabled: false
+  value: true
+settingStoreCookies:
+  enabled: false
+  value: true
+settingValidateCertificates:
+  enabled: false
+  value: true
+settingFollowRedirects:
+  enabled: false
+  value: true
+settingRequestTimeout:
+  enabled: false
+  value: 0
+settingHttpVersion:
+  enabled: false
+  value: auto

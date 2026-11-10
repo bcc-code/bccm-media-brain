@@ -6,10 +6,10 @@ package sqlc
 
 import (
 	"database/sql/driver"
+	"encoding/json"
 	"fmt"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/pgvector/pgvector-go"
 )
 
@@ -55,6 +55,15 @@ func (ns NullClipKind) Value() (driver.Value, error) {
 	return string(ns.ClipKind), nil
 }
 
+func (e ClipKind) Valid() bool {
+	switch e {
+	case ClipKindClip,
+		ClipKindGap:
+		return true
+	}
+	return false
+}
+
 type ClusterStatus string
 
 const (
@@ -95,6 +104,15 @@ func (ns NullClusterStatus) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.ClusterStatus), nil
+}
+
+func (e ClusterStatus) Valid() bool {
+	switch e {
+	case ClusterStatusAuto,
+		ClusterStatusConfirmed:
+		return true
+	}
+	return false
 }
 
 type CopyStatus string
@@ -138,6 +156,16 @@ func (ns NullCopyStatus) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.CopyStatus), nil
+}
+
+func (e CopyStatus) Valid() bool {
+	switch e {
+	case CopyStatusPresent,
+		CopyStatusMissing,
+		CopyStatusMismatch:
+		return true
+	}
+	return false
 }
 
 type FileRole string
@@ -185,6 +213,18 @@ func (ns NullFileRole) Value() (driver.Value, error) {
 	return string(ns.FileRole), nil
 }
 
+func (e FileRole) Valid() bool {
+	switch e {
+	case FileRoleVideo,
+		FileRoleAudio,
+		FileRoleSubtitle,
+		FileRoleSidecar,
+		FileRolePackage:
+		return true
+	}
+	return false
+}
+
 type FolderRole string
 
 const (
@@ -225,6 +265,15 @@ func (ns NullFolderRole) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.FolderRole), nil
+}
+
+func (e FolderRole) Valid() bool {
+	switch e {
+	case FolderRoleWorking,
+		FolderRoleArchive:
+		return true
+	}
+	return false
 }
 
 type GrantScope string
@@ -274,6 +323,20 @@ func (ns NullGrantScope) Value() (driver.Value, error) {
 	return string(ns.GrantScope), nil
 }
 
+func (e GrantScope) Valid() bool {
+	switch e {
+	case GrantScopeProgram,
+		GrantScopeProject,
+		GrantScopeAssetGroup,
+		GrantScopeAsset,
+		GrantScopeCollection,
+		GrantScopeSavedSearch,
+		GrantScopeNote:
+		return true
+	}
+	return false
+}
+
 type GroupKind string
 
 const (
@@ -318,6 +381,17 @@ func (ns NullGroupKind) Value() (driver.Value, error) {
 	return string(ns.GroupKind), nil
 }
 
+func (e GroupKind) Valid() bool {
+	switch e {
+	case GroupKindShoot,
+		GroupKindCard,
+		GroupKindDay,
+		GroupKindOther:
+		return true
+	}
+	return false
+}
+
 type GroupOrigin string
 
 const (
@@ -358,6 +432,15 @@ func (ns NullGroupOrigin) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.GroupOrigin), nil
+}
+
+func (e GroupOrigin) Valid() bool {
+	switch e {
+	case GroupOriginAuto,
+		GroupOriginManual:
+		return true
+	}
+	return false
 }
 
 type HashAlgo string
@@ -404,6 +487,17 @@ func (ns NullHashAlgo) Value() (driver.Value, error) {
 	return string(ns.HashAlgo), nil
 }
 
+func (e HashAlgo) Valid() bool {
+	switch e {
+	case HashAlgoXxh3128,
+		HashAlgoBlake3,
+		HashAlgoSha256,
+		HashAlgoMd5:
+		return true
+	}
+	return false
+}
+
 type LanguageModality string
 
 const (
@@ -448,6 +542,17 @@ func (ns NullLanguageModality) Value() (driver.Value, error) {
 	return string(ns.LanguageModality), nil
 }
 
+func (e LanguageModality) Valid() bool {
+	switch e {
+	case LanguageModalitySpoken,
+		LanguageModalitySigned,
+		LanguageModalityNone,
+		LanguageModalitySpecial:
+		return true
+	}
+	return false
+}
+
 type LinkOrigin string
 
 const (
@@ -488,6 +593,15 @@ func (ns NullLinkOrigin) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.LinkOrigin), nil
+}
+
+func (e LinkOrigin) Valid() bool {
+	switch e {
+	case LinkOriginFolder,
+		LinkOriginManual:
+		return true
+	}
+	return false
 }
 
 type LinkRole string
@@ -531,6 +645,16 @@ func (ns NullLinkRole) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.LinkRole), nil
+}
+
+func (e LinkRole) Valid() bool {
+	switch e {
+	case LinkRoleSource,
+		LinkRoleDeliverable,
+		LinkRoleReference:
+		return true
+	}
+	return false
 }
 
 type LocationKind string
@@ -577,6 +701,17 @@ func (ns NullLocationKind) Value() (driver.Value, error) {
 	return string(ns.LocationKind), nil
 }
 
+func (e LocationKind) Valid() bool {
+	switch e {
+	case LocationKindNas,
+		LocationKindLto,
+		LocationKindS3,
+		LocationKindLocal:
+		return true
+	}
+	return false
+}
+
 type MemberOrigin string
 
 const (
@@ -619,6 +754,15 @@ func (ns NullMemberOrigin) Value() (driver.Value, error) {
 	return string(ns.MemberOrigin), nil
 }
 
+func (e MemberOrigin) Valid() bool {
+	switch e {
+	case MemberOriginRule,
+		MemberOriginPerson:
+		return true
+	}
+	return false
+}
+
 type MembershipSource string
 
 const (
@@ -659,6 +803,15 @@ func (ns NullMembershipSource) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.MembershipSource), nil
+}
+
+func (e MembershipSource) Valid() bool {
+	switch e {
+	case MembershipSourceSso,
+		MembershipSourceManual:
+		return true
+	}
+	return false
 }
 
 type PermissionLevel string
@@ -706,6 +859,18 @@ func (ns NullPermissionLevel) Value() (driver.Value, error) {
 	return string(ns.PermissionLevel), nil
 }
 
+func (e PermissionLevel) Valid() bool {
+	switch e {
+	case PermissionLevelView,
+		PermissionLevelDownloadOriginal,
+		PermissionLevelEdit,
+		PermissionLevelDelete,
+		PermissionLevelAdmin:
+		return true
+	}
+	return false
+}
+
 type PersonKind string
 
 const (
@@ -746,6 +911,15 @@ func (ns NullPersonKind) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.PersonKind), nil
+}
+
+func (e PersonKind) Valid() bool {
+	switch e {
+	case PersonKindPerson,
+		PersonKindOrganisation:
+		return true
+	}
+	return false
 }
 
 type ProjectStatus string
@@ -792,6 +966,17 @@ func (ns NullProjectStatus) Value() (driver.Value, error) {
 	return string(ns.ProjectStatus), nil
 }
 
+func (e ProjectStatus) Valid() bool {
+	switch e {
+	case ProjectStatusPlanned,
+		ProjectStatusActive,
+		ProjectStatusDelivered,
+		ProjectStatusArchived:
+		return true
+	}
+	return false
+}
+
 type RelationKind string
 
 const (
@@ -834,6 +1019,17 @@ func (ns NullRelationKind) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.RelationKind), nil
+}
+
+func (e RelationKind) Valid() bool {
+	switch e {
+	case RelationKindDerivedFrom,
+		RelationKindTrailerOf,
+		RelationKindUsesFootageFrom,
+		RelationKindReplaces:
+		return true
+	}
+	return false
 }
 
 type RenditionKind string
@@ -883,6 +1079,20 @@ func (ns NullRenditionKind) Value() (driver.Value, error) {
 	return string(ns.RenditionKind), nil
 }
 
+func (e RenditionKind) Valid() bool {
+	switch e {
+	case RenditionKindMaster,
+		RenditionKindEncode,
+		RenditionKindDub,
+		RenditionKindSign,
+		RenditionKindSubtitle,
+		RenditionKindAudio,
+		RenditionKindOther:
+		return true
+	}
+	return false
+}
+
 type SearchTarget string
 
 const (
@@ -923,6 +1133,15 @@ func (ns NullSearchTarget) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.SearchTarget), nil
+}
+
+func (e SearchTarget) Valid() bool {
+	switch e {
+	case SearchTargetAsset,
+		SearchTargetProject:
+		return true
+	}
+	return false
 }
 
 type TagSource string
@@ -966,6 +1185,16 @@ func (ns NullTagSource) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.TagSource), nil
+}
+
+func (e TagSource) Valid() bool {
+	switch e {
+	case TagSourceFile,
+		TagSourceAi,
+		TagSourcePerson:
+		return true
+	}
+	return false
 }
 
 type TimelineOrigin string
@@ -1012,6 +1241,17 @@ func (ns NullTimelineOrigin) Value() (driver.Value, error) {
 	return string(ns.TimelineOrigin), nil
 }
 
+func (e TimelineOrigin) Valid() bool {
+	switch e {
+	case TimelineOriginRca,
+		TimelineOriginFcpxml,
+		TimelineOriginOtio,
+		TimelineOriginEdl:
+		return true
+	}
+	return false
+}
+
 type TrackKind string
 
 const (
@@ -1053,6 +1293,16 @@ func (ns NullTrackKind) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.TrackKind), nil
+}
+
+func (e TrackKind) Valid() bool {
+	switch e {
+	case TrackKindSubtitle,
+		TrackKindCc,
+		TrackKindTranscript:
+		return true
+	}
+	return false
 }
 
 type TrackMedia string
@@ -1097,6 +1347,15 @@ func (ns NullTrackMedia) Value() (driver.Value, error) {
 	return string(ns.TrackMedia), nil
 }
 
+func (e TrackMedia) Valid() bool {
+	switch e {
+	case TrackMediaVideo,
+		TrackMediaAudio:
+		return true
+	}
+	return false
+}
+
 type TrackOrigin string
 
 const (
@@ -1138,6 +1397,16 @@ func (ns NullTrackOrigin) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.TrackOrigin), nil
+}
+
+func (e TrackOrigin) Valid() bool {
+	switch e {
+	case TrackOriginImport,
+		TrackOriginAsr,
+		TrackOriginManual:
+		return true
+	}
+	return false
 }
 
 type VersionStatus string
@@ -1184,29 +1453,41 @@ func (ns NullVersionStatus) Value() (driver.Value, error) {
 	return string(ns.VersionStatus), nil
 }
 
+func (e VersionStatus) Valid() bool {
+	switch e {
+	case VersionStatusDraft,
+		VersionStatusReview,
+		VersionStatusApproved,
+		VersionStatusFinal:
+		return true
+	}
+	return false
+}
+
 type AppUser struct {
-	ID         string      `json:"id"`
-	ExternalID string      `json:"external_id"`
-	Email      pgtype.Text `json:"email"`
-	Name       pgtype.Text `json:"name"`
-	PersonID   pgtype.Text `json:"person_id"`
-	Active     bool        `json:"active"`
-	CreatedAt  time.Time   `json:"created_at"`
+	ID         string    `json:"id"`
+	ExternalID string    `json:"external_id"`
+	Email      *string   `json:"email"`
+	Name       *string   `json:"name"`
+	PersonID   *string   `json:"person_id"`
+	Active     bool      `json:"active"`
+	CreatedAt  time.Time `json:"created_at"`
+	IsAdmin    bool      `json:"is_admin"`
 }
 
 type Asset struct {
-	ID               string             `json:"id"`
-	TypeID           int16              `json:"type_id"`
-	Title            string             `json:"title"`
-	Description      pgtype.Text        `json:"description"`
-	CapturedAt       pgtype.Timestamptz `json:"captured_at"`
-	Camera           pgtype.Text        `json:"camera"`
-	Reel             pgtype.Text        `json:"reel"`
-	Metadata         []byte             `json:"metadata"`
-	LegacyIds        []string           `json:"legacy_ids"`
-	CreatedAt        time.Time          `json:"created_at"`
-	UpdatedAt        time.Time          `json:"updated_at"`
-	OriginalLanguage pgtype.Text        `json:"original_language"`
+	ID               string          `json:"id"`
+	TypeID           int16           `json:"type_id"`
+	Title            string          `json:"title"`
+	Description      *string         `json:"description"`
+	CapturedAt       *time.Time      `json:"captured_at"`
+	Camera           *string         `json:"camera"`
+	Reel             *string         `json:"reel"`
+	Metadata         json.RawMessage `json:"metadata"`
+	LegacyIds        []string        `json:"legacy_ids"`
+	CreatedAt        time.Time       `json:"created_at"`
+	UpdatedAt        time.Time       `json:"updated_at"`
+	OriginalLanguage *string         `json:"original_language"`
 }
 
 type AssetAccess struct {
@@ -1217,23 +1498,23 @@ type AssetAccess struct {
 }
 
 type AssetCredit struct {
-	ID            string      `json:"id"`
-	AssetID       string      `json:"asset_id"`
-	RenditionID   pgtype.Text `json:"rendition_id"`
-	PersonID      string      `json:"person_id"`
-	Role          string      `json:"role"`
-	BillingOrder  pgtype.Int4 `json:"billing_order"`
-	CharacterName pgtype.Text `json:"character_name"`
+	ID            string  `json:"id"`
+	AssetID       string  `json:"asset_id"`
+	RenditionID   *string `json:"rendition_id"`
+	PersonID      string  `json:"person_id"`
+	Role          string  `json:"role"`
+	BillingOrder  *int32  `json:"billing_order"`
+	CharacterName *string `json:"character_name"`
 }
 
 type AssetGroup struct {
-	ID        string      `json:"id"`
-	Kind      GroupKind   `json:"kind"`
-	Name      string      `json:"name"`
-	Origin    GroupOrigin `json:"origin"`
-	Rule      []byte      `json:"rule"`
-	ProjectID pgtype.Text `json:"project_id"`
-	CreatedAt time.Time   `json:"created_at"`
+	ID        string          `json:"id"`
+	Kind      GroupKind       `json:"kind"`
+	Name      string          `json:"name"`
+	Origin    GroupOrigin     `json:"origin"`
+	Rule      json.RawMessage `json:"rule"`
+	ProjectID *string         `json:"project_id"`
+	CreatedAt time.Time       `json:"created_at"`
 }
 
 type AssetGroupMember struct {
@@ -1259,27 +1540,27 @@ type AssetRelation struct {
 }
 
 type AssetTag struct {
-	AssetID    string        `json:"asset_id"`
-	TagID      string        `json:"tag_id"`
-	Source     TagSource     `json:"source"`
-	Confidence pgtype.Float4 `json:"confidence"`
-	AddedBy    pgtype.Text   `json:"added_by"`
-	AddedAt    time.Time     `json:"added_at"`
+	AssetID    string    `json:"asset_id"`
+	TagID      string    `json:"tag_id"`
+	Source     TagSource `json:"source"`
+	Confidence *float32  `json:"confidence"`
+	AddedBy    *string   `json:"added_by"`
+	AddedAt    time.Time `json:"added_at"`
 }
 
 type AssetType struct {
-	ID          int16       `json:"id"`
-	Name        string      `json:"name"`
-	Description pgtype.Text `json:"description"`
+	ID          int16   `json:"id"`
+	Name        string  `json:"name"`
+	Description *string `json:"description"`
 }
 
 type AssetVersion struct {
 	ID        string        `json:"id"`
 	AssetID   string        `json:"asset_id"`
 	Number    int32         `json:"number"`
-	Label     pgtype.Text   `json:"label"`
+	Label     *string       `json:"label"`
 	Status    VersionStatus `json:"status"`
-	CreatedBy pgtype.Text   `json:"created_by"`
+	CreatedBy *string       `json:"created_by"`
 	CreatedAt time.Time     `json:"created_at"`
 }
 
@@ -1297,57 +1578,51 @@ type CollectionItem struct {
 }
 
 type CueEmbedding struct {
-	CueID     int64           `json:"cue_id"`
-	Model     string          `json:"model"`
-	AssetID   string          `json:"asset_id"`
-	Embedding pgvector.Vector `json:"embedding"`
-}
-
-type Dummy struct {
-	ID        int64     `json:"id"`
-	Name      string    `json:"name"`
-	CreatedAt time.Time `json:"created_at"`
+	CueID     int64            `json:"cue_id"`
+	Model     string           `json:"model"`
+	AssetID   string           `json:"asset_id"`
+	Embedding *pgvector.Vector `json:"embedding"`
 }
 
 type FaceCluster struct {
-	ID        string          `json:"id"`
-	PersonID  pgtype.Text     `json:"person_id"`
-	Centroid  pgvector.Vector `json:"centroid"`
-	Status    ClusterStatus   `json:"status"`
-	UpdatedAt time.Time       `json:"updated_at"`
+	ID        string           `json:"id"`
+	PersonID  *string          `json:"person_id"`
+	Centroid  *pgvector.Vector `json:"centroid"`
+	Status    ClusterStatus    `json:"status"`
+	UpdatedAt time.Time        `json:"updated_at"`
 }
 
 type FaceDetection struct {
-	ID         string          `json:"id"`
-	FileID     string          `json:"file_id"`
-	StartMs    int32           `json:"start_ms"`
-	EndMs      int32           `json:"end_ms"`
-	Bbox       []byte          `json:"bbox"`
-	Embedding  pgvector.Vector `json:"embedding"`
-	Confidence pgtype.Float4   `json:"confidence"`
-	ClusterID  pgtype.Text     `json:"cluster_id"`
+	ID         string           `json:"id"`
+	FileID     string           `json:"file_id"`
+	StartMs    int32            `json:"start_ms"`
+	EndMs      int32            `json:"end_ms"`
+	Bbox       json.RawMessage  `json:"bbox"`
+	Embedding  *pgvector.Vector `json:"embedding"`
+	Confidence *float32         `json:"confidence"`
+	ClusterID  *string          `json:"cluster_id"`
 }
 
 type File struct {
-	ID         string      `json:"id"`
-	SizeBytes  int64       `json:"size_bytes"`
-	MimeType   pgtype.Text `json:"mime_type"`
-	DurationMs pgtype.Int8 `json:"duration_ms"`
-	Codec      pgtype.Text `json:"codec"`
-	Width      pgtype.Int4 `json:"width"`
-	Height     pgtype.Int4 `json:"height"`
-	Probe      []byte      `json:"probe"`
-	CreatedAt  time.Time   `json:"created_at"`
+	ID         string          `json:"id"`
+	SizeBytes  int64           `json:"size_bytes"`
+	MimeType   *string         `json:"mime_type"`
+	DurationMs *int64          `json:"duration_ms"`
+	Codec      *string         `json:"codec"`
+	Width      *int32          `json:"width"`
+	Height     *int32          `json:"height"`
+	Probe      json.RawMessage `json:"probe"`
+	CreatedAt  time.Time       `json:"created_at"`
 }
 
 type FileCopy struct {
-	ID             string             `json:"id"`
-	FileID         string             `json:"file_id"`
-	LocationID     string             `json:"location_id"`
-	Path           string             `json:"path"`
-	Status         CopyStatus         `json:"status"`
-	LastSeenAt     pgtype.Timestamptz `json:"last_seen_at"`
-	LastVerifiedAt pgtype.Timestamptz `json:"last_verified_at"`
+	ID             string     `json:"id"`
+	FileID         string     `json:"file_id"`
+	LocationID     string     `json:"location_id"`
+	Path           string     `json:"path"`
+	Status         CopyStatus `json:"status"`
+	LastSeenAt     *time.Time `json:"last_seen_at"`
+	LastVerifiedAt *time.Time `json:"last_verified_at"`
 }
 
 type FileHash struct {
@@ -1360,9 +1635,9 @@ type FileHash struct {
 type Language struct {
 	Code       string           `json:"code"`
 	Name       string           `json:"name"`
-	NativeName pgtype.Text      `json:"native_name"`
+	NativeName *string          `json:"native_name"`
 	Modality   LanguageModality `json:"modality"`
-	BaseCode   pgtype.Text      `json:"base_code"`
+	BaseCode   *string          `json:"base_code"`
 	AltCodes   []string         `json:"alt_codes"`
 	Active     bool             `json:"active"`
 }
@@ -1377,48 +1652,48 @@ type Note struct {
 }
 
 type PermissionGrant struct {
-	ID        string             `json:"id"`
-	UserID    pgtype.Text        `json:"user_id"`
-	GroupID   pgtype.Text        `json:"group_id"`
-	Scope     GrantScope         `json:"scope"`
-	ScopeID   string             `json:"scope_id"`
-	Level     PermissionLevel    `json:"level"`
-	GrantedBy pgtype.Text        `json:"granted_by"`
-	GrantedAt time.Time          `json:"granted_at"`
-	ExpiresAt pgtype.Timestamptz `json:"expires_at"`
+	ID        string          `json:"id"`
+	UserID    *string         `json:"user_id"`
+	GroupID   *string         `json:"group_id"`
+	Scope     GrantScope      `json:"scope"`
+	ScopeID   string          `json:"scope_id"`
+	Level     PermissionLevel `json:"level"`
+	GrantedBy *string         `json:"granted_by"`
+	GrantedAt time.Time       `json:"granted_at"`
+	ExpiresAt *time.Time      `json:"expires_at"`
 }
 
 type Person struct {
-	ID          string      `json:"id"`
-	Name        string      `json:"name"`
-	Kind        PersonKind  `json:"kind"`
-	ExternalIds []byte      `json:"external_ids"`
-	Notes       pgtype.Text `json:"notes"`
-	CreatedAt   time.Time   `json:"created_at"`
-	UpdatedAt   time.Time   `json:"updated_at"`
+	ID          string          `json:"id"`
+	Name        string          `json:"name"`
+	Kind        PersonKind      `json:"kind"`
+	ExternalIds json.RawMessage `json:"external_ids"`
+	Notes       *string         `json:"notes"`
+	CreatedAt   time.Time       `json:"created_at"`
+	UpdatedAt   time.Time       `json:"updated_at"`
 }
 
 type Program struct {
-	ID          string      `json:"id"`
-	Code        string      `json:"code"`
-	Name        string      `json:"name"`
-	Description pgtype.Text `json:"description"`
-	Metadata    []byte      `json:"metadata"`
-	CreatedAt   time.Time   `json:"created_at"`
-	UpdatedAt   time.Time   `json:"updated_at"`
+	ID          string          `json:"id"`
+	Code        string          `json:"code"`
+	Name        string          `json:"name"`
+	Description *string         `json:"description"`
+	Metadata    json.RawMessage `json:"metadata"`
+	CreatedAt   time.Time       `json:"created_at"`
+	UpdatedAt   time.Time       `json:"updated_at"`
 }
 
 type Project struct {
-	ID        string        `json:"id"`
-	ProgramID string        `json:"program_id"`
-	Code      string        `json:"code"`
-	Name      string        `json:"name"`
-	Status    ProjectStatus `json:"status"`
-	StartsOn  pgtype.Date   `json:"starts_on"`
-	EndsOn    pgtype.Date   `json:"ends_on"`
-	Metadata  []byte        `json:"metadata"`
-	CreatedAt time.Time     `json:"created_at"`
-	UpdatedAt time.Time     `json:"updated_at"`
+	ID        string          `json:"id"`
+	ProgramID string          `json:"program_id"`
+	Code      string          `json:"code"`
+	Name      string          `json:"name"`
+	Status    ProjectStatus   `json:"status"`
+	StartsOn  *time.Time      `json:"starts_on"`
+	EndsOn    *time.Time      `json:"ends_on"`
+	Metadata  json.RawMessage `json:"metadata"`
+	CreatedAt time.Time       `json:"created_at"`
+	UpdatedAt time.Time       `json:"updated_at"`
 }
 
 type ProjectFolder struct {
@@ -1434,11 +1709,11 @@ type Rendition struct {
 	VersionID string        `json:"version_id"`
 	Kind      RenditionKind `json:"kind"`
 	// The language this rendition adds or changes: dub audio, subtitle or sign language. zxx for no-language versions.
-	Language  pgtype.Text `json:"language"`
-	Purpose   pgtype.Text `json:"purpose"`
-	Overrides []byte      `json:"overrides"`
-	Metadata  []byte      `json:"metadata"`
-	CreatedAt time.Time   `json:"created_at"`
+	Language  *string         `json:"language"`
+	Purpose   *string         `json:"purpose"`
+	Overrides json.RawMessage `json:"overrides"`
+	Metadata  json.RawMessage `json:"metadata"`
+	CreatedAt time.Time       `json:"created_at"`
 }
 
 type RenditionFile struct {
@@ -1449,15 +1724,15 @@ type RenditionFile struct {
 }
 
 type Right struct {
-	ID          string      `json:"id"`
-	AssetID     string      `json:"asset_id"`
-	RenditionID pgtype.Text `json:"rendition_id"`
-	HolderID    pgtype.Text `json:"holder_id"`
-	LicenseType pgtype.Text `json:"license_type"`
-	Territories []string    `json:"territories"`
-	ValidFrom   pgtype.Date `json:"valid_from"`
-	ValidTo     pgtype.Date `json:"valid_to"`
-	Notes       pgtype.Text `json:"notes"`
+	ID          string     `json:"id"`
+	AssetID     string     `json:"asset_id"`
+	RenditionID *string    `json:"rendition_id"`
+	HolderID    *string    `json:"holder_id"`
+	LicenseType *string    `json:"license_type"`
+	Territories []string   `json:"territories"`
+	ValidFrom   *time.Time `json:"valid_from"`
+	ValidTo     *time.Time `json:"valid_to"`
+	Notes       *string    `json:"notes"`
 }
 
 type SavedSearch struct {
@@ -1467,8 +1742,8 @@ type SavedSearch struct {
 	Target    SearchTarget `json:"target"`
 	CreatedAt time.Time    `json:"created_at"`
 	// The SearchInput as sent, camelCase keys. Validated by the app; ids in it may point to deleted rows.
-	Filter    []byte    `json:"filter"`
-	UpdatedAt time.Time `json:"updated_at"`
+	Filter    json.RawMessage `json:"filter"`
+	UpdatedAt time.Time       `json:"updated_at"`
 }
 
 type StorageLocation struct {
@@ -1488,7 +1763,7 @@ type SubtitleCue struct {
 	StartMs int32       `json:"start_ms"`
 	EndMs   int32       `json:"end_ms"`
 	Text    string      `json:"text"`
-	Speaker pgtype.Text `json:"speaker"`
+	Speaker *string     `json:"speaker"`
 	Tsv     interface{} `json:"tsv"`
 }
 
@@ -1496,13 +1771,13 @@ type SubtitleTrack struct {
 	ID           string      `json:"id"`
 	RenditionID  string      `json:"rendition_id"`
 	AssetID      string      `json:"asset_id"`
-	SourceFileID pgtype.Text `json:"source_file_id"`
-	Language     pgtype.Text `json:"language"`
+	SourceFileID *string     `json:"source_file_id"`
+	Language     *string     `json:"language"`
 	Kind         TrackKind   `json:"kind"`
 	Origin       TrackOrigin `json:"origin"`
 	Revision     int32       `json:"revision"`
-	ParentID     pgtype.Text `json:"parent_id"`
-	CreatedBy    pgtype.Text `json:"created_by"`
+	ParentID     *string     `json:"parent_id"`
+	CreatedBy    *string     `json:"created_by"`
 	CreatedAt    time.Time   `json:"created_at"`
 }
 
@@ -1513,57 +1788,57 @@ type Tag struct {
 }
 
 type Timeline struct {
-	ID           string         `json:"id"`
-	ProjectID    string         `json:"project_id"`
-	VersionID    pgtype.Text    `json:"version_id"`
-	Name         string         `json:"name"`
-	RateNum      int32          `json:"rate_num"`
-	RateDen      int32          `json:"rate_den"`
-	StartFrame   int64          `json:"start_frame"`
-	Origin       TimelineOrigin `json:"origin"`
-	SourceFileID pgtype.Text    `json:"source_file_id"`
-	Otio         []byte         `json:"otio"`
-	CreatedAt    time.Time      `json:"created_at"`
-	UpdatedAt    time.Time      `json:"updated_at"`
+	ID           string          `json:"id"`
+	ProjectID    string          `json:"project_id"`
+	VersionID    *string         `json:"version_id"`
+	Name         string          `json:"name"`
+	RateNum      int32           `json:"rate_num"`
+	RateDen      int32           `json:"rate_den"`
+	StartFrame   int64           `json:"start_frame"`
+	Origin       TimelineOrigin  `json:"origin"`
+	SourceFileID *string         `json:"source_file_id"`
+	Otio         json.RawMessage `json:"otio"`
+	CreatedAt    time.Time       `json:"created_at"`
+	UpdatedAt    time.Time       `json:"updated_at"`
 }
 
 type TimelineClip struct {
-	ID         string      `json:"id"`
-	TrackID    string      `json:"track_id"`
-	Kind       ClipKind    `json:"kind"`
-	AssetID    pgtype.Text `json:"asset_id"`
-	FileID     pgtype.Text `json:"file_id"`
-	SourceIn   int64       `json:"source_in"`
-	SourceOut  int64       `json:"source_out"`
-	RecordIn   int64       `json:"record_in"`
-	Name       pgtype.Text `json:"name"`
-	Unresolved []byte      `json:"unresolved"`
+	ID         string          `json:"id"`
+	TrackID    string          `json:"track_id"`
+	Kind       ClipKind        `json:"kind"`
+	AssetID    *string         `json:"asset_id"`
+	FileID     *string         `json:"file_id"`
+	SourceIn   int64           `json:"source_in"`
+	SourceOut  int64           `json:"source_out"`
+	RecordIn   int64           `json:"record_in"`
+	Name       *string         `json:"name"`
+	Unresolved json.RawMessage `json:"unresolved"`
 }
 
 type TimelineMarker struct {
-	ID             string      `json:"id"`
-	TimelineID     string      `json:"timeline_id"`
-	AtFrame        int64       `json:"at_frame"`
-	DurationFrames int64       `json:"duration_frames"`
-	Label          pgtype.Text `json:"label"`
-	Color          pgtype.Text `json:"color"`
-	Note           pgtype.Text `json:"note"`
+	ID             string  `json:"id"`
+	TimelineID     string  `json:"timeline_id"`
+	AtFrame        int64   `json:"at_frame"`
+	DurationFrames int64   `json:"duration_frames"`
+	Label          *string `json:"label"`
+	Color          *string `json:"color"`
+	Note           *string `json:"note"`
 }
 
 type TimelineTrack struct {
-	ID         string      `json:"id"`
-	TimelineID string      `json:"timeline_id"`
-	Kind       TrackMedia  `json:"kind"`
-	Position   int32       `json:"position"`
-	Name       pgtype.Text `json:"name"`
-	Enabled    bool        `json:"enabled"`
+	ID         string     `json:"id"`
+	TimelineID string     `json:"timeline_id"`
+	Kind       TrackMedia `json:"kind"`
+	Position   int32      `json:"position"`
+	Name       *string    `json:"name"`
+	Enabled    bool       `json:"enabled"`
 }
 
 type UserGroup struct {
-	ID          string      `json:"id"`
-	Name        string      `json:"name"`
-	ExternalID  pgtype.Text `json:"external_id"`
-	Description pgtype.Text `json:"description"`
+	ID          string  `json:"id"`
+	Name        string  `json:"name"`
+	ExternalID  *string `json:"external_id"`
+	Description *string `json:"description"`
 }
 
 type UserGroupMember struct {

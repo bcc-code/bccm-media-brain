@@ -1,0 +1,414 @@
+// Package asset manages assets and what hangs under them: versions, renditions, the files of a
+// rendition and project links. It also serves the asset type and language reference lists.
+package asset
+
+import (
+	"context"
+	"encoding/json"
+	"time"
+
+	"github.com/bcc-media/mediabrain/internal/access"
+	"github.com/bcc-media/mediabrain/internal/db"
+	"github.com/bcc-media/mediabrain/internal/db/sqlc"
+	"github.com/bcc-media/mediabrain/internal/domain"
+)
+
+type Service struct {
+	q  sqlc.Querier
+	tx db.TxRunner
+}
+
+func NewService(q sqlc.Querier, tx db.TxRunner) *Service { return &Service{q: q, tx: tx} }
+
+type Input struct {
+	TypeID           int16
+	Title            string
+	Description      *string
+	CapturedAt       *time.Time
+	Camera           *string
+	Reel             *string
+	Metadata         json.RawMessage
+	LegacyIDs        []string
+	OriginalLanguage *string
+}
+
+func (in *Input) validate() error {
+	var err error
+	if in.Title, err = domain.Required("title", in.Title); err != nil {
+		return err
+	}
+	if in.Metadata, err = domain.JSONObject("metadata", in.Metadata); err != nil {
+		return err
+	}
+	if in.LegacyIDs == nil {
+		in.LegacyIDs = []string{}
+	}
+	return nil
+}
+
+// Create adds an asset. Everyone but administrators must create it inside a project they can
+// edit, so that a new asset always has someone with access to it.
+func (s *Service) Create(ctx context.Context, in Input, projectID *string) (sqlc.Asset, error) {
+	p, err := access.From(ctx)
+	if err != nil {
+		return sqlc.Asset{}, err
+	}
+	if projectID == nil && !p.Admin {
+		return sqlc.Asset{}, domain.Invalid("projectId is required")
+	}
+	if err := in.validate(); err != nil {
+		return sqlc.Asset{}, err
+	}
+	var a sqlc.Asset
+	err = s.tx.InTx(ctx, func(q sqlc.Querier) error {
+		if projectID != nil {
+			if err := requireProject(ctx, q, *projectID); err != nil {
+				return err
+			}
+		}
+		var err error
+		a, err = q.CreateAsset(ctx, sqlc.CreateAssetParams{
+			TypeID: in.TypeID, Title: in.Title, Description: domain.Blank(in.Description),
+			CapturedAt: in.CapturedAt, Camera: domain.Blank(in.Camera), Reel: domain.Blank(in.Reel),
+			Metadata: in.Metadata, LegacyIds: in.LegacyIDs, OriginalLanguage: domain.Blank(in.OriginalLanguage),
+		})
+		if err != nil {
+			return domain.FromPG(err)
+		}
+		if projectID == nil {
+			return nil
+		}
+		_, err = q.LinkAssetProject(ctx, sqlc.LinkAssetProjectParams{
+			AssetID: a.ID, ProjectID: *projectID, Role: sqlc.LinkRoleSource, LinkedBy: sqlc.LinkOriginManual,
+		})
+		if err != nil {
+			return domain.FromPG(err)
+		}
+		return access.Refresh(ctx, q, []string{a.ID})
+	})
+	return a, err
+}
+
+func requireProject(ctx context.Context, q sqlc.Querier, projectID string) error {
+	pj, err := q.GetProject(ctx, projectID)
+	if err != nil {
+		return domain.FromPG(err)
+	}
+	return access.RequireProject(ctx, q, pj, access.Edit)
+}
+
+func (s *Service) asset(ctx context.Context, q sqlc.Querier, id string, need sqlc.PermissionLevel) (sqlc.Asset, error) {
+	a, err := q.GetAsset(ctx, id)
+	if err != nil {
+		return sqlc.Asset{}, domain.FromPG(err)
+	}
+	return a, access.RequireAsset(ctx, q, id, need)
+}
+
+func (s *Service) Get(ctx context.Context, id string) (sqlc.Asset, error) {
+	return s.asset(ctx, s.q, id, access.View)
+}
+
+type Filter struct {
+	TypeID    *int16
+	ProjectID *string
+	Title     *string
+	LegacyID  *string
+}
+
+func (s *Service) List(ctx context.Context, f Filter, limit, offset int) ([]sqlc.Asset, error) {
+	p, err := access.From(ctx)
+	if err != nil {
+		return nil, err
+	}
+	l, o, err := domain.Page(limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	return s.q.ListAssets(ctx, sqlc.ListAssetsParams{
+		TypeID: f.TypeID, ProjectID: f.ProjectID, Title: domain.Blank(f.Title), LegacyID: f.LegacyID,
+		IsAdmin: p.Admin, Principals: p.IDs(), Limit: l, Offset: o,
+	})
+}
+
+func (s *Service) Update(ctx context.Context, id string, in Input) (sqlc.Asset, error) {
+	if _, err := s.asset(ctx, s.q, id, access.Edit); err != nil {
+		return sqlc.Asset{}, err
+	}
+	if err := in.validate(); err != nil {
+		return sqlc.Asset{}, err
+	}
+	a, err := s.q.UpdateAsset(ctx, sqlc.UpdateAssetParams{
+		ID: id, TypeID: in.TypeID, Title: in.Title, Description: domain.Blank(in.Description),
+		CapturedAt: in.CapturedAt, Camera: domain.Blank(in.Camera), Reel: domain.Blank(in.Reel),
+		Metadata: in.Metadata, LegacyIds: in.LegacyIDs, OriginalLanguage: domain.Blank(in.OriginalLanguage),
+	})
+	return a, domain.FromPG(err)
+}
+
+// Delete removes the asset with its versions, renditions and subtitles. Files stay.
+func (s *Service) Delete(ctx context.Context, id string) error {
+	if _, err := s.asset(ctx, s.q, id, access.Delete); err != nil {
+		return err
+	}
+	_, err := s.q.DeleteAsset(ctx, id)
+	return domain.FromPGDelete(err)
+}
+
+func (s *Service) Link(ctx context.Context, assetID, projectID string, role sqlc.LinkRole) (sqlc.AssetProject, error) {
+	if !role.Valid() {
+		return sqlc.AssetProject{}, domain.Invalid("unknown role")
+	}
+	var link sqlc.AssetProject
+	err := s.tx.InTx(ctx, func(q sqlc.Querier) error {
+		if _, err := s.asset(ctx, q, assetID, access.Edit); err != nil {
+			return err
+		}
+		if err := requireProject(ctx, q, projectID); err != nil {
+			return err
+		}
+		var err error
+		link, err = q.LinkAssetProject(ctx, sqlc.LinkAssetProjectParams{
+			AssetID: assetID, ProjectID: projectID, Role: role, LinkedBy: sqlc.LinkOriginManual,
+		})
+		if err != nil {
+			return domain.FromPG(err)
+		}
+		return access.Refresh(ctx, q, []string{assetID})
+	})
+	return link, err
+}
+
+func (s *Service) Unlink(ctx context.Context, assetID, projectID string, role sqlc.LinkRole) error {
+	return s.tx.InTx(ctx, func(q sqlc.Querier) error {
+		if _, err := s.asset(ctx, q, assetID, access.Edit); err != nil {
+			return err
+		}
+		n, err := q.UnlinkAssetProject(ctx, sqlc.UnlinkAssetProjectParams{AssetID: assetID, ProjectID: projectID, Role: role})
+		if err != nil {
+			return err
+		}
+		if n == 0 {
+			return domain.ErrNotFound
+		}
+		return access.Refresh(ctx, q, []string{assetID})
+	})
+}
+
+type VersionInput struct {
+	Label  *string
+	Status *sqlc.VersionStatus
+}
+
+func (in VersionInput) status() (sqlc.VersionStatus, error) {
+	if in.Status == nil {
+		return sqlc.VersionStatusDraft, nil
+	}
+	if !in.Status.Valid() {
+		return "", domain.Invalid("unknown status")
+	}
+	return *in.Status, nil
+}
+
+func (s *Service) CreateVersion(ctx context.Context, assetID string, in VersionInput) (sqlc.AssetVersion, error) {
+	p, err := access.From(ctx)
+	if err != nil {
+		return sqlc.AssetVersion{}, err
+	}
+	if _, err := s.asset(ctx, s.q, assetID, access.Edit); err != nil {
+		return sqlc.AssetVersion{}, err
+	}
+	status, err := in.status()
+	if err != nil {
+		return sqlc.AssetVersion{}, err
+	}
+	v, err := s.q.CreateAssetVersion(ctx, sqlc.CreateAssetVersionParams{
+		AssetID: assetID, Label: domain.Blank(in.Label), Status: status, CreatedBy: p.UserRef(),
+	})
+	return v, domain.FromPG(err)
+}
+
+func (s *Service) version(ctx context.Context, id string, need sqlc.PermissionLevel) (sqlc.AssetVersion, error) {
+	v, err := s.q.GetAssetVersion(ctx, id)
+	if err != nil {
+		return sqlc.AssetVersion{}, domain.FromPG(err)
+	}
+	return v, access.RequireAsset(ctx, s.q, v.AssetID, need)
+}
+
+func (s *Service) Version(ctx context.Context, id string) (sqlc.AssetVersion, error) {
+	return s.version(ctx, id, access.View)
+}
+
+func (s *Service) UpdateVersion(ctx context.Context, id string, in VersionInput) (sqlc.AssetVersion, error) {
+	if _, err := s.version(ctx, id, access.Edit); err != nil {
+		return sqlc.AssetVersion{}, err
+	}
+	status, err := in.status()
+	if err != nil {
+		return sqlc.AssetVersion{}, err
+	}
+	v, err := s.q.UpdateAssetVersion(ctx, sqlc.UpdateAssetVersionParams{ID: id, Label: domain.Blank(in.Label), Status: status})
+	return v, domain.FromPG(err)
+}
+
+func (s *Service) DeleteVersion(ctx context.Context, id string) error {
+	if _, err := s.version(ctx, id, access.Delete); err != nil {
+		return err
+	}
+	_, err := s.q.DeleteAssetVersion(ctx, id)
+	return domain.FromPGDelete(err)
+}
+
+type RenditionInput struct {
+	Kind      sqlc.RenditionKind // ignored on update
+	Language  *string
+	Purpose   *string
+	Overrides json.RawMessage
+	Metadata  json.RawMessage
+}
+
+func (in *RenditionInput) validate() error {
+	var err error
+	if in.Overrides, err = domain.JSONObject("overrides", in.Overrides); err != nil {
+		return err
+	}
+	in.Metadata, err = domain.JSONObject("metadata", in.Metadata)
+	return err
+}
+
+func (s *Service) CreateRendition(ctx context.Context, versionID string, in RenditionInput) (sqlc.Rendition, error) {
+	if _, err := s.version(ctx, versionID, access.Edit); err != nil {
+		return sqlc.Rendition{}, err
+	}
+	if !in.Kind.Valid() {
+		return sqlc.Rendition{}, domain.Invalid("unknown kind")
+	}
+	if err := in.validate(); err != nil {
+		return sqlc.Rendition{}, err
+	}
+	r, err := s.q.CreateRendition(ctx, sqlc.CreateRenditionParams{
+		VersionID: versionID, Kind: in.Kind, Language: domain.Blank(in.Language),
+		Purpose: domain.Blank(in.Purpose), Overrides: in.Overrides, Metadata: in.Metadata,
+	})
+	return r, domain.FromPG(err)
+}
+
+func (s *Service) rendition(ctx context.Context, id string, need sqlc.PermissionLevel) (sqlc.Rendition, error) {
+	r, err := s.q.GetRendition(ctx, id)
+	if err != nil {
+		return sqlc.Rendition{}, domain.FromPG(err)
+	}
+	return r.Rendition, access.RequireAsset(ctx, s.q, r.AssetID, need)
+}
+
+func (s *Service) Rendition(ctx context.Context, id string) (sqlc.Rendition, error) {
+	return s.rendition(ctx, id, access.View)
+}
+
+func (s *Service) UpdateRendition(ctx context.Context, id string, in RenditionInput) (sqlc.Rendition, error) {
+	if _, err := s.rendition(ctx, id, access.Edit); err != nil {
+		return sqlc.Rendition{}, err
+	}
+	if err := in.validate(); err != nil {
+		return sqlc.Rendition{}, err
+	}
+	r, err := s.q.UpdateRendition(ctx, sqlc.UpdateRenditionParams{
+		ID: id, Language: domain.Blank(in.Language), Purpose: domain.Blank(in.Purpose),
+		Overrides: in.Overrides, Metadata: in.Metadata,
+	})
+	return r, domain.FromPG(err)
+}
+
+func (s *Service) DeleteRendition(ctx context.Context, id string) error {
+	if _, err := s.rendition(ctx, id, access.Delete); err != nil {
+		return err
+	}
+	_, err := s.q.DeleteRendition(ctx, id)
+	return domain.FromPGDelete(err)
+}
+
+// AttachFile adds a file to a rendition. The caller must already be able to see the file,
+// otherwise attaching would be a way to gain access to it.
+func (s *Service) AttachFile(ctx context.Context, renditionID, fileID string, role sqlc.FileRole, position int32) (sqlc.RenditionFile, error) {
+	if _, err := s.rendition(ctx, renditionID, access.Edit); err != nil {
+		return sqlc.RenditionFile{}, err
+	}
+	if !role.Valid() {
+		return sqlc.RenditionFile{}, domain.Invalid("unknown role")
+	}
+	have, err := access.FileLevel(ctx, s.q, fileID)
+	if err != nil {
+		return sqlc.RenditionFile{}, err
+	}
+	if have == access.None {
+		return sqlc.RenditionFile{}, domain.Invalid("file does not exist")
+	}
+	rf, err := s.q.AttachFile(ctx, sqlc.AttachFileParams{RenditionID: renditionID, FileID: fileID, Role: role, Position: position})
+	return rf, domain.FromPG(err)
+}
+
+func (s *Service) DetachFile(ctx context.Context, renditionID, fileID string, role sqlc.FileRole) error {
+	if _, err := s.rendition(ctx, renditionID, access.Edit); err != nil {
+		return err
+	}
+	n, err := s.q.DetachFile(ctx, sqlc.DetachFileParams{RenditionID: renditionID, FileID: fileID, Role: role})
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return domain.ErrNotFound
+	}
+	return nil
+}
+
+func (s *Service) Types(ctx context.Context) ([]sqlc.AssetType, error) {
+	return s.q.ListAssetTypes(ctx)
+}
+
+func (s *Service) Languages(ctx context.Context, activeOnly bool) ([]sqlc.Language, error) {
+	return s.q.ListLanguages(ctx, activeOnly)
+}
+
+// The ...For methods below load children for assets, versions and renditions the caller was
+// already allowed to see; they are the batch side of the GraphQL dataloaders.
+
+func (s *Service) LevelsFor(ctx context.Context, assetIDs []string) (map[string]sqlc.PermissionLevel, error) {
+	return access.AssetLevels(ctx, s.q, assetIDs)
+}
+
+func (s *Service) VersionsFor(ctx context.Context, assetIDs []string) (map[string][]sqlc.AssetVersion, error) {
+	rows, err := s.q.ListAssetVersions(ctx, assetIDs)
+	out := map[string][]sqlc.AssetVersion{}
+	for _, r := range rows {
+		out[r.AssetID] = append(out[r.AssetID], r)
+	}
+	return out, err
+}
+
+func (s *Service) LinksFor(ctx context.Context, assetIDs []string) (map[string][]sqlc.AssetProject, error) {
+	rows, err := s.q.ListAssetProjects(ctx, assetIDs)
+	out := map[string][]sqlc.AssetProject{}
+	for _, r := range rows {
+		out[r.AssetID] = append(out[r.AssetID], r)
+	}
+	return out, err
+}
+
+func (s *Service) RenditionsFor(ctx context.Context, versionIDs []string) (map[string][]sqlc.Rendition, error) {
+	rows, err := s.q.ListRenditions(ctx, versionIDs)
+	out := map[string][]sqlc.Rendition{}
+	for _, r := range rows {
+		out[r.VersionID] = append(out[r.VersionID], r)
+	}
+	return out, err
+}
+
+func (s *Service) FilesFor(ctx context.Context, renditionIDs []string) (map[string][]sqlc.RenditionFile, error) {
+	rows, err := s.q.ListRenditionFiles(ctx, renditionIDs)
+	out := map[string][]sqlc.RenditionFile{}
+	for _, r := range rows {
+		out[r.RenditionID] = append(out[r.RenditionID], r)
+	}
+	return out, err
+}

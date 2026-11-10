@@ -1,0 +1,55 @@
+type: http_request
+model: http_request
+id: rq_hOMT9K9OUB
+createdAt: 2026-11-10T23:30:00
+updatedAt: 2026-11-10T23:30:00
+workspaceId: wk_tPlK1TUEUQ
+folderId: fl_qi020BBQ4W
+authentication: {}
+authenticationType: null
+body:
+  query: |
+    mutation($id: ID!, $in: UpdateProgramInput!) {
+      updateProgram(id: $id, input: $in) { id name description metadata updatedAt }
+    }
+  variables: |-
+    {
+      "id": "${[ program_id ]}",
+      "in": {
+        "name": "Joshua",
+        "description": "Drama series, renewed",
+        "metadata": {
+          "seasons": 3
+        }
+      }
+    }
+bodyType: graphql
+description: Replaces all editable fields.
+headers:
+- enabled: true
+  name: Content-Type
+  value: application/json
+  id: TlAIRXiKlj
+method: POST
+name: Update program
+sortPriority: 4000.0
+url: ${[ base_url ]}/query
+urlParameters: []
+settingSendCookies:
+  enabled: false
+  value: true
+settingStoreCookies:
+  enabled: false
+  value: true
+settingValidateCertificates:
+  enabled: false
+  value: true
+settingFollowRedirects:
+  enabled: false
+  value: true
+settingRequestTimeout:
+  enabled: false
+  value: 0
+settingHttpVersion:
+  enabled: false
+  value: auto

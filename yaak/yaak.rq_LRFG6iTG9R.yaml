@@ -1,0 +1,49 @@
+type: http_request
+model: http_request
+id: rq_LRFG6iTG9R
+createdAt: 2026-11-10T23:30:00
+updatedAt: 2026-11-10T23:30:00
+workspaceId: wk_tPlK1TUEUQ
+folderId: fl_2oyt2p4sIh
+authentication: {}
+authenticationType: null
+body:
+  query: |
+    query($assetId: ID!, $history: Boolean!) {
+      subtitleTracks(assetId: $assetId, history: $history) { id renditionId language kind origin revision parentId createdBy createdAt }
+    }
+  variables: |-
+    {
+      "assetId": "${[ asset_id ]}",
+      "history": false
+    }
+bodyType: graphql
+description: ''
+headers:
+- enabled: true
+  name: Content-Type
+  value: application/json
+  id: SOYqxjmnke
+method: POST
+name: Tracks of an asset
+sortPriority: 2000.0
+url: ${[ base_url ]}/query
+urlParameters: []
+settingSendCookies:
+  enabled: false
+  value: true
+settingStoreCookies:
+  enabled: false
+  value: true
+settingValidateCertificates:
+  enabled: false
+  value: true
+settingFollowRedirects:
+  enabled: false
+  value: true
+settingRequestTimeout:
+  enabled: false
+  value: 0
+settingHttpVersion:
+  enabled: false
+  value: auto

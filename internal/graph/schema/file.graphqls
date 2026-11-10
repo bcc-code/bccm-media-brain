@@ -1,0 +1,119 @@
+enum LocationKind {
+  NAS
+  LTO
+  S3
+  LOCAL
+}
+
+enum HashAlgo {
+  XXH3_128
+  BLAKE3
+  SHA256
+  MD5
+}
+
+enum CopyStatus {
+  PRESENT
+  MISSING
+  MISMATCH
+}
+
+type StorageLocation {
+  id: ID!
+  name: String!
+  kind: LocationKind!
+  baseUri: String!
+  online: Boolean!
+  createdAt: Time!
+}
+
+"Unique content, identified by its hashes rather than by a path."
+type File {
+  id: ID!
+  sizeBytes: Int64!
+  mimeType: String
+  durationMs: Int64
+  codec: String
+  width: Int
+  height: Int
+  "Raw ffprobe output."
+  probe: JSON!
+  createdAt: Time!
+  hashes: [FileHash!]!
+  "Where the file is stored. Empty below DOWNLOAD_ORIGINAL."
+  copies: [FileCopy!]!
+}
+
+type FileHash {
+  algo: HashAlgo!
+  "Hex encoded."
+  value: String!
+  computedAt: Time!
+}
+
+type FileCopy {
+  id: ID!
+  fileId: ID!
+  locationId: ID!
+  "Relative to the storage location's base URI."
+  path: String!
+  status: CopyStatus!
+  lastSeenAt: Time
+  lastVerifiedAt: Time
+  location: StorageLocation!
+}
+
+input StorageLocationInput {
+  name: String!
+  kind: LocationKind!
+  baseUri: String!
+  online: Boolean! = true
+}
+
+input FileHashInput {
+  algo: HashAlgo!
+  "Hex encoded."
+  value: String!
+}
+
+input FileCopyInput {
+  locationId: ID!
+  path: String!
+}
+
+input RegisterFileInput {
+  sizeBytes: Int64!
+  mimeType: String
+  durationMs: Int64
+  codec: String
+  width: Int
+  height: Int
+  probe: JSON
+  "At least one."
+  hashes: [FileHashInput!]!
+  copies: [FileCopyInput!]
+}
+
+extend type Query {
+  "Visible through an asset the caller can view."
+  file(id: ID!): File
+  fileByHash(hash: FileHashInput!): File
+  "Administrators only."
+  files(limit: Int = 50, offset: Int = 0): [File!]!
+  "Administrators only."
+  storageLocations: [StorageLocation!]!
+}
+
+# All file and storage mutations are for administrators only.
+extend type Mutation {
+  createStorageLocation(input: StorageLocationInput!): StorageLocation!
+  updateStorageLocation(id: ID!, input: StorageLocationInput!): StorageLocation!
+  deleteStorageLocation(id: ID!): Boolean!
+  "Returns the existing file when one of the hashes is already known, adding new hashes and copies to it."
+  registerFile(input: RegisterFileInput!): File!
+  addFileCopy(fileId: ID!, copy: FileCopyInput!): FileCopy!
+  setFileCopyStatus(id: ID!, status: CopyStatus!): FileCopy!
+  removeFileCopy(id: ID!): Boolean!
+  "Fails while the file has copies or is used by a rendition."
+  deleteFile(id: ID!): Boolean!
+}
