@@ -24,6 +24,15 @@ Details worth knowing:
   membership can take that long to apply.
 - Tokens are verified with go-jose. Keys are fetched on first use and re-fetched (at most every
   10 s) when a token names an unknown key, so key rotation needs no restart.
+- **A withdrawn signing key stops working within 5 minutes.** The key set is trusted for that
+  long, then fetched again before any key in it is used, known or not. When that fetch fails,
+  the last key set stays in use for up to 1 hour after it was fetched (a warning is logged at
+  every failed attempt, at most one per 10 s); after that every token is refused until a fetch
+  succeeds. So the bound is 5 minutes while the key endpoint answers and 1 hour while it does
+  not. The limits are constants in `internal/auth/verifier.go`. One request fetches at a time;
+  the others wait for its result.
+- This bounds the *key*. A token that was already verified is still served from the one-minute
+  user cache above, which does not look at the token's expiry.
 
 ### Debug bypass (development only)
 

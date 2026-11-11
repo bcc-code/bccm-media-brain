@@ -81,7 +81,8 @@ replicas behind the auth proxy. What each instance keeps to itself:
 
 - **The signed-in user of a token**, for one minute (`internal/auth/middleware.go`). The bound in
   [security.md](security.md) holds per instance; a new token costs one sign-in per instance.
-- **The proxy's signing keys** (JWKS), fetched by each instance when it meets an unknown key.
+- **The proxy's signing keys** (JWKS), fetched by each instance when it meets an unknown key
+  and again once its copy is 5 minutes old.
 - **The sweeper for expired grants**, once a minute in every instance. The first one deletes the
   expired grants; the others wait on its row locks and find nothing.
 - **A connection pool** of pgx's default size (the larger of 4 and the CPU count). Cap it with

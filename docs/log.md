@@ -2,6 +2,26 @@
 
 Newest first. Each entry: what changed, why, and what was left out on purpose.
 
+## 2026-11-11 — Signing keys are trusted for a bounded time
+
+- The JWKS cache now has a maximum age of 5 minutes: an older key set is fetched again before
+  any key in it is used. Why: a key the verifier already knew was trusted until the process
+  restarted or some token happened to name an unknown key, so withdrawing a compromised key at
+  the identity provider did not stop its tokens (architecture review, finding 02: a day-old
+  cache accepted a key the endpoint no longer listed).
+- When the refresh fails, the cached keys stay in use for up to 1 hour after they were fetched,
+  with a warning per failed attempt; after that tokens are refused until a fetch succeeds. Why:
+  a short outage of the identity provider should not sign everyone out, but an attacker who can
+  keep the endpoint unreachable must not keep a withdrawn key alive.
+- Fetches are at least 10 s apart, failed ones included (before, every request retried a
+  failing endpoint), and the cache mutex is no longer held during the request: one caller
+  fetches, the others wait for its result, and a caller that gives up does not cancel it.
+- The verifier's clock can be replaced in tests (`internal/auth/verifier_cache_test.go`).
+- Left out: settings for the two limits (constants until someone needs other values), and
+  refreshing in the background before the cache expires (one request in five minutes waits for
+  the fetch). The one-minute user cache still serves a token past its expiry; that is finding
+  03 and a separate change.
+
 ## 2026-11-11 — Migration lock, image and a production compose file
 
 - Migrations now run under a Postgres advisory lock (goose's session locker). Why: with
