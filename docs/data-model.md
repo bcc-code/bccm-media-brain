@@ -18,6 +18,10 @@ a user, so grants, groups and `created_by` columns need nothing extra. Its `exte
 SHA-256 of each token (never the token), a name, who created it, when it expires, when it was
 last used and when it was revoked. See [security.md](security.md#machine-clients).
 
+An email belongs to one account whatever its case: the unique index is on `lower(email)`, the
+same expression the lookup by email uses, so `Ann@x.org` and `ann@x.org` cannot both exist and
+the lookup does not scan the table.
+
 ## Programs and projects
 
 A **program** is a series or production (`JOSH`); a **project** is one unit of work in it

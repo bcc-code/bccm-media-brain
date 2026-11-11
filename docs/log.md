@@ -2,6 +2,23 @@
 
 Newest first. Each entry: what changed, why, and what was left out on purpose.
 
+## 2026-11-11 — An email is unique whatever its case
+
+- `app_user.email` was unique as written but looked up with `lower()`, so `Ann@x.org` and
+  `ann@x.org` could be two accounts and a grant by email, or `admin grant <email>`, went to
+  whichever the lookup returned first (system review, finding DB-04). Sign-in checked before
+  writing; creating a user did not, and two first sign-ins at once could both pass the check.
+  Migration `00012` replaces the constraint with a unique index on `lower(email)`. The lookup
+  now uses that index: before, every sign-in that missed the cache and every grant by email
+  scanned the table.
+- Where accounts already share an address, the migration leaves it with the oldest and clears
+  it on the others: what sign-in does with a token that brings another account's address. The
+  cleared addresses are not kept anywhere, so the down migration does not restore them.
+- Left out: two first sign-ins at the same moment with the same address in different case. The
+  database now refuses the second one, which answers `INTERNAL`; signing in again works, and
+  that account is then stored without the address. `citext` was not used: it needs an
+  extension for what one index does.
+
 ## 2026-11-11 — Queries have a cost, a deadline and paged nested lists
 
 - **Cost.** The limit of 2000 selected fields counted a list as one field, so

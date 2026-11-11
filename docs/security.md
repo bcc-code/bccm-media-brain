@@ -19,6 +19,8 @@ The server **refuses to start** without `AUTH_ISSUER`, `AUTH_AUDIENCE`, `AUTH_JW
 Details worth knowing:
 
 - An email already used by another account is not taken over: the new user is stored without it.
+  Addresses are compared without regard to case, and a unique index on `lower(email)` holds the
+  rule in the database, so no path can store the same address twice.
 - Inactive users (`app_user.active = false`) get HTTP 403.
 - A verified token's user is cached for one minute, so a change to `is_admin`, `active` or group
   membership can take that long to apply. The cache entry ends when the token does (`exp` plus
