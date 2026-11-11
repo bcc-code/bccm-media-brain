@@ -69,6 +69,7 @@ services:
       # Defaults to this file's network, which is where the proxy is expected to be.
       AUTH_TRUSTED_PROXIES: ${AUTH_TRUSTED_PROXIES:-172.30.80.0/24}
       AUTH_HEADER: ${AUTH_HEADER:-}
+      AUTH_SERVICE_HEADER: ${AUTH_SERVICE_HEADER:-}
       AUTH_GROUPS_CLAIM: ${AUTH_GROUPS_CLAIM:-}
       VIDISPINE_URL: ${VIDISPINE_URL:-}
       VIDISPINE_USERNAME: ${VIDISPINE_USERNAME:-}
