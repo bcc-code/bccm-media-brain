@@ -2272,7 +2272,7 @@ extend type Mutation {
   createRendition(versionId: ID!, input: CreateRenditionInput!): Rendition!
   updateRendition(id: ID!, input: UpdateRenditionInput!): Rendition!
   deleteRendition(id: ID!): Boolean!
-  "The caller must already be able to see the file."
+  "Needs EDIT on the rendition's asset and DOWNLOAD_ORIGINAL on the file: attaching shows where the file is stored to everyone who may download the asset."
   attachFile(renditionId: ID!, fileId: ID!, role: FileRole!, position: Int! = 0): RenditionFile!
   detachFile(renditionId: ID!, fileId: ID!, role: FileRole!): Boolean!
 }
@@ -2554,7 +2554,7 @@ input ImportSubtitlesInput {
   format: SubtitleFormat!
   "The subtitle file's text, at most 5 MB."
   content: String!
-  "The registered file the text came from, if any."
+  "The registered file the text came from, if any. It is attached to the subtitle rendition, so the caller needs DOWNLOAD_ORIGINAL on it."
   sourceFileId: ID
 }
 

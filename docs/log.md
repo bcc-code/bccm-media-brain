@@ -2,6 +2,19 @@
 
 Newest first. Each entry: what changed, why, and what was left out on purpose.
 
+## 2026-11-11 — Attaching a file needs DOWNLOAD_ORIGINAL on it
+
+- `attachFile`, and `importSubtitles` with a `sourceFileId`, now need `DOWNLOAD_ORIGINAL` on the
+  file, not just sight of it (`access.RequireFileReuse`). Why: a file's level is the highest
+  over every asset that uses it, so someone with `VIEW` on asset A and `EDIT` on asset B could
+  attach A's file to B and then read its storage paths, and so could everyone else with
+  download rights on B (architecture review, finding 01).
+  `TestAttachingAFileNeedsDownloadOriginal` reproduces it.
+- A file the caller cannot see is still `INVALID_INPUT`; one they can only view is `FORBIDDEN`.
+- Left out: who may widen a file's audience at all. Someone with download rights on a file can
+  still attach it to an asset whose other users had no access to it. Whether that needs a
+  right of its own (or grants on files) is an open policy decision.
+
 ## 2026-11-11 — Migration lock, image and a production compose file
 
 - Migrations now run under a Postgres advisory lock (goose's session locker). Why: with

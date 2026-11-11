@@ -322,8 +322,7 @@ func TestPermissionLevels(t *testing.T) {
 		editor.must(t, updateAsset, map[string]any{"id": w.c2.asset, "in": map[string]any{"typeId": 1, "title": title}}, nil)
 		version := newVersion(t, editor, w.c2.asset)
 		rendition := newRendition(t, editor, version)
-		// Files the editor can see may be attached; others may not, or attaching would be a
-		// way to read any file.
+		// Files the editor may download can be attached; files they cannot see do not exist.
 		attach(t, editor, rendition, w.c1.file)
 		editor.fails(t, "INVALID_INPUT", `mutation($r: ID!, $f: ID!) { attachFile(renditionId: $r, fileId: $f, role: VIDEO) { position } }`,
 			map[string]any{"r": rendition, "f": w.c3.file})
@@ -414,6 +413,50 @@ func TestPermissionLevels(t *testing.T) {
 			t.Fatalf("%d grants left on the deleted asset (%v)", grants, err)
 		}
 	})
+}
+
+// A file's level is the highest over the assets that use it, so attaching a file one can only
+// view to an asset one can edit would reveal where it is stored.
+func TestAttachingAFileNeedsDownloadOriginal(t *testing.T) {
+	w := newWorld(t, 26)
+	u, bystander := signIn(t), signIn(t)
+	grant(t, w.admin, "ASSET", w.c1.asset, "VIEW", to(u))
+	grant(t, w.admin, "ASSET", w.c2.asset, "EDIT", to(u))
+	grant(t, w.admin, "ASSET", w.c2.asset, "DOWNLOAD_ORIGINAL", to(bystander))
+	rendition := newRendition(t, u, w.c2.version)
+
+	const attachFile = `mutation($r: ID!, $f: ID!) { attachFile(renditionId: $r, fileId: $f, role: VIDEO) { position } }`
+	withSource := func(file string) map[string]any {
+		return map[string]any{"in": map[string]any{"versionId": w.c2.version, "language": "sv", "format": "SRT", "content": w.f.SRT(1), "sourceFileId": file}}
+	}
+	copies := func(who user) int {
+		t.Helper()
+		var out struct {
+			File *struct{ Copies []struct{ Path string } }
+		}
+		who.must(t, `query($id: ID!) { file(id: $id) { copies { path } } }`, map[string]any{"id": w.c1.file}, &out)
+		if out.File == nil {
+			return -1
+		}
+		return len(out.File.Copies)
+	}
+
+	u.fails(t, "FORBIDDEN", attachFile, map[string]any{"r": rendition, "f": w.c1.file})
+	u.fails(t, "FORBIDDEN", importSubtitles, withSource(w.c1.file))
+	u.fails(t, "INVALID_INPUT", attachFile, map[string]any{"r": rendition, "f": w.c3.file})
+	if got := copies(u); got != 0 {
+		t.Fatalf("viewer of the file sees %d copies after a refused attach", got)
+	}
+	if got := copies(bystander); got != -1 {
+		t.Fatalf("file visible to a user of the other asset: %d copies", got)
+	}
+
+	grant(t, w.admin, "ASSET", w.c1.asset, "DOWNLOAD_ORIGINAL", to(u))
+	attach(t, u, rendition, w.c1.file)
+	u.must(t, importSubtitles, withSource(w.c1.file), nil)
+	if got := copies(u); got != 1 {
+		t.Fatalf("downloader sees %d copies, want 1", got)
+	}
 }
 
 func TestGrantInheritanceGroupsAndLinks(t *testing.T) {

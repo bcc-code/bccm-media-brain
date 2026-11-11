@@ -162,6 +162,21 @@ func FileLevel(ctx context.Context, q sqlc.Querier, fileID string) (sqlc.Permiss
 	return levels[fileID], err
 }
 
+// RequireFileReuse checks that the caller may attach the file to another rendition. A file's
+// level is the highest over every asset that uses it, so attaching widens who can see where it
+// is stored: the caller must already have that right themselves (Download), not merely see the
+// file. A file the caller cannot see is reported as invalid input, like any unknown reference.
+func RequireFileReuse(ctx context.Context, q sqlc.Querier, fileID string) error {
+	have, err := FileLevel(ctx, q, fileID)
+	if err != nil {
+		return err
+	}
+	if have == None {
+		return domain.Invalid("file does not exist")
+	}
+	return Decide(have, Download)
+}
+
 func ProgramLevel(ctx context.Context, q sqlc.Querier, programID string) (sqlc.PermissionLevel, error) {
 	p, err := From(ctx)
 	if err != nil {
