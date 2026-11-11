@@ -77,13 +77,14 @@ type cached struct {
 type middleware struct {
 	Options
 	next  http.Handler
+	now   func() time.Time
 	mu    sync.Mutex
 	cache map[[sha256.Size]byte]cached
 }
 
 // Middleware authenticates every request and puts the principal into its context.
 func Middleware(opts Options, next http.Handler) http.Handler {
-	return &middleware{Options: opts, next: next, cache: map[[sha256.Size]byte]cached{}}
+	return &middleware{Options: opts, next: next, now: time.Now, cache: map[[sha256.Size]byte]cached{}}
 }
 
 func (m *middleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -133,7 +134,7 @@ func (m *middleware) authenticate(r *http.Request) (access.Principal, int, error
 		return access.Principal{}, http.StatusUnauthorized, errors.New("no token")
 	}
 	key := sha256.Sum256([]byte(token))
-	now := time.Now()
+	now := m.now()
 	m.mu.Lock()
 	hit, ok := m.cache[key]
 	m.mu.Unlock()
@@ -154,7 +155,15 @@ func (m *middleware) authenticate(r *http.Request) (access.Principal, int, error
 			delete(m.cache, k)
 		}
 	}
-	m.cache[key] = cached{principal: p, until: now.Add(principalTTL)}
+	// A cache hit skips verification, so the entry must not outlive the token: without the
+	// bound, a token verified just before it expires would work for another principalTTL.
+	until := now.Add(principalTTL)
+	if id.Expires.Before(until) {
+		until = id.Expires
+	}
+	if now.Before(until) {
+		m.cache[key] = cached{principal: p, until: until}
+	}
 	m.mu.Unlock()
 	return p, 0, nil
 }

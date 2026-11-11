@@ -25,6 +25,9 @@ type Identity struct {
 	Email   string
 	Name    string
 	Groups  []string
+	// Expires is when the proof of this identity (the token) stops being accepted. Whoever
+	// remembers the identity must forget it by then. Zero: it may not be remembered at all.
+	Expires time.Time
 }
 
 // SignIn creates or updates the user for a verified identity and syncs their SSO groups.

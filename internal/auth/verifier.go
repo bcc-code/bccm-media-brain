@@ -78,7 +78,7 @@ func (v *JWKSVerifier) Verify(ctx context.Context, raw string) (access.Identity,
 	if err := std.ValidateWithLeeway(expected, leeway); err != nil {
 		return access.Identity{}, fmt.Errorf("%w: %v", ErrInvalidToken, err)
 	}
-	id := access.Identity{Subject: std.Subject}
+	id := access.Identity{Subject: std.Subject, Expires: std.Expiry.Time().Add(leeway)}
 	id.Email, _ = extra["email"].(string)
 	id.Name, _ = extra["name"].(string)
 	switch groups := extra[v.GroupsClaim].(type) {

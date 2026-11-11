@@ -2,6 +2,18 @@
 
 Newest first. Each entry: what changed, why, and what was left out on purpose.
 
+## 2026-11-11 — The user cache ends with the token
+
+- A cached user is now forgotten when its token stops being accepted (`exp` plus the verifier's
+  30 s leeway), or after one minute, whichever comes first. Why: a cache hit skips verification,
+  and the entry did not know the token's expiry, so a token verified just before it expired
+  kept working for up to a minute more (architecture review, finding 03).
+- `access.Identity` carries `Expires`, set by the verifier. An identity without it is not cached:
+  nothing says how long it holds.
+- Left out: the one-minute delay before a change to `is_admin`, `active` or group membership
+  applies is unchanged and documented. A withdrawn signing key also still works from the cache
+  for up to a minute.
+
 ## 2026-11-11 — Signing keys are trusted for a bounded time
 
 - The JWKS cache now has a maximum age of 5 minutes: an older key set is fetched again before

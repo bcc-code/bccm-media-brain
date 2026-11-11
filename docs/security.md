@@ -21,7 +21,9 @@ Details worth knowing:
 - An email already used by another account is not taken over: the new user is stored without it.
 - Inactive users (`app_user.active = false`) get HTTP 403.
 - A verified token's user is cached for one minute, so a change to `is_admin`, `active` or group
-  membership can take that long to apply.
+  membership can take that long to apply. The cache entry ends when the token does (`exp` plus
+  the 30 s leeway the verifier allows), so the cache never makes a token work longer than
+  verification would.
 - Tokens are verified with go-jose. Keys are fetched on first use and re-fetched (at most every
   10 s) when a token names an unknown key, so key rotation needs no restart.
 - **A withdrawn signing key stops working within 5 minutes.** The key set is trusted for that
@@ -31,8 +33,8 @@ Details worth knowing:
   succeeds. So the bound is 5 minutes while the key endpoint answers and 1 hour while it does
   not. The limits are constants in `internal/auth/verifier.go`. One request fetches at a time;
   the others wait for its result.
-- This bounds the *key*. A token that was already verified is still served from the one-minute
-  user cache above, which does not look at the token's expiry.
+- This bounds the *key*. A token that was already verified is still served from the user cache
+  above for up to one minute after its key is withdrawn.
 
 ### Debug bypass (development only)
 
