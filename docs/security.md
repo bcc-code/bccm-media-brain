@@ -49,6 +49,32 @@ freshly reset database. Any other user must exist (run a scenario or add one in 
 
 `DEBUG` also exposes the data-wiping debug API. It must never be on in production.
 
+Debug mode means "whoever can send a request is an administrator", so it is kept to the
+developer's own machine and their own page:
+
+- **Loopback only.** With `DEBUG=true` the server refuses to start unless `HTTP_ADDR` is
+  `localhost` or a loopback IP (`config.Validate`, `ErrDebugNotLocal`). `:8080` listens on every
+  interface and is refused. `.env.example` uses `127.0.0.1:8080`, and the dev Postgres, whose
+  credentials are public, is published on `127.0.0.1` only. `DEBUG_ALLOW_REMOTE=true` lifts
+  the rule, for a container or a shared dev box; it is logged as a warning at start.
+- **Local host names only.** Without `DEBUG_ALLOW_REMOTE`, every route refuses a request whose
+  `Host` is not `localhost` or a loopback IP (403). Otherwise a site could re-point its own name
+  at 127.0.0.1 (DNS rebinding), become same-origin with the server, and use everything below.
+- **A POST to the debug API is not cross-origin and carries a token.** The handler
+  (`devdata.Handler`) refuses a POST whose `Sec-Fetch-Site` is not `same-origin`/`none` or whose
+  `Origin` does not match `Host` (`http.CrossOriginProtection`), and one without the
+  `X-Debug-Token` header. The token is random per process and read from `GET /debug/api/token`,
+  which is refused to cross-site fetches. No CORS headers are sent anywhere, so another site can
+  neither read the token nor send the header (that needs a preflight nobody answers). A plain
+  form post, which needs no preflight, has no way to carry it.
+- **`/query` needs nothing more.** It only accepts `Content-Type: application/json` (gqlgen's
+  POST transport), which a page cannot send to another origin without a preflight, so the cookie
+  and `DEBUG_USER` cannot be used by a cross-site form. The `mb_debug_user` cookie is
+  `SameSite=Strict`. The Host rule above covers rebinding.
+
+GETs on the debug API (table counts, user list, scenario list) stay open to local tools; another
+site cannot read their responses.
+
 ## Administrators
 
 `app_user.is_admin` marks system administrators. They bypass grant checks and are the only ones

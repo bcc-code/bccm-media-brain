@@ -89,6 +89,10 @@ func New(ctx context.Context, cfg config.Config) (*App, error) {
 	}
 	if cfg.Debug {
 		slog.Warn("DEBUG enabled: /debug/ can wipe data and requests can act as any user — never enable in production")
+		if cfg.DebugAllowRemote {
+			slog.Warn("DEBUG_ALLOW_REMOTE enabled: anyone who can reach this address is an administrator", "addr", cfg.HTTPAddr)
+		}
+		opts.LocalOnly = !cfg.DebugAllowRemote
 		store := devdata.NewStore(pool)
 		store.Vidispine = vidispineSrc
 		opts.Debug = devdata.Handler(store)

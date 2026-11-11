@@ -5,8 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
+	"net/netip"
 	"os"
 	"strconv"
+	"strings"
 )
 
 // Config is the application configuration.
@@ -19,6 +22,8 @@ type Config struct {
 	DebugUser   string     // DEBUG_USER: with DEBUG, requests that name no user act as this email (created as admin if missing)
 	LogFormat   string     // LOG_FORMAT: "text" (default) or "json"
 	LogLevel    slog.Level // LOG_LEVEL: debug|info|warn|error (default info)
+
+	DebugAllowRemote bool // DEBUG_ALLOW_REMOTE (default false): with DEBUG, HTTP_ADDR may be reachable from other machines
 
 	// Sign-in is done by a proxy in front of MediaBrain that forwards a signed JWT.
 	AuthHeader         string // AUTH_HEADER (default "Authorization"): header carrying the JWT
@@ -45,12 +50,34 @@ func (c Config) AuthConfigured() bool {
 	return c.AuthIssuer != "" && c.AuthAudience != "" && c.AuthJWKSURL != "" && c.AuthTrustedProxies != ""
 }
 
-// Validate refuses to run without authentication unless debug mode provides the bypass.
+// ErrDebugNotLocal is returned when debug mode would be reachable from other machines.
+var ErrDebugNotLocal = errors.New("config: DEBUG=true needs HTTP_ADDR on a loopback address (for example 127.0.0.1:8080); set DEBUG_ALLOW_REMOTE=true to expose the debug API and the token-less sign-in to the network")
+
+// Validate refuses to run without authentication unless debug mode provides the bypass, and
+// refuses to offer that bypass to other machines unless that was asked for.
 func (c Config) Validate() error {
 	if !c.Debug && !c.AuthConfigured() {
 		return ErrAuthNotConfigured
 	}
+	if c.Debug && !c.DebugAllowRemote && !LoopbackHost(c.HTTPAddr) {
+		return ErrDebugNotLocal
+	}
 	return nil
+}
+
+// LoopbackHost reports whether a host or host:port names this machine only: "localhost" or a
+// loopback IP. An empty host (":8080") listens on every interface, so it does not.
+func LoopbackHost(hostport string) bool {
+	host := hostport
+	if h, _, err := net.SplitHostPort(hostport); err == nil {
+		host = h
+	}
+	host = strings.TrimSuffix(strings.TrimPrefix(host, "["), "]")
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+	addr, err := netip.ParseAddr(host)
+	return err == nil && addr.Unmap().IsLoopback()
 }
 
 // ErrMissingDatabaseURL is returned when DATABASE_URL is not set.
@@ -92,6 +119,9 @@ func LoadFrom(lookup func(string) (string, bool)) (Config, error) {
 		return Config{}, err
 	}
 	if cfg.Debug, err = boolEnv(lookup, "DEBUG", cfg.Debug); err != nil {
+		return Config{}, err
+	}
+	if cfg.DebugAllowRemote, err = boolEnv(lookup, "DEBUG_ALLOW_REMOTE", cfg.DebugAllowRemote); err != nil {
 		return Config{}, err
 	}
 	if v, ok := lookup("LOG_FORMAT"); ok && v != "" {

@@ -8,12 +8,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/bcc-media/mediabrain/internal/app"
@@ -219,10 +222,14 @@ func TestDebugAPI(t *testing.T) {
 	cfg.DatabaseURL = freshDB(t, "debug_api")
 	base := startApp(t, cfg)
 
+	token := debugToken(t, base)
 	call := func(method, path, body string, out any) int {
 		t.Helper()
 		req, _ := http.NewRequest(method, base+path, strings.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
+		if method == "POST" {
+			req.Header.Set(devdata.TokenHeader, token)
+		}
 		res, err := http.DefaultClient.Do(req)
 		if err != nil {
 			t.Fatal(err)
@@ -232,6 +239,43 @@ func TestDebugAPI(t *testing.T) {
 			_ = json.NewDecoder(res.Body).Decode(out)
 		}
 		return res.StatusCode
+	}
+
+	// Another site open in the developer's browser must not be able to wipe the data: a POST
+	// needs the token, which that site cannot read, and must not be cross-origin.
+	_, port, _ := net.SplitHostPort(strings.TrimPrefix(base, "http://"))
+	before := countRows(t, cfg.DatabaseURL, "app_user")
+	for name, headers := range map[string]map[string]string{
+		"no token":     {},
+		"wrong token":  {devdata.TokenHeader: "guess"},
+		"other origin": {devdata.TokenHeader: token, "Origin": "https://attacker.example"},
+		"cross-site":   {devdata.TokenHeader: token, "Sec-Fetch-Site": "cross-site"},
+		// A form post, the request a page can send anywhere without asking.
+		"form": {"Content-Type": "application/x-www-form-urlencoded", "Origin": "https://attacker.example"},
+	} {
+		for _, path := range []string{"/debug/api/reset", "/debug/api/scenarios/access", "/debug/api/users"} {
+			if code, _ := rawRequest(t, "POST", base+path, `{"email":"csrf@example.test","admin":true}`, headers); code != http.StatusForbidden {
+				t.Errorf("%s: POST %s = %d", name, path, code)
+			}
+		}
+	}
+	if after := countRows(t, cfg.DatabaseURL, "app_user"); after != before {
+		t.Fatalf("refused requests changed app_user: %d → %d", before, after)
+	}
+	// A host name re-pointed at this machine (DNS rebinding) would be same-origin, so it is
+	// refused before it can read the token or use the token-less sign-in.
+	for _, path := range []string{"/debug/", "/debug/api/token", "/query", "/"} {
+		code, body := rawRequest(t, "GET", base+path, "", map[string]string{"Host": "attacker.example:" + port})
+		if code != http.StatusForbidden || strings.Contains(body, token) {
+			t.Errorf("foreign Host on %s = %d", path, code)
+		}
+	}
+	if code, _ := rawRequest(t, "POST", base+"/query", `{"query":"{ ping }"}`,
+		map[string]string{"Host": "attacker.example:" + port, "Content-Type": "application/json", auth.DebugUserHeader: "anyone"}); code != http.StatusForbidden {
+		t.Errorf("foreign Host on POST /query = %d", code)
+	}
+	if code, _ := rawRequest(t, "GET", base+"/debug/api/token", "", map[string]string{"Host": "localhost:" + port}); code != 200 {
+		t.Errorf("localhost = %d", code)
 	}
 
 	var applied map[string]any
@@ -351,6 +395,71 @@ func TestDebugAPI(t *testing.T) {
 	}
 }
 
+// TestDebugAllowRemote: the Host check belongs to the local-only default and goes with it.
+func TestDebugAllowRemote(t *testing.T) {
+	cfg := appConfig()
+	cfg.DatabaseURL = freshDB(t, "debug_remote")
+	cfg.DebugAllowRemote = true
+	base := startApp(t, cfg)
+	code, body := rawRequest(t, "GET", base+"/debug/api/token", "", map[string]string{"Host": "devbox.example:8080"})
+	if code != 200 || !strings.Contains(body, "token") {
+		t.Fatalf("named host with DEBUG_ALLOW_REMOTE = %d %s", code, body)
+	}
+	// The token and origin rules still hold.
+	if code, _ := rawRequest(t, "POST", base+"/debug/api/reset", "", nil); code != http.StatusForbidden {
+		t.Fatalf("reset without token = %d", code)
+	}
+
+	cfg.HTTPAddr, cfg.DebugAllowRemote = ":0", false
+	if _, err := app.New(context.Background(), cfg); !errors.Is(err, config.ErrDebugNotLocal) {
+		t.Fatalf("debug on every interface: %v", err)
+	}
+}
+
+// debugToken reads the request token the way the debug page does.
+func debugToken(t *testing.T, base string) string {
+	t.Helper()
+	code, body := rawRequest(t, "GET", base+"/debug/api/token", "", nil)
+	var got struct{ Token string }
+	if err := json.Unmarshal([]byte(body), &got); err != nil || code != 200 || got.Token == "" {
+		t.Fatalf("debug token = %d %s", code, body)
+	}
+	return got.Token
+}
+
+func rawRequest(t *testing.T, method, url, body string, headers map[string]string) (int, string) {
+	t.Helper()
+	req, _ := http.NewRequest(method, url, strings.NewReader(body))
+	for k, v := range headers {
+		if k == "Host" {
+			req.Host = v
+			continue
+		}
+		req.Header.Set(k, v)
+	}
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	out, _ := io.ReadAll(res.Body)
+	return res.StatusCode, string(out)
+}
+
+func countRows(t *testing.T, database, table string) int {
+	t.Helper()
+	conn, err := pgx.Connect(context.Background(), database)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close(context.Background())
+	var n int
+	if err := conn.QueryRow(context.Background(), "SELECT count(*) FROM "+table).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	return n
+}
+
 // startApp runs a second server for the test and returns its base URL.
 func startApp(t *testing.T, cfg config.Config) string {
 	t.Helper()
@@ -416,12 +525,12 @@ func TestDefaultDebugUser(t *testing.T) {
 	}
 
 	// The user comes back after a reset, and the access scenario's own admin is reused.
+	token := debugToken(t, base)
 	for _, path := range []string{"/debug/api/reset", "/debug/api/scenarios/access"} {
-		res, err := http.Post(base+path, "application/json", strings.NewReader("{}"))
-		if err != nil || res.StatusCode != 200 {
-			t.Fatalf("%s: %v", path, err)
+		headers := map[string]string{"Content-Type": "application/json", devdata.TokenHeader: token}
+		if code, body := rawRequest(t, "POST", base+path, "{}", headers); code != 200 {
+			t.Fatalf("%s: %d %s", path, code, body)
 		}
-		res.Body.Close()
 		if status, got, admin := me(nil); status != 200 || !strings.HasSuffix(got, "/admin@example.test") || !admin {
 			t.Fatalf("after %s: %d %q admin=%v", path, status, got, admin)
 		}
