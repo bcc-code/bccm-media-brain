@@ -382,13 +382,38 @@ func (s *Service) VersionsFor(ctx context.Context, assetIDs []string) (map[strin
 	return out, err
 }
 
+// LinksFor leaves out links to projects the caller may not see: the link itself (project id,
+// role, when it was made) would reveal a project that an asset grant does not give access to.
 func (s *Service) LinksFor(ctx context.Context, assetIDs []string) (map[string][]sqlc.AssetProject, error) {
+	p, err := access.From(ctx)
+	if err != nil {
+		return nil, err
+	}
 	rows, err := s.q.ListAssetProjects(ctx, assetIDs)
+	if err != nil || len(rows) == 0 {
+		return nil, err
+	}
+	projectIDs := make([]string, 0, len(rows))
+	for _, r := range rows {
+		projectIDs = append(projectIDs, r.ProjectID)
+	}
+	visible, err := s.q.ListVisibleProjects(ctx, sqlc.ListVisibleProjectsParams{
+		Ids: projectIDs, ProgramIds: []string{}, IsAdmin: p.Admin, Principals: p.IDs(),
+	})
+	if err != nil {
+		return nil, err
+	}
+	seen := make(map[string]bool, len(visible))
+	for _, pj := range visible {
+		seen[pj.ID] = true
+	}
 	out := map[string][]sqlc.AssetProject{}
 	for _, r := range rows {
-		out[r.AssetID] = append(out[r.AssetID], r)
+		if seen[r.ProjectID] {
+			out[r.AssetID] = append(out[r.AssetID], r)
+		}
 	}
-	return out, err
+	return out, nil
 }
 
 func (s *Service) RenditionsFor(ctx context.Context, versionIDs []string) (map[string][]sqlc.Rendition, error) {

@@ -2,6 +2,19 @@
 
 Newest first. Each entry: what changed, why, and what was left out on purpose.
 
+## 2026-11-11 — An asset no longer lists links to hidden projects
+
+- `asset.projects` leaves out links to projects the caller may not see. Why: only the nested
+  `project` was filtered, so someone with a grant on just the asset still read the hidden
+  project's id, the link's role and when it was made (architecture review, finding 06). That
+  contradicted the rule that an asset grant does not reveal its project.
+- The visibility rule is not copied: `asset.Service.LinksFor` asks `ListVisibleProjects`, the
+  same query the project lists use, at the cost of one more statement per batch.
+- `AssetProjectLink.project` stays nullable in the schema so clients do not break.
+- Left out: `unlinkAssetFromProject` still needs only `EDIT` on the asset, and
+  `AssetFilter.projectId` still filters by any project id. Both tell someone who already knows
+  a hidden project's id whether an asset they can see is linked to it; ids cannot be guessed.
+
 ## 2026-11-11 — The user cache ends with the token
 
 - A cached user is now forgotten when its token stops being accepted (`exp` plus the verifier's

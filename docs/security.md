@@ -113,7 +113,8 @@ Rules:
   answer is `FORBIDDEN`.
 - **Programs and projects.** Creating a project needs `EDIT` on the program. A program is
   visible to anyone who can see one of its projects (with only those projects listed).
-  A grant on a single asset does not reveal its project.
+  A grant on a single asset does not reveal its project: `asset.projects` lists only the links
+  to projects the caller may see, because a link carries the project's id.
 - **New assets.** Non-administrators create an asset inside a project they can edit, so every
   asset has someone with access from the start.
 - **Files** have no grants of their own. A file is visible through an asset the caller can view.
