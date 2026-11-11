@@ -17,6 +17,11 @@ This creates `.env`, starts Postgres, applies migrations and runs the server wit
 - Debug UI (generate dev data, choose the user to act as): http://localhost:8080/debug/
 - GraphQL playground: http://localhost:8080/
 
+The dev server and the dev Postgres listen on `127.0.0.1` only, because debug mode gives
+administrator rights without sign-in. If your `.env` predates that (`HTTP_ADDR=:8080`), the server
+now refuses to start: set `HTTP_ADDR=127.0.0.1:8080`, or `DEBUG_ALLOW_REMOTE=true` if other
+machines really must reach it.
+
 The API refuses anonymous requests. In development (`DEBUG=true`, `DEBUG_USER` set as in
 `.env.example`) requests run as the administrator `admin@example.test` unless you pick another
 user: run the `access` scenario in the debug UI and click "Act as" to see what that user sees.

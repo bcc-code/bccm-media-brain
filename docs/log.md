@@ -2,6 +2,34 @@
 
 Newest first. Each entry: what changed, why, and what was left out on purpose.
 
+## 2026-11-11 — Debug mode stays on the developer's machine
+
+From the architecture review (finding 04, "development defaults expose privileged services").
+
+- The example setup listens on loopback: `HTTP_ADDR=127.0.0.1:8080` in `.env.example`, and the
+  dev Postgres is published as `127.0.0.1:5432`. Why: with `DEBUG=true` and `DEBUG_USER` every
+  request is an administrator, `/debug/api/reset` wipes the data, and the database password is
+  in the repository; all three were reachable from the local network.
+- With `DEBUG=true` the server refuses to start on a non-loopback `HTTP_ADDR`
+  (`ErrDebugNotLocal`). `DEBUG_ALLOW_REMOTE=true` is the explicit way out. An existing `.env`
+  with `HTTP_ADDR=:8080` must be changed; the error says how. The default of `HTTP_ADDR` stays
+  `:8080`, which is what a deployment (debug off) wants.
+- A POST to the debug API must be same-origin (`http.CrossOriginProtection`: `Sec-Fetch-Site`,
+  or `Origin` against `Host`) and carry `X-Debug-Token`, a per-process random token from
+  `GET /debug/api/token`. Why both: the origin check relies on headers only browsers send, the
+  token on something another site cannot read. The page fetches the token itself and fetches
+  it again after a restart.
+- Without `DEBUG_ALLOW_REMOTE`, a request whose `Host` is not local is refused on every route.
+  Why: DNS rebinding makes another site same-origin, which defeats both checks above and would
+  also reach `/query` as `DEBUG_USER`. The review did not list this; it follows from the fix.
+- `/query` is unchanged: it only takes `application/json`, so a cross-site form cannot use the
+  debug cookie or `DEBUG_USER`.
+- Left out: no browser-based cross-origin exploit was run, in the review or here; the tests
+  send the headers a browser would. The dev database keeps its fixed credentials, now on
+  loopback only. Debug GETs (stats, users) are not behind the token. The token is not tied to
+  a browser session: anything that can read `GET /debug/api/token` locally can use it.
+  See [security.md](security.md#debug-bypass-development-only).
+
 ## 2026-11-11 — Migration lock, image and a production compose file
 
 - Migrations now run under a Postgres advisory lock (goose's session locker). Why: with

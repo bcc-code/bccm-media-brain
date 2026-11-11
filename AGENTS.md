@@ -117,6 +117,10 @@ The debug UI also lists users and lets you act as one of them ("Act as user"): i
 `mb_debug_user` cookie that `/query` honours when `DEBUG=true`. `X-Debug-User: <email or id>` does
 the same for curl.
 
+A POST to the debug API must send the server's request token, so that another site open in your
+browser cannot wipe the data. The page does it by itself; with curl:
+`curl -X POST -H "X-Debug-Token: $(curl -s localhost:8080/debug/api/token | jq -r .token)" localhost:8080/debug/api/reset`.
+
 With the `VIDISPINE_*` settings, the **Vidispine** card imports one item or refreshes an imported
 asset (as the system principal) and shows the result.
 
@@ -163,13 +167,15 @@ need no updates. The one exception: reference tables that a migration seeds (`as
   types must update `internal/devdata` scenarios (and `internal/fake`) in the same change.
   The debug UI is how humans try the system, so it must never lag behind.
 - `/debug/` and `DEBUG=true` are for development only. Never enable them by default outside
-  `.env.example`, and never expose dev-data endpoints through GraphQL.
+  `.env.example`, and never expose dev-data endpoints through GraphQL. Debug mode listens on
+  loopback only (the server refuses another `HTTP_ADDR` unless `DEBUG_ALLOW_REMOTE=true`), and
+  every POST to the debug API needs the `X-Debug-Token` header; keep both when adding routes.
 - Log with `log/slog` only (no `fmt.Print*`/`log.*` for diagnostics). Use structured key/value
   attributes rather than formatted strings, so JSON output stays useful. CLI result output to
   stdout is the only exception.
 - Config goes through `internal/config` (env + `.env`). Add new settings there, in
   `.env.example`, and in this file. Current settings: `DATABASE_URL`, `HTTP_ADDR`, `AUTO_MIGRATE`,
-  `GRAPHQL_PLAYGROUND`, `DEBUG`, `DEBUG_USER`, `LOG_FORMAT`, `LOG_LEVEL`, and for sign-in `AUTH_ISSUER`,
+  `GRAPHQL_PLAYGROUND`, `DEBUG`, `DEBUG_USER`, `DEBUG_ALLOW_REMOTE`, `LOG_FORMAT`, `LOG_LEVEL`, and for sign-in `AUTH_ISSUER`,
   `AUTH_AUDIENCE`, `AUTH_JWKS_URL`, `AUTH_TRUSTED_PROXIES`, `AUTH_HEADER`, `AUTH_GROUPS_CLAIM`, and for
   the Vidispine import `VIDISPINE_URL`, `VIDISPINE_USERNAME`, `VIDISPINE_PASSWORD` (optional, all or none).
 - **Security is not optional.** Every query and mutation is authenticated and checks permissions

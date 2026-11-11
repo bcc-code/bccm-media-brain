@@ -127,6 +127,22 @@ func TestDebugMount(t *testing.T) {
 	}
 }
 
+func TestLocalOnly(t *testing.T) {
+	h := NewHandler(&graph.Resolver{}, okPing, HandlerOptions{LocalOnly: true})
+	for host, code := range map[string]int{
+		"localhost:8080": 200, "127.0.0.1:8080": 200, "[::1]:8080": 200, "localhost": 200,
+		"attacker.example:8080": 403, "192.168.1.5:8080": 403, "": 403,
+	} {
+		req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
+		req.Host = host
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		if rec.Code != code {
+			t.Errorf("Host %q = %d, want %d", host, rec.Code, code)
+		}
+	}
+}
+
 func TestRequestLogging(t *testing.T) {
 	var buf bytes.Buffer
 	log := slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))

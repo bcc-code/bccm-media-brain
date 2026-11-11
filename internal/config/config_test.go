@@ -31,13 +31,13 @@ func TestLoadFrom(t *testing.T) {
 			name: "overrides",
 			env: map[string]string{
 				"DATABASE_URL": "postgres://x", "HTTP_ADDR": ":9000",
-				"AUTO_MIGRATE": "false", "GRAPHQL_PLAYGROUND": "1", "DEBUG": "true", "DEBUG_USER": "dev@example.test",
+				"AUTO_MIGRATE": "false", "GRAPHQL_PLAYGROUND": "1", "DEBUG": "true", "DEBUG_USER": "dev@example.test", "DEBUG_ALLOW_REMOTE": "true",
 				"LOG_FORMAT": "json", "LOG_LEVEL": "debug",
 				"AUTH_HEADER": "X-Token", "AUTH_TRUSTED_PROXIES": "10.0.0.0/8", "AUTH_ISSUER": "https://idp",
 				"AUTH_AUDIENCE": "mb", "AUTH_JWKS_URL": "https://idp/keys", "AUTH_GROUPS_CLAIM": "roles",
 			},
 			want: Config{
-				DatabaseURL: "postgres://x", HTTPAddr: ":9000", Debug: true, DebugUser: "dev@example.test", Playground: true, LogFormat: "json", LogLevel: slog.LevelDebug,
+				DatabaseURL: "postgres://x", HTTPAddr: ":9000", Debug: true, DebugUser: "dev@example.test", DebugAllowRemote: true, Playground: true, LogFormat: "json", LogLevel: slog.LevelDebug,
 				AuthHeader: "X-Token", AuthTrustedProxies: "10.0.0.0/8", AuthIssuer: "https://idp",
 				AuthAudience: "mb", AuthJWKSURL: "https://idp/keys", AuthGroupsClaim: "roles",
 			},
@@ -45,6 +45,7 @@ func TestLoadFrom(t *testing.T) {
 		{name: "bad auto migrate", env: map[string]string{"DATABASE_URL": "x", "AUTO_MIGRATE": "nope"}, anyErr: true},
 		{name: "bad log level", env: map[string]string{"DATABASE_URL": "x", "LOG_LEVEL": "loud"}, anyErr: true},
 		{name: "bad debug", env: map[string]string{"DATABASE_URL": "x", "DEBUG": "nope"}, anyErr: true},
+		{name: "bad debug allow remote", env: map[string]string{"DATABASE_URL": "x", "DEBUG_ALLOW_REMOTE": "nope"}, anyErr: true},
 		{name: "bad playground", env: map[string]string{"DATABASE_URL": "x", "GRAPHQL_PLAYGROUND": "nope"}, anyErr: true},
 	}
 	for _, tt := range tests {
@@ -76,7 +77,7 @@ func TestValidate(t *testing.T) {
 	if err := full.Validate(); err != nil {
 		t.Fatalf("configured auth: %v", err)
 	}
-	if err := (Config{Debug: true}).Validate(); err != nil {
+	if err := (Config{Debug: true, HTTPAddr: "127.0.0.1:8080"}).Validate(); err != nil {
 		t.Fatalf("debug without auth: %v", err)
 	}
 	partial := full
@@ -85,6 +86,28 @@ func TestValidate(t *testing.T) {
 		if err := c.Validate(); !errors.Is(err, ErrAuthNotConfigured) {
 			t.Fatalf("%+v: err = %v", c, err)
 		}
+	}
+}
+
+func TestDebugIsLocalUnlessAllowed(t *testing.T) {
+	for addr, local := range map[string]bool{
+		"127.0.0.1:8080": true, "localhost:8080": true, "LOCALHOST:8080": true, "[::1]:8080": true,
+		"127.0.0.2:0": true, "[::ffff:127.0.0.1]:8080": true, "localhost": true, "[::1]": true,
+		":8080": false, "0.0.0.0:8080": false, "[::]:8080": false, "192.168.1.5:8080": false,
+		"example.com:8080": false, "localhost.example.com:8080": false, "": false,
+	} {
+		err := Config{Debug: true, HTTPAddr: addr}.Validate()
+		if local && err != nil || !local && !errors.Is(err, ErrDebugNotLocal) {
+			t.Errorf("DEBUG on %q: err = %v, local = %v", addr, err, local)
+		}
+		if err := (Config{Debug: true, DebugAllowRemote: true, HTTPAddr: addr}).Validate(); err != nil {
+			t.Errorf("DEBUG_ALLOW_REMOTE on %q: %v", addr, err)
+		}
+	}
+	// The rule is about debug mode only: with real authentication any address is fine.
+	prod := Config{HTTPAddr: ":8080", AuthIssuer: "i", AuthAudience: "a", AuthJWKSURL: "j", AuthTrustedProxies: "10.0.0.0/8"}
+	if err := prod.Validate(); err != nil {
+		t.Fatalf("without debug: %v", err)
 	}
 }
 

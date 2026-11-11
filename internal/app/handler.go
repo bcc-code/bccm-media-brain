@@ -8,6 +8,7 @@ import (
 	"github.com/99designs/gqlgen/graphql/playground"
 
 	"github.com/bcc-media/mediabrain/internal/auth"
+	"github.com/bcc-media/mediabrain/internal/config"
 	"github.com/bcc-media/mediabrain/internal/graph"
 )
 
@@ -24,6 +25,10 @@ type HandlerOptions struct {
 	Playground bool         // serve the GraphQL playground at / and allow introspection
 	Auth       auth.Options // how /query callers are authenticated
 	Debug      http.Handler // if non-nil, mounted at /debug/ (dev only)
+	// LocalOnly refuses requests whose Host is not localhost or a loopback IP. Debug mode on a
+	// loopback listener sets it: without it, a site whose name is re-pointed at 127.0.0.1 (DNS
+	// rebinding) would be same-origin with the server and could use the token-less sign-in.
+	LocalOnly bool
 }
 
 // NewHandler builds the HTTP routes:
@@ -54,6 +59,10 @@ func NewHandler(r *graph.Resolver, db Pinger, opts HandlerOptions) http.Handler 
 	}
 	return logRequests(slog.Default(), http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
+		if opts.LocalOnly && !config.LoopbackHost(req.Host) {
+			http.Error(w, "debug mode answers only to localhost; set DEBUG_ALLOW_REMOTE=true to use another host name", http.StatusForbidden)
+			return
+		}
 		mux.ServeHTTP(w, req)
 	}))
 }

@@ -53,7 +53,7 @@ A new service, or a new dependency of one, must be added to all of them:
 `internal/config/config.go`: flat fields on `Config`, the env name in a trailing comment. Plain
 strings are read in the map loop of `LoadFrom`; booleans with `boolEnv`. A group that must be
 complete is checked at the end of `LoadFrom` (`ErrVidispineIncomplete`). `Validate` (AUTH required
-unless `DEBUG`) runs only in `app.New`, so CLI commands other than `serve` skip it. New settings
+unless `DEBUG`; `DEBUG` only on a loopback `HTTP_ADDR` unless `DEBUG_ALLOW_REMOTE`) runs only in `app.New`, so CLI commands other than `serve` skip it. New settings
 also go in `.env.example` and `AGENTS.md`.
 
 ## CLI
@@ -118,7 +118,10 @@ The debug UI is one file, `internal/devdata/ui/index.html`, over the JSON API in
 `internal/devdata/http.go`. The handler sees only the `Backend` interface (`Store` implements
 it; `http_test.go` has a fake), so a new debug action is a `Backend` method, a route, a card in
 the page, a handler test and a case in `TestDebugAPI` (`e2e/devdata_test.go`). `writeResult`
-maps domain errors to HTTP statuses.
+maps domain errors to HTTP statuses. Every non-GET route is behind `guard` (same-origin and the
+`X-Debug-Token` header); in the page, `api()` adds the token to a POST, and tests take it from
+`GET /api/token` (`tokenOf`, `debugToken` in e2e). A debug action that changes anything must be a
+POST, never a GET.
 
 ## Deployment
 

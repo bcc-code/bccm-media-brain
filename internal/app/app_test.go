@@ -29,7 +29,12 @@ func TestNewRefusesToRunWithoutAuth(t *testing.T) {
 	if _, err := New(context.Background(), cfg); !errors.Is(err, config.ErrAuthNotConfigured) {
 		t.Fatalf("err = %v", err)
 	}
-	cfg.Debug, cfg.AuthTrustedProxies = true, "not-an-ip"
+	// Debug mode gives administrator rights without a token, so not on every interface.
+	cfg.Debug, cfg.HTTPAddr = true, ":0"
+	if _, err := New(context.Background(), cfg); !errors.Is(err, config.ErrDebugNotLocal) {
+		t.Fatalf("debug on every interface: %v", err)
+	}
+	cfg.HTTPAddr, cfg.AuthTrustedProxies = "127.0.0.1:0", "not-an-ip"
 	if _, err := New(context.Background(), cfg); err == nil || !strings.Contains(err.Error(), "trusted proxy") {
 		t.Fatalf("bad proxies: %v", err)
 	}

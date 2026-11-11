@@ -49,16 +49,111 @@ func (f *fakeBackend) VidispineRefresh(_ context.Context, assetID string) (Vidis
 	return VidispineAsset{ID: assetID}, f.vidispineErr
 }
 
+// call makes a request the way the debug page does: a POST carries the handler's token.
 func call(h http.Handler, method, path, body string) *httptest.ResponseRecorder {
+	headers := map[string]string{}
+	if method == http.MethodPost {
+		headers[TokenHeader] = tokenOf(h)
+	}
+	return callWith(h, method, path, body, headers)
+}
+
+func callWith(h http.Handler, method, path, body string, headers map[string]string) *httptest.ResponseRecorder {
 	var r *http.Request
 	if body == "" {
 		r = httptest.NewRequest(method, path, nil)
 	} else {
 		r = httptest.NewRequest(method, path, strings.NewReader(body))
 	}
+	for k, v := range headers {
+		r.Header.Set(k, v)
+	}
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, r)
 	return w
+}
+
+func tokenOf(h http.Handler) string {
+	var got struct{ Token string }
+	_ = json.Unmarshal(callWith(h, http.MethodGet, "/api/token", "", nil).Body.Bytes(), &got)
+	return got.Token
+}
+
+// A POST is only accepted from the debug page or a local tool: with the token, and not from
+// another origin. httptest requests have the host example.com.
+func TestStateChangesNeedTokenAndSameOrigin(t *testing.T) {
+	b := &fakeBackend{}
+	h := Handler(b)
+	token := tokenOf(h)
+	if len(token) < 20 {
+		t.Fatalf("token = %q", token)
+	}
+	if other := tokenOf(Handler(b)); other == token {
+		t.Fatal("two handlers share a token")
+	}
+
+	paths := []string{"/api/reset", "/api/scenarios/catalog", "/api/users", "/api/vidispine/import", "/api/vidispine/refresh"}
+	refused := map[string]map[string]string{
+		"no token":             {},
+		"wrong token":          {TokenHeader: token + "x"},
+		"empty token":          {TokenHeader: ""},
+		"other origin":         {TokenHeader: token, "Origin": "https://attacker.example"},
+		"lookalike origin":     {TokenHeader: token, "Origin": "http://example.com.attacker.example"},
+		"null origin":          {TokenHeader: token, "Origin": "null"},
+		"cross-site fetch":     {TokenHeader: token, "Sec-Fetch-Site": "cross-site"},
+		"same-site fetch":      {TokenHeader: token, "Sec-Fetch-Site": "same-site"},
+		"cross-site, no token": {"Sec-Fetch-Site": "cross-site", "Origin": "https://attacker.example"},
+	}
+	for name, headers := range refused {
+		for _, path := range paths {
+			b.gotName = ""
+			w := callWith(h, http.MethodPost, path, "{}", headers)
+			if w.Code != http.StatusForbidden || !strings.Contains(w.Body.String(), `"error"`) || b.gotName != "" {
+				t.Errorf("%s: POST %s = %d %s", name, path, w.Code, w.Body)
+			}
+			if w.Header().Get("Access-Control-Allow-Origin") != "" {
+				t.Errorf("%s: POST %s sent a CORS header", name, path)
+			}
+		}
+	}
+	accepted := map[string]map[string]string{
+		"curl":          {TokenHeader: token},
+		"page":          {TokenHeader: token, "Origin": "http://example.com", "Sec-Fetch-Site": "same-origin"},
+		"old browser":   {TokenHeader: token, "Origin": "http://example.com"},
+		"typed address": {TokenHeader: token, "Sec-Fetch-Site": "none"},
+	}
+	for name, headers := range accepted {
+		if w := callWith(h, http.MethodPost, "/api/reset", "", headers); w.Code != http.StatusOK {
+			t.Errorf("%s: reset = %d %s", name, w.Code, w.Body)
+		}
+	}
+
+	// Reading stays open (the page loads before it has a token), but the token itself is not
+	// handed to a request another site started.
+	for _, path := range []string{"/", "/api/stats", "/api/users", "/api/scenarios", "/api/vidispine"} {
+		if w := callWith(h, http.MethodGet, path, "", map[string]string{"Sec-Fetch-Site": "cross-site"}); w.Code != http.StatusOK {
+			t.Errorf("GET %s = %d", path, w.Code)
+		}
+	}
+	for site, code := range map[string]int{"": 200, "same-origin": 200, "none": 200, "cross-site": 403, "same-site": 403} {
+		w := callWith(h, http.MethodGet, "/api/token", "", map[string]string{"Sec-Fetch-Site": site})
+		if w.Code != code || (code == 403) == strings.Contains(w.Body.String(), token) {
+			t.Errorf("token with Sec-Fetch-Site %q = %d %s", site, w.Code, w.Body)
+		}
+		if w.Header().Get("Access-Control-Allow-Origin") != "" {
+			t.Errorf("token response sent a CORS header")
+		}
+	}
+}
+
+// The page must send the header the handler checks, on every POST.
+func TestPageSendsToken(t *testing.T) {
+	page := call(Handler(&fakeBackend{}), http.MethodGet, "/", "").Body.String()
+	for _, want := range []string{"fetch('api/token')", "headers['" + TokenHeader + "']"} {
+		if !strings.Contains(page, want) {
+			t.Errorf("page lacks %q", want)
+		}
+	}
 }
 
 func TestUI(t *testing.T) {

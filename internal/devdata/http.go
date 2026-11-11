@@ -2,6 +2,8 @@ package devdata
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/subtle"
 	"embed"
 	"encoding/json"
 	"errors"
@@ -26,10 +28,14 @@ type Backend interface {
 	VidispineRefresh(ctx context.Context, assetID string) (VidispineAsset, error)
 }
 
+// TokenHeader carries the request token that every state-changing debug request must send.
+const TokenHeader = "X-Debug-Token"
+
 // Handler serves the debug UI and its JSON API. Mount it with
 // http.StripPrefix("/debug", ...). Routes (relative):
 //
 //	GET  /                       debug UI
+//	GET  /api/token              the request token of this process
 //	GET  /api/scenarios          scenario specs
 //	POST /api/scenarios/{name}   run a scenario (body: ApplyRequest)
 //	GET  /api/stats              row count per table
@@ -39,8 +45,23 @@ type Backend interface {
 //	GET  /api/vidispine            whether Vidispine is configured
 //	POST /api/vidispine/import     import one item (body: {"itemId": ..., "typeId": ..., "projectId": ...})
 //	POST /api/vidispine/refresh    refresh an imported asset (body: {"assetId": ...})
+//
+// The API has no sign-in, so a POST must prove it comes from the debug page or a local tool
+// and not from another site open in the developer's browser: it must not be cross-origin, and
+// it must send the token in TokenHeader. Another site can neither read the token (no CORS
+// headers are sent) nor set the header without a preflight, which is never answered.
 func Handler(b Backend) http.Handler {
+	token := rand.Text()
 	mux := http.NewServeMux()
+
+	mux.HandleFunc("GET /api/token", func(w http.ResponseWriter, r *http.Request) {
+		if site := r.Header.Get("Sec-Fetch-Site"); site != "" && site != "same-origin" && site != "none" {
+			writeErr(w, http.StatusForbidden, errors.New("the debug token is only given to the debug page itself"))
+			return
+		}
+		w.Header().Set("Cache-Control", "no-store")
+		writeJSON(w, http.StatusOK, map[string]string{"token": token})
+	})
 
 	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, _ *http.Request) {
 		page, _ := uiFS.ReadFile("ui/index.html") // embedded; cannot fail
@@ -153,7 +174,27 @@ func Handler(b Backend) http.Handler {
 		writeResult(w, a, err)
 	})
 
-	return mux
+	return guard(token, mux)
+}
+
+// guard refuses state-changing requests that are cross-origin or lack the request token.
+func guard(token string, next http.Handler) http.Handler {
+	sameOrigin := http.NewCrossOriginProtection()
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet, http.MethodHead, http.MethodOptions:
+		default:
+			if err := sameOrigin.Check(r); err != nil {
+				writeErr(w, http.StatusForbidden, errors.New("cross-origin requests to the debug API are refused"))
+				return
+			}
+			if subtle.ConstantTimeCompare([]byte(r.Header.Get(TokenHeader)), []byte(token)) != 1 {
+				writeErr(w, http.StatusForbidden, errors.New("missing or wrong "+TokenHeader+" header: read it from GET /debug/api/token"))
+				return
+			}
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 // writeResult answers with v, or with the status that fits a domain error.
