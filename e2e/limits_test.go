@@ -24,7 +24,7 @@ import (
 // that a request stops at its deadline with TIMEOUT, changes nothing and leaves no connection
 // behind.
 func TestQueryDeadline(t *testing.T) {
-	w := newWorld(t, 41)
+	w := newWorld(t, 51)
 	ctx := context.Background()
 	resolver := probedServices(&probe{})
 	const deadline = 300 * time.Millisecond
@@ -116,7 +116,7 @@ func TestQueryDeadline(t *testing.T) {
 // TestComplexityLimit: 100 assets with versions, renditions and files cost 860 201, 500 of
 // them 4 301 001 (internal/graph/complexity_test.go has the sums). The limit is one million.
 func TestComplexityLimit(t *testing.T) {
-	w := newWorld(t, 42)
+	w := newWorld(t, 52)
 	admin := access.Principal{UserID: w.admin.id, Admin: true}
 	const levels = `{ id versions { id renditions { id files { role file { id } } } } }`
 	if r, _ := exec(t, admin, 0, `{ assets(limit: 100) `+levels+` }`, nil); len(r.Errors) != 0 {
@@ -136,7 +136,7 @@ func TestComplexityLimit(t *testing.T) {
 }
 
 func TestNestedListsArePaged(t *testing.T) {
-	w := newWorld(t, 43)
+	w := newWorld(t, 53)
 	// c1 gets versions 2 to 4, c2 keeps its one.
 	for range 3 {
 		newVersion(t, w.admin, w.c1.asset)

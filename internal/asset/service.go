@@ -138,19 +138,30 @@ func (s *Service) List(ctx context.Context, f Filter, limit, offset int) ([]sqlc
 	})
 }
 
-func (s *Service) Update(ctx context.Context, id string, in Input) (sqlc.Asset, error) {
+// Update replaces every editable field. With expected, it is refused as a conflict when the
+// asset is no longer at that revision.
+func (s *Service) Update(ctx context.Context, id string, in Input, expected *int) (sqlc.Asset, error) {
 	if _, err := s.asset(ctx, s.q, id, access.Edit); err != nil {
 		return sqlc.Asset{}, err
 	}
 	if err := in.validate(); err != nil {
 		return sqlc.Asset{}, err
 	}
+	rev, err := domain.ExpectedRevision(expected)
+	if err != nil {
+		return sqlc.Asset{}, err
+	}
 	a, err := s.q.UpdateAsset(ctx, sqlc.UpdateAssetParams{
 		ID: id, TypeID: in.TypeID, Title: in.Title, Description: domain.Blank(in.Description),
 		CapturedAt: in.CapturedAt, Camera: domain.Blank(in.Camera), Reel: domain.Blank(in.Reel),
 		Metadata: in.Metadata, LegacyIds: in.LegacyIDs, OriginalLanguage: domain.Blank(in.OriginalLanguage),
+		ExpectedRevision: rev,
 	})
-	return a, access.Audited(ctx, domain.FromPG(err), "asset.update", id)
+	err = domain.FromPGUpdate(err, rev, func() (int32, error) {
+		now, err := s.q.GetAsset(ctx, id)
+		return now.Revision, err
+	})
+	return a, access.Audited(ctx, err, "asset.update", id)
 }
 
 // Delete removes the asset with its versions, renditions and subtitles. Files stay.
@@ -248,7 +259,7 @@ func (s *Service) Version(ctx context.Context, id string) (sqlc.AssetVersion, er
 	return s.version(ctx, id, access.View)
 }
 
-func (s *Service) UpdateVersion(ctx context.Context, id string, in VersionInput) (sqlc.AssetVersion, error) {
+func (s *Service) UpdateVersion(ctx context.Context, id string, in VersionInput, expected *int) (sqlc.AssetVersion, error) {
 	if _, err := s.version(ctx, id, access.Edit); err != nil {
 		return sqlc.AssetVersion{}, err
 	}
@@ -256,8 +267,18 @@ func (s *Service) UpdateVersion(ctx context.Context, id string, in VersionInput)
 	if err != nil {
 		return sqlc.AssetVersion{}, err
 	}
-	v, err := s.q.UpdateAssetVersion(ctx, sqlc.UpdateAssetVersionParams{ID: id, Label: domain.Blank(in.Label), Status: status})
-	return v, access.Audited(ctx, domain.FromPG(err), "version.update", id)
+	rev, err := domain.ExpectedRevision(expected)
+	if err != nil {
+		return sqlc.AssetVersion{}, err
+	}
+	v, err := s.q.UpdateAssetVersion(ctx, sqlc.UpdateAssetVersionParams{
+		ID: id, Label: domain.Blank(in.Label), Status: status, ExpectedRevision: rev,
+	})
+	err = domain.FromPGUpdate(err, rev, func() (int32, error) {
+		now, err := s.q.GetAssetVersion(ctx, id)
+		return now.Revision, err
+	})
+	return v, access.Audited(ctx, err, "version.update", id)
 }
 
 func (s *Service) DeleteVersion(ctx context.Context, id string) error {
@@ -314,18 +335,26 @@ func (s *Service) Rendition(ctx context.Context, id string) (sqlc.Rendition, err
 	return s.rendition(ctx, id, access.View)
 }
 
-func (s *Service) UpdateRendition(ctx context.Context, id string, in RenditionInput) (sqlc.Rendition, error) {
+func (s *Service) UpdateRendition(ctx context.Context, id string, in RenditionInput, expected *int) (sqlc.Rendition, error) {
 	if _, err := s.rendition(ctx, id, access.Edit); err != nil {
 		return sqlc.Rendition{}, err
 	}
 	if err := in.validate(); err != nil {
 		return sqlc.Rendition{}, err
 	}
+	rev, err := domain.ExpectedRevision(expected)
+	if err != nil {
+		return sqlc.Rendition{}, err
+	}
 	r, err := s.q.UpdateRendition(ctx, sqlc.UpdateRenditionParams{
 		ID: id, Language: domain.Blank(in.Language), Purpose: domain.Blank(in.Purpose),
-		Overrides: in.Overrides, Metadata: in.Metadata,
+		Overrides: in.Overrides, Metadata: in.Metadata, ExpectedRevision: rev,
 	})
-	return r, access.Audited(ctx, domain.FromPG(err), "rendition.update", id)
+	err = domain.FromPGUpdate(err, rev, func() (int32, error) {
+		now, err := s.q.GetRendition(ctx, id)
+		return now.Rendition.Revision, err
+	})
+	return r, access.Audited(ctx, err, "rendition.update", id)
 }
 
 func (s *Service) DeleteRendition(ctx context.Context, id string) error {

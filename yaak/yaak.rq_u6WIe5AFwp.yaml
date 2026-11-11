@@ -9,12 +9,13 @@ authentication: {}
 authenticationType: null
 body:
   query: |
-    mutation($id: ID!, $in: StorageLocationInput!) {
-      updateStorageLocation(id: $id, input: $in) { id name kind baseUri online }
+    mutation($id: ID!, $in: StorageLocationInput!, $rev: Int) {
+      updateStorageLocation(id: $id, input: $in, expectedRevision: $rev) { id revision name kind baseUri online }
     }
   variables: |-
     {
       "id": "${[ location_id ]}",
+      "rev": null,
       "in": {
         "name": "nas-main",
         "kind": "NAS",
@@ -23,7 +24,7 @@ body:
       }
     }
 bodyType: graphql
-description: ''
+description: Replaces all editable fields. Set "rev" to the revision you read to have the update refused with CONFLICT when someone else changed the object since; null overwrites.
 headers:
 - enabled: true
   name: Content-Type

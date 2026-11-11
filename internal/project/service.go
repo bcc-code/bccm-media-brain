@@ -87,7 +87,7 @@ func (s *Service) Programs(ctx context.Context, limit, offset int) ([]sqlc.Progr
 	return s.q.ListPrograms(ctx, sqlc.ListProgramsParams{IsAdmin: p.Admin, Principals: p.IDs(), Limit: l, Offset: o})
 }
 
-func (s *Service) UpdateProgram(ctx context.Context, id string, in ProgramInput) (sqlc.Program, error) {
+func (s *Service) UpdateProgram(ctx context.Context, id string, in ProgramInput, expected *int) (sqlc.Program, error) {
 	if _, err := s.program(ctx, id, access.Edit); err != nil {
 		return sqlc.Program{}, err
 	}
@@ -95,10 +95,18 @@ func (s *Service) UpdateProgram(ctx context.Context, id string, in ProgramInput)
 	if err != nil {
 		return sqlc.Program{}, err
 	}
+	rev, err := domain.ExpectedRevision(expected)
+	if err != nil {
+		return sqlc.Program{}, err
+	}
 	p, err := s.q.UpdateProgram(ctx, sqlc.UpdateProgramParams{
-		ID: id, Name: name, Description: domain.Blank(in.Description), Metadata: meta,
+		ID: id, Name: name, Description: domain.Blank(in.Description), Metadata: meta, ExpectedRevision: rev,
 	})
-	return p, access.Audited(ctx, domain.FromPG(err), "program.update", id)
+	err = domain.FromPGUpdate(err, rev, func() (int32, error) {
+		now, err := s.q.GetProgram(ctx, id)
+		return now.Revision, err
+	})
+	return p, access.Audited(ctx, err, "program.update", id)
 }
 
 func (s *Service) DeleteProgram(ctx context.Context, id string) error {
@@ -204,7 +212,7 @@ func (s *Service) Projects(ctx context.Context, f ProjectFilter, limit, offset i
 	})
 }
 
-func (s *Service) UpdateProject(ctx context.Context, id string, in ProjectInput) (sqlc.Project, error) {
+func (s *Service) UpdateProject(ctx context.Context, id string, in ProjectInput, expected *int) (sqlc.Project, error) {
 	if _, err := s.project(ctx, s.q, id, access.Edit); err != nil {
 		return sqlc.Project{}, err
 	}
@@ -219,10 +227,19 @@ func (s *Service) UpdateProject(ctx context.Context, id string, in ProjectInput)
 	if err := in.checkDates(); err != nil {
 		return sqlc.Project{}, err
 	}
+	rev, err := domain.ExpectedRevision(expected)
+	if err != nil {
+		return sqlc.Project{}, err
+	}
 	p, err := s.q.UpdateProject(ctx, sqlc.UpdateProjectParams{
 		ID: id, Name: name, Status: status, StartsOn: in.StartsOn, EndsOn: in.EndsOn, Metadata: meta,
+		ExpectedRevision: rev,
 	})
-	return p, access.Audited(ctx, domain.FromPG(err), "project.update", id)
+	err = domain.FromPGUpdate(err, rev, func() (int32, error) {
+		now, err := s.q.GetProject(ctx, id)
+		return now.Revision, err
+	})
+	return p, access.Audited(ctx, err, "project.update", id)
 }
 
 // DeleteProject also drops the access its grants gave to the linked assets.

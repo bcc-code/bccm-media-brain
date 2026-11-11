@@ -68,6 +68,7 @@ type ComplexityRoot struct {
 		OriginalLanguage func(childComplexity int) int
 		Projects         func(childComplexity int) int
 		Reel             func(childComplexity int) int
+		Revision         func(childComplexity int) int
 		Title            func(childComplexity int) int
 		Type             func(childComplexity int) int
 		TypeID           func(childComplexity int) int
@@ -98,6 +99,7 @@ type ComplexityRoot struct {
 		Label      func(childComplexity int) int
 		Number     func(childComplexity int) int
 		Renditions func(childComplexity int) int
+		Revision   func(childComplexity int) int
 		Status     func(childComplexity int) int
 	}
 
@@ -188,12 +190,12 @@ type ComplexityRoot struct {
 		SetServiceAccountActive func(childComplexity int, serviceAccount string, active bool) int
 		SetUserAdmin            func(childComplexity int, user string, admin bool) int
 		UnlinkAssetFromProject  func(childComplexity int, assetID string, projectID string, role sqlc.LinkRole) int
-		UpdateAsset             func(childComplexity int, id string, input asset.Input) int
-		UpdateAssetVersion      func(childComplexity int, id string, input asset.VersionInput) int
-		UpdateProgram           func(childComplexity int, id string, input project.ProgramInput) int
-		UpdateProject           func(childComplexity int, id string, input project.ProjectInput) int
-		UpdateRendition         func(childComplexity int, id string, input asset.RenditionInput) int
-		UpdateStorageLocation   func(childComplexity int, id string, input file.LocationInput) int
+		UpdateAsset             func(childComplexity int, id string, input asset.Input, expectedRevision *int) int
+		UpdateAssetVersion      func(childComplexity int, id string, input asset.VersionInput, expectedRevision *int) int
+		UpdateProgram           func(childComplexity int, id string, input project.ProgramInput, expectedRevision *int) int
+		UpdateProject           func(childComplexity int, id string, input project.ProjectInput, expectedRevision *int) int
+		UpdateRendition         func(childComplexity int, id string, input asset.RenditionInput, expectedRevision *int) int
+		UpdateStorageLocation   func(childComplexity int, id string, input file.LocationInput, expectedRevision *int) int
 	}
 
 	NewServiceToken struct {
@@ -209,6 +211,7 @@ type ComplexityRoot struct {
 		Metadata    func(childComplexity int) int
 		Name        func(childComplexity int) int
 		Projects    func(childComplexity int, limit *int, offset *int) int
+		Revision    func(childComplexity int) int
 		UpdatedAt   func(childComplexity int) int
 	}
 
@@ -221,6 +224,7 @@ type ComplexityRoot struct {
 		Name      func(childComplexity int) int
 		Program   func(childComplexity int) int
 		ProgramID func(childComplexity int) int
+		Revision  func(childComplexity int) int
 		StartsOn  func(childComplexity int) int
 		Status    func(childComplexity int) int
 		UpdatedAt func(childComplexity int) int
@@ -261,6 +265,7 @@ type ComplexityRoot struct {
 		Metadata       func(childComplexity int) int
 		Overrides      func(childComplexity int) int
 		Purpose        func(childComplexity int) int
+		Revision       func(childComplexity int) int
 		SubtitleTracks func(childComplexity int, history bool) int
 		VersionID      func(childComplexity int) int
 	}
@@ -291,6 +296,7 @@ type ComplexityRoot struct {
 		Kind      func(childComplexity int) int
 		Name      func(childComplexity int) int
 		Online    func(childComplexity int) int
+		Revision  func(childComplexity int) int
 	}
 
 	SubtitleCue struct {
@@ -371,20 +377,20 @@ type MutationResolver interface {
 	CreateServiceToken(ctx context.Context, input access.ServiceTokenInput) (*access.NewServiceToken, error)
 	RevokeServiceToken(ctx context.Context, id string) (*sqlc.ServiceToken, error)
 	CreateAsset(ctx context.Context, projectID *string, input asset.Input) (*sqlc.Asset, error)
-	UpdateAsset(ctx context.Context, id string, input asset.Input) (*sqlc.Asset, error)
+	UpdateAsset(ctx context.Context, id string, input asset.Input, expectedRevision *int) (*sqlc.Asset, error)
 	DeleteAsset(ctx context.Context, id string) (bool, error)
 	LinkAssetToProject(ctx context.Context, assetID string, projectID string, role sqlc.LinkRole) (*sqlc.AssetProject, error)
 	UnlinkAssetFromProject(ctx context.Context, assetID string, projectID string, role sqlc.LinkRole) (bool, error)
 	CreateAssetVersion(ctx context.Context, assetID string, input asset.VersionInput) (*sqlc.AssetVersion, error)
-	UpdateAssetVersion(ctx context.Context, id string, input asset.VersionInput) (*sqlc.AssetVersion, error)
+	UpdateAssetVersion(ctx context.Context, id string, input asset.VersionInput, expectedRevision *int) (*sqlc.AssetVersion, error)
 	DeleteAssetVersion(ctx context.Context, id string) (bool, error)
 	CreateRendition(ctx context.Context, versionID string, input asset.RenditionInput) (*sqlc.Rendition, error)
-	UpdateRendition(ctx context.Context, id string, input asset.RenditionInput) (*sqlc.Rendition, error)
+	UpdateRendition(ctx context.Context, id string, input asset.RenditionInput, expectedRevision *int) (*sqlc.Rendition, error)
 	DeleteRendition(ctx context.Context, id string) (bool, error)
 	AttachFile(ctx context.Context, renditionID string, fileID string, role sqlc.FileRole, position int) (*sqlc.RenditionFile, error)
 	DetachFile(ctx context.Context, renditionID string, fileID string, role sqlc.FileRole) (bool, error)
 	CreateStorageLocation(ctx context.Context, input file.LocationInput) (*sqlc.StorageLocation, error)
-	UpdateStorageLocation(ctx context.Context, id string, input file.LocationInput) (*sqlc.StorageLocation, error)
+	UpdateStorageLocation(ctx context.Context, id string, input file.LocationInput, expectedRevision *int) (*sqlc.StorageLocation, error)
 	DeleteStorageLocation(ctx context.Context, id string) (bool, error)
 	RegisterFile(ctx context.Context, input file.RegisterInput) (*sqlc.File, error)
 	AddFileCopy(ctx context.Context, fileID string, copy file.CopyInput) (*sqlc.FileCopy, error)
@@ -392,10 +398,10 @@ type MutationResolver interface {
 	RemoveFileCopy(ctx context.Context, id string) (bool, error)
 	DeleteFile(ctx context.Context, id string) (bool, error)
 	CreateProgram(ctx context.Context, input project.ProgramInput) (*sqlc.Program, error)
-	UpdateProgram(ctx context.Context, id string, input project.ProgramInput) (*sqlc.Program, error)
+	UpdateProgram(ctx context.Context, id string, input project.ProgramInput, expectedRevision *int) (*sqlc.Program, error)
 	DeleteProgram(ctx context.Context, id string) (bool, error)
 	CreateProject(ctx context.Context, input project.ProjectInput) (*sqlc.Project, error)
-	UpdateProject(ctx context.Context, id string, input project.ProjectInput) (*sqlc.Project, error)
+	UpdateProject(ctx context.Context, id string, input project.ProjectInput, expectedRevision *int) (*sqlc.Project, error)
 	DeleteProject(ctx context.Context, id string) (bool, error)
 	ImportSubtitles(ctx context.Context, input subtitle.ImportInput) (*sqlc.SubtitleTrack, error)
 	EditSubtitles(ctx context.Context, trackID string, cues []*subtitle.Cue) (*sqlc.SubtitleTrack, error)
@@ -530,6 +536,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Asset.Reel(childComplexity), true
+	case "Asset.revision":
+		if e.ComplexityRoot.Asset.Revision == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Asset.Revision(childComplexity), true
 	case "Asset.title":
 		if e.ComplexityRoot.Asset.Title == nil {
 			break
@@ -664,6 +676,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.AssetVersion.Renditions(childComplexity), true
+	case "AssetVersion.revision":
+		if e.ComplexityRoot.AssetVersion.Revision == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AssetVersion.Revision(childComplexity), true
 	case "AssetVersion.status":
 		if e.ComplexityRoot.AssetVersion.Status == nil {
 			break
@@ -1277,7 +1295,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.UpdateAsset(childComplexity, args["id"].(string), args["input"].(asset.Input)), true
+		return e.ComplexityRoot.Mutation.UpdateAsset(childComplexity, args["id"].(string), args["input"].(asset.Input), args["expectedRevision"].(*int)), true
 	case "Mutation.updateAssetVersion":
 		if e.ComplexityRoot.Mutation.UpdateAssetVersion == nil {
 			break
@@ -1288,7 +1306,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.UpdateAssetVersion(childComplexity, args["id"].(string), args["input"].(asset.VersionInput)), true
+		return e.ComplexityRoot.Mutation.UpdateAssetVersion(childComplexity, args["id"].(string), args["input"].(asset.VersionInput), args["expectedRevision"].(*int)), true
 	case "Mutation.updateProgram":
 		if e.ComplexityRoot.Mutation.UpdateProgram == nil {
 			break
@@ -1299,7 +1317,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.UpdateProgram(childComplexity, args["id"].(string), args["input"].(project.ProgramInput)), true
+		return e.ComplexityRoot.Mutation.UpdateProgram(childComplexity, args["id"].(string), args["input"].(project.ProgramInput), args["expectedRevision"].(*int)), true
 	case "Mutation.updateProject":
 		if e.ComplexityRoot.Mutation.UpdateProject == nil {
 			break
@@ -1310,7 +1328,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.UpdateProject(childComplexity, args["id"].(string), args["input"].(project.ProjectInput)), true
+		return e.ComplexityRoot.Mutation.UpdateProject(childComplexity, args["id"].(string), args["input"].(project.ProjectInput), args["expectedRevision"].(*int)), true
 	case "Mutation.updateRendition":
 		if e.ComplexityRoot.Mutation.UpdateRendition == nil {
 			break
@@ -1321,7 +1339,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.UpdateRendition(childComplexity, args["id"].(string), args["input"].(asset.RenditionInput)), true
+		return e.ComplexityRoot.Mutation.UpdateRendition(childComplexity, args["id"].(string), args["input"].(asset.RenditionInput), args["expectedRevision"].(*int)), true
 	case "Mutation.updateStorageLocation":
 		if e.ComplexityRoot.Mutation.UpdateStorageLocation == nil {
 			break
@@ -1332,7 +1350,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.UpdateStorageLocation(childComplexity, args["id"].(string), args["input"].(file.LocationInput)), true
+		return e.ComplexityRoot.Mutation.UpdateStorageLocation(childComplexity, args["id"].(string), args["input"].(file.LocationInput), args["expectedRevision"].(*int)), true
 
 	case "NewServiceToken.serviceToken":
 		if e.ComplexityRoot.NewServiceToken.ServiceToken == nil {
@@ -1394,6 +1412,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Program.Projects(childComplexity, args["limit"].(*int), args["offset"].(*int)), true
+	case "Program.revision":
+		if e.ComplexityRoot.Program.Revision == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Program.Revision(childComplexity), true
 	case "Program.updatedAt":
 		if e.ComplexityRoot.Program.UpdatedAt == nil {
 			break
@@ -1449,6 +1473,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Project.ProgramID(childComplexity), true
+	case "Project.revision":
+		if e.ComplexityRoot.Project.Revision == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Project.Revision(childComplexity), true
 	case "Project.startsOn":
 		if e.ComplexityRoot.Project.StartsOn == nil {
 			break
@@ -1741,6 +1771,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Rendition.Purpose(childComplexity), true
+	case "Rendition.revision":
+		if e.ComplexityRoot.Rendition.Revision == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Rendition.Revision(childComplexity), true
 	case "Rendition.subtitleTracks":
 		if e.ComplexityRoot.Rendition.SubtitleTracks == nil {
 			break
@@ -1875,6 +1911,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.StorageLocation.Online(childComplexity), true
+	case "StorageLocation.revision":
+		if e.ComplexityRoot.StorageLocation.Revision == nil {
+			break
+		}
+
+		return e.ComplexityRoot.StorageLocation.Revision(childComplexity), true
 
 	case "SubtitleCue.endMs":
 		if e.ComplexityRoot.SubtitleCue.EndMs == nil {
@@ -2368,6 +2410,8 @@ type Language {
 "The logical item, for example one camera clip or one finished programme."
 type Asset {
   id: ID!
+  "Counts the edits of this object's own fields, starting at 1. Send it back as expectedRevision when updating."
+  revision: Int!
   typeId: Int!
   title: String!
   description: String
@@ -2401,6 +2445,8 @@ type AssetProjectLink {
 "One edit of an asset: rough cut, review 1, final."
 type AssetVersion {
   id: ID!
+  "Counts the edits of this object's own fields, starting at 1. Send it back as expectedRevision when updating."
+  revision: Int!
   assetId: ID!
   number: Int!
   label: String
@@ -2413,6 +2459,8 @@ type AssetVersion {
 "One concrete form of a version: master, encode, dub, subtitles."
 type Rendition {
   id: ID!
+  "Counts the edits of this object's own fields, starting at 1. Send it back as expectedRevision when updating."
+  revision: Int!
   versionId: ID!
   kind: RenditionKind!
   language: String
@@ -2486,18 +2534,35 @@ extend type Query {
 extend type Mutation {
   "Needs EDIT on the project. Only administrators may leave projectId out."
   createAsset(projectId: ID, input: AssetInput!): Asset!
-  "Replaces all editable fields."
-  updateAsset(id: ID!, input: AssetInput!): Asset!
+  """
+  Replaces all editable fields: an optional field left out of the input is cleared.
+  With expectedRevision the update is refused with CONFLICT when the object is no longer at
+  that revision, so an edit cannot silently overwrite someone else's. Without it the last
+  write wins; clients that edit interactively should always send it.
+  """
+  updateAsset(id: ID!, input: AssetInput!, expectedRevision: Int): Asset!
   "Removes the asset with its versions, renditions and subtitles. Files stay."
   deleteAsset(id: ID!): Boolean!
   "Needs EDIT on both the asset and the project."
   linkAssetToProject(assetId: ID!, projectId: ID!, role: LinkRole!): AssetProjectLink!
   unlinkAssetFromProject(assetId: ID!, projectId: ID!, role: LinkRole!): Boolean!
   createAssetVersion(assetId: ID!, input: VersionInput!): AssetVersion!
-  updateAssetVersion(id: ID!, input: VersionInput!): AssetVersion!
+  """
+  Replaces all editable fields: an optional field left out of the input is cleared, and a status left out becomes DRAFT.
+  With expectedRevision the update is refused with CONFLICT when the object is no longer at
+  that revision, so an edit cannot silently overwrite someone else's. Without it the last
+  write wins; clients that edit interactively should always send it.
+  """
+  updateAssetVersion(id: ID!, input: VersionInput!, expectedRevision: Int): AssetVersion!
   deleteAssetVersion(id: ID!): Boolean!
   createRendition(versionId: ID!, input: CreateRenditionInput!): Rendition!
-  updateRendition(id: ID!, input: UpdateRenditionInput!): Rendition!
+  """
+  Replaces all editable fields: an optional field left out of the input is cleared.
+  With expectedRevision the update is refused with CONFLICT when the object is no longer at
+  that revision, so an edit cannot silently overwrite someone else's. Without it the last
+  write wins; clients that edit interactively should always send it.
+  """
+  updateRendition(id: ID!, input: UpdateRenditionInput!, expectedRevision: Int): Rendition!
   deleteRendition(id: ID!): Boolean!
   "Needs EDIT on the rendition's asset and DOWNLOAD_ORIGINAL on the file: attaching shows where the file is stored to everyone who may download the asset."
   attachFile(renditionId: ID!, fileId: ID!, role: FileRole!, position: Int! = 0): RenditionFile!
@@ -2528,6 +2593,8 @@ enum CopyStatus {
 
 type StorageLocation {
   id: ID!
+  "Counts the edits of this object's own fields, starting at 1. Send it back as expectedRevision when updating."
+  revision: Int!
   name: String!
   kind: LocationKind!
   baseUri: String!
@@ -2615,7 +2682,13 @@ extend type Query {
 # All file and storage mutations are for administrators only.
 extend type Mutation {
   createStorageLocation(input: StorageLocationInput!): StorageLocation!
-  updateStorageLocation(id: ID!, input: StorageLocationInput!): StorageLocation!
+  """
+  Replaces all editable fields: an optional field left out of the input is cleared.
+  With expectedRevision the update is refused with CONFLICT when the object is no longer at
+  that revision, so an edit cannot silently overwrite someone else's. Without it the last
+  write wins; clients that edit interactively should always send it.
+  """
+  updateStorageLocation(id: ID!, input: StorageLocationInput!, expectedRevision: Int): StorageLocation!
   deleteStorageLocation(id: ID!): Boolean!
   "Returns the existing file when one of the hashes is already known, adding new hashes and copies to it."
   registerFile(input: RegisterFileInput!): File!
@@ -2635,6 +2708,8 @@ extend type Mutation {
 
 type Program {
   id: ID!
+  "Counts the edits of this object's own fields, starting at 1. Send it back as expectedRevision when updating."
+  revision: Int!
   code: String!
   name: String!
   description: String
@@ -2647,6 +2722,8 @@ type Program {
 
 type Project {
   id: ID!
+  "Counts the edits of this object's own fields, starting at 1. Send it back as expectedRevision when updating."
+  revision: Int!
   programId: ID!
   code: String!
   name: String!
@@ -2702,14 +2779,24 @@ extend type Query {
 extend type Mutation {
   "Administrators only."
   createProgram(input: CreateProgramInput!): Program!
-  "Replaces all editable fields."
-  updateProgram(id: ID!, input: UpdateProgramInput!): Program!
+  """
+  Replaces all editable fields: an optional field left out of the input is cleared.
+  With expectedRevision the update is refused with CONFLICT when the object is no longer at
+  that revision, so an edit cannot silently overwrite someone else's. Without it the last
+  write wins; clients that edit interactively should always send it.
+  """
+  updateProgram(id: ID!, input: UpdateProgramInput!, expectedRevision: Int): Program!
   "Administrators only. Fails while the program has projects."
   deleteProgram(id: ID!): Boolean!
   "Needs EDIT on the program."
   createProject(input: CreateProjectInput!): Project!
-  "Replaces all editable fields."
-  updateProject(id: ID!, input: UpdateProjectInput!): Project!
+  """
+  Replaces all editable fields: an optional field left out of the input is cleared, and a status left out becomes PLANNED.
+  With expectedRevision the update is refused with CONFLICT when the object is no longer at
+  that revision, so an edit cannot silently overwrite someone else's. Without it the last
+  write wins; clients that edit interactively should always send it.
+  """
+  updateProject(id: ID!, input: UpdateProjectInput!, expectedRevision: Int): Project!
   deleteProject(id: ID!): Boolean!
 }
 `, BuiltIn: false},
@@ -2838,6 +2925,8 @@ func (ec *executionContext) childFields_Asset(ctx context.Context, field graphql
 	switch field.Name {
 	case "id":
 		return ec.fieldContext_Asset_id(ctx, field)
+	case "revision":
+		return ec.fieldContext_Asset_revision(ctx, field)
 	case "typeId":
 		return ec.fieldContext_Asset_typeId(ctx, field)
 	case "title":
@@ -2906,6 +2995,8 @@ func (ec *executionContext) childFields_AssetVersion(ctx context.Context, field 
 	switch field.Name {
 	case "id":
 		return ec.fieldContext_AssetVersion_id(ctx, field)
+	case "revision":
+		return ec.fieldContext_AssetVersion_revision(ctx, field)
 	case "assetId":
 		return ec.fieldContext_AssetVersion_assetId(ctx, field)
 	case "number":
@@ -3044,6 +3135,8 @@ func (ec *executionContext) childFields_Program(ctx context.Context, field graph
 	switch field.Name {
 	case "id":
 		return ec.fieldContext_Program_id(ctx, field)
+	case "revision":
+		return ec.fieldContext_Program_revision(ctx, field)
 	case "code":
 		return ec.fieldContext_Program_code(ctx, field)
 	case "name":
@@ -3066,6 +3159,8 @@ func (ec *executionContext) childFields_Project(ctx context.Context, field graph
 	switch field.Name {
 	case "id":
 		return ec.fieldContext_Project_id(ctx, field)
+	case "revision":
+		return ec.fieldContext_Project_revision(ctx, field)
 	case "programId":
 		return ec.fieldContext_Project_programId(ctx, field)
 	case "code":
@@ -3094,6 +3189,8 @@ func (ec *executionContext) childFields_Rendition(ctx context.Context, field gra
 	switch field.Name {
 	case "id":
 		return ec.fieldContext_Rendition_id(ctx, field)
+	case "revision":
+		return ec.fieldContext_Rendition_revision(ctx, field)
 	case "versionId":
 		return ec.fieldContext_Rendition_versionId(ctx, field)
 	case "kind":
@@ -3158,6 +3255,8 @@ func (ec *executionContext) childFields_StorageLocation(ctx context.Context, fie
 	switch field.Name {
 	case "id":
 		return ec.fieldContext_StorageLocation_id(ctx, field)
+	case "revision":
+		return ec.fieldContext_StorageLocation_revision(ctx, field)
 	case "name":
 		return ec.fieldContext_StorageLocation_name(ctx, field)
 	case "kind":
@@ -4011,6 +4110,14 @@ func (ec *executionContext) field_Mutation_updateAssetVersion_args(ctx context.C
 		return nil, err
 	}
 	args["input"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "expectedRevision",
+		func(ctx context.Context, v any) (*int, error) {
+			return ec.unmarshalOInt2ᚖint(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["expectedRevision"] = arg2
 	return args, nil
 }
 
@@ -4033,6 +4140,14 @@ func (ec *executionContext) field_Mutation_updateAsset_args(ctx context.Context,
 		return nil, err
 	}
 	args["input"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "expectedRevision",
+		func(ctx context.Context, v any) (*int, error) {
+			return ec.unmarshalOInt2ᚖint(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["expectedRevision"] = arg2
 	return args, nil
 }
 
@@ -4055,6 +4170,14 @@ func (ec *executionContext) field_Mutation_updateProgram_args(ctx context.Contex
 		return nil, err
 	}
 	args["input"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "expectedRevision",
+		func(ctx context.Context, v any) (*int, error) {
+			return ec.unmarshalOInt2ᚖint(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["expectedRevision"] = arg2
 	return args, nil
 }
 
@@ -4077,6 +4200,14 @@ func (ec *executionContext) field_Mutation_updateProject_args(ctx context.Contex
 		return nil, err
 	}
 	args["input"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "expectedRevision",
+		func(ctx context.Context, v any) (*int, error) {
+			return ec.unmarshalOInt2ᚖint(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["expectedRevision"] = arg2
 	return args, nil
 }
 
@@ -4099,6 +4230,14 @@ func (ec *executionContext) field_Mutation_updateRendition_args(ctx context.Cont
 		return nil, err
 	}
 	args["input"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "expectedRevision",
+		func(ctx context.Context, v any) (*int, error) {
+			return ec.unmarshalOInt2ᚖint(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["expectedRevision"] = arg2
 	return args, nil
 }
 
@@ -4121,6 +4260,14 @@ func (ec *executionContext) field_Mutation_updateStorageLocation_args(ctx contex
 		return nil, err
 	}
 	args["input"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "expectedRevision",
+		func(ctx context.Context, v any) (*int, error) {
+			return ec.unmarshalOInt2ᚖint(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["expectedRevision"] = arg2
 	return args, nil
 }
 
@@ -4623,6 +4770,29 @@ func (ec *executionContext) _Asset_id(ctx context.Context, field graphql.Collect
 }
 func (ec *executionContext) fieldContext_Asset_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("Asset", field, false, false, "ID")
+}
+
+func (ec *executionContext) _Asset_revision(ctx context.Context, field graphql.CollectedField, obj *sqlc.Asset) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Asset_revision(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Revision, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Asset_revision(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Asset", field, false, false, "Int")
 }
 
 func (ec *executionContext) _Asset_typeId(ctx context.Context, field graphql.CollectedField, obj *sqlc.Asset) (ret graphql.Marshaler) {
@@ -5246,6 +5416,29 @@ func (ec *executionContext) _AssetVersion_id(ctx context.Context, field graphql.
 }
 func (ec *executionContext) fieldContext_AssetVersion_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("AssetVersion", field, false, false, "ID")
+}
+
+func (ec *executionContext) _AssetVersion_revision(ctx context.Context, field graphql.CollectedField, obj *sqlc.AssetVersion) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AssetVersion_revision(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Revision, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AssetVersion_revision(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AssetVersion", field, false, false, "Int")
 }
 
 func (ec *executionContext) _AssetVersion_assetId(ctx context.Context, field graphql.CollectedField, obj *sqlc.AssetVersion) (ret graphql.Marshaler) {
@@ -6681,7 +6874,7 @@ func (ec *executionContext) _Mutation_updateAsset(ctx context.Context, field gra
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().UpdateAsset(ctx, fc.Args["id"].(string), fc.Args["input"].(asset.Input))
+			return ec.Resolvers.Mutation().UpdateAsset(ctx, fc.Args["id"].(string), fc.Args["input"].(asset.Input), fc.Args["expectedRevision"].(*int))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *sqlc.Asset) graphql.Marshaler {
@@ -6901,7 +7094,7 @@ func (ec *executionContext) _Mutation_updateAssetVersion(ctx context.Context, fi
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().UpdateAssetVersion(ctx, fc.Args["id"].(string), fc.Args["input"].(asset.VersionInput))
+			return ec.Resolvers.Mutation().UpdateAssetVersion(ctx, fc.Args["id"].(string), fc.Args["input"].(asset.VersionInput), fc.Args["expectedRevision"].(*int))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *sqlc.AssetVersion) graphql.Marshaler {
@@ -7033,7 +7226,7 @@ func (ec *executionContext) _Mutation_updateRendition(ctx context.Context, field
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().UpdateRendition(ctx, fc.Args["id"].(string), fc.Args["input"].(asset.RenditionInput))
+			return ec.Resolvers.Mutation().UpdateRendition(ctx, fc.Args["id"].(string), fc.Args["input"].(asset.RenditionInput), fc.Args["expectedRevision"].(*int))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *sqlc.Rendition) graphql.Marshaler {
@@ -7253,7 +7446,7 @@ func (ec *executionContext) _Mutation_updateStorageLocation(ctx context.Context,
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().UpdateStorageLocation(ctx, fc.Args["id"].(string), fc.Args["input"].(file.LocationInput))
+			return ec.Resolvers.Mutation().UpdateStorageLocation(ctx, fc.Args["id"].(string), fc.Args["input"].(file.LocationInput), fc.Args["expectedRevision"].(*int))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *sqlc.StorageLocation) graphql.Marshaler {
@@ -7605,7 +7798,7 @@ func (ec *executionContext) _Mutation_updateProgram(ctx context.Context, field g
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().UpdateProgram(ctx, fc.Args["id"].(string), fc.Args["input"].(project.ProgramInput))
+			return ec.Resolvers.Mutation().UpdateProgram(ctx, fc.Args["id"].(string), fc.Args["input"].(project.ProgramInput), fc.Args["expectedRevision"].(*int))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *sqlc.Program) graphql.Marshaler {
@@ -7737,7 +7930,7 @@ func (ec *executionContext) _Mutation_updateProject(ctx context.Context, field g
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().UpdateProject(ctx, fc.Args["id"].(string), fc.Args["input"].(project.ProjectInput))
+			return ec.Resolvers.Mutation().UpdateProject(ctx, fc.Args["id"].(string), fc.Args["input"].(project.ProjectInput), fc.Args["expectedRevision"].(*int))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *sqlc.Project) graphql.Marshaler {
@@ -8113,6 +8306,29 @@ func (ec *executionContext) fieldContext_Program_id(_ context.Context, field gra
 	return graphql.NewScalarFieldContext("Program", field, false, false, "ID")
 }
 
+func (ec *executionContext) _Program_revision(ctx context.Context, field graphql.CollectedField, obj *sqlc.Program) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Program_revision(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Revision, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Program_revision(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Program", field, false, false, "Int")
+}
+
 func (ec *executionContext) _Program_code(ctx context.Context, field graphql.CollectedField, obj *sqlc.Program) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -8316,6 +8532,29 @@ func (ec *executionContext) _Project_id(ctx context.Context, field graphql.Colle
 }
 func (ec *executionContext) fieldContext_Project_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("Project", field, false, false, "ID")
+}
+
+func (ec *executionContext) _Project_revision(ctx context.Context, field graphql.CollectedField, obj *sqlc.Project) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Project_revision(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Revision, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Project_revision(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Project", field, false, false, "Int")
 }
 
 func (ec *executionContext) _Project_programId(ctx context.Context, field graphql.CollectedField, obj *sqlc.Project) (ret graphql.Marshaler) {
@@ -9587,6 +9826,29 @@ func (ec *executionContext) fieldContext_Rendition_id(_ context.Context, field g
 	return graphql.NewScalarFieldContext("Rendition", field, false, false, "ID")
 }
 
+func (ec *executionContext) _Rendition_revision(ctx context.Context, field graphql.CollectedField, obj *sqlc.Rendition) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Rendition_revision(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Revision, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Rendition_revision(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Rendition", field, false, false, "Int")
+}
+
 func (ec *executionContext) _Rendition_versionId(ctx context.Context, field graphql.CollectedField, obj *sqlc.Rendition) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -10153,6 +10415,29 @@ func (ec *executionContext) _StorageLocation_id(ctx context.Context, field graph
 }
 func (ec *executionContext) fieldContext_StorageLocation_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("StorageLocation", field, false, false, "ID")
+}
+
+func (ec *executionContext) _StorageLocation_revision(ctx context.Context, field graphql.CollectedField, obj *sqlc.StorageLocation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_StorageLocation_revision(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Revision, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_StorageLocation_revision(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("StorageLocation", field, false, false, "Int")
 }
 
 func (ec *executionContext) _StorageLocation_name(ctx context.Context, field graphql.CollectedField, obj *sqlc.StorageLocation) (ret graphql.Marshaler) {
@@ -13367,6 +13652,11 @@ func (ec *executionContext) _Asset(ctx context.Context, sel ast.SelectionSet, ob
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
+		case "revision":
+			out.Values[i] = ec._Asset_revision(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
 		case "typeId":
 			out.Values[i] = ec._Asset_typeId(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -13578,6 +13868,11 @@ func (ec *executionContext) _AssetVersion(ctx context.Context, sel ast.Selection
 			out.Values[i] = graphql.MarshalString("AssetVersion")
 		case "id":
 			out.Values[i] = ec._AssetVersion_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "revision":
+			out.Values[i] = ec._AssetVersion_revision(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
@@ -14331,6 +14626,11 @@ func (ec *executionContext) _Program(ctx context.Context, sel ast.SelectionSet, 
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
+		case "revision":
+			out.Values[i] = ec._Program_revision(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
 		case "code":
 			out.Values[i] = ec._Program_code(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -14397,6 +14697,11 @@ func (ec *executionContext) _Project(ctx context.Context, sel ast.SelectionSet, 
 			out.Values[i] = graphql.MarshalString("Project")
 		case "id":
 			out.Values[i] = ec._Project_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "revision":
+			out.Values[i] = ec._Project_revision(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
@@ -14672,6 +14977,11 @@ func (ec *executionContext) _Rendition(ctx context.Context, sel ast.SelectionSet
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
+		case "revision":
+			out.Values[i] = ec._Rendition_revision(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
 		case "versionId":
 			out.Values[i] = ec._Rendition_versionId(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -14871,6 +15181,11 @@ func (ec *executionContext) _StorageLocation(ctx context.Context, sel ast.Select
 			out.Values[i] = graphql.MarshalString("StorageLocation")
 		case "id":
 			out.Values[i] = ec._StorageLocation_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "revision":
+			out.Values[i] = ec._StorageLocation_revision(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}

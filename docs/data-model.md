@@ -37,6 +37,13 @@ projects with a role (source, deliverable, reference) and can be in several.
 Why three levels: the same edit exists in many forms (languages, encodes), and a new edit
 replaces all of them together.
 
+**revision** (program, project, asset, asset_version, rendition, storage_location): starts at 1
+and goes up by one with every update of the row's own editable fields, in the same statement.
+Links, grants and children do not move it. An update can name the revision it was based on and
+is refused when the row has moved on ([api.md](api.md)). It has nothing to do with
+`asset_version.number` (which edit of the asset) or a subtitle track's `revision` (which
+rewrite of the cues).
+
 Deleting an asset removes its versions, renditions and subtitles, **never its files**. An asset
 used in a timeline cannot be deleted.
 

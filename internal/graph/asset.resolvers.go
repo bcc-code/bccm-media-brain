@@ -53,8 +53,8 @@ func (r *mutationResolver) CreateAsset(ctx context.Context, projectID *string, i
 }
 
 // UpdateAsset is the resolver for the updateAsset field.
-func (r *mutationResolver) UpdateAsset(ctx context.Context, id string, input asset.Input) (*sqlc.Asset, error) {
-	return one(r.AssetsSvc.Update(ctx, id, input))
+func (r *mutationResolver) UpdateAsset(ctx context.Context, id string, input asset.Input, expectedRevision *int) (*sqlc.Asset, error) {
+	return one(r.AssetsSvc.Update(ctx, id, input, expectedRevision))
 }
 
 // DeleteAsset is the resolver for the deleteAsset field.
@@ -78,8 +78,8 @@ func (r *mutationResolver) CreateAssetVersion(ctx context.Context, assetID strin
 }
 
 // UpdateAssetVersion is the resolver for the updateAssetVersion field.
-func (r *mutationResolver) UpdateAssetVersion(ctx context.Context, id string, input asset.VersionInput) (*sqlc.AssetVersion, error) {
-	return one(r.AssetsSvc.UpdateVersion(ctx, id, input))
+func (r *mutationResolver) UpdateAssetVersion(ctx context.Context, id string, input asset.VersionInput, expectedRevision *int) (*sqlc.AssetVersion, error) {
+	return one(r.AssetsSvc.UpdateVersion(ctx, id, input, expectedRevision))
 }
 
 // DeleteAssetVersion is the resolver for the deleteAssetVersion field.
@@ -93,8 +93,8 @@ func (r *mutationResolver) CreateRendition(ctx context.Context, versionID string
 }
 
 // UpdateRendition is the resolver for the updateRendition field.
-func (r *mutationResolver) UpdateRendition(ctx context.Context, id string, input asset.RenditionInput) (*sqlc.Rendition, error) {
-	return one(r.AssetsSvc.UpdateRendition(ctx, id, input))
+func (r *mutationResolver) UpdateRendition(ctx context.Context, id string, input asset.RenditionInput, expectedRevision *int) (*sqlc.Rendition, error) {
+	return one(r.AssetsSvc.UpdateRendition(ctx, id, input, expectedRevision))
 }
 
 // DeleteRendition is the resolver for the deleteRendition field.

@@ -64,17 +64,25 @@ func (s *Service) CreateLocation(ctx context.Context, in LocationInput) (sqlc.St
 	return l, access.Audited(ctx, domain.FromPG(err), "location.create", l.ID)
 }
 
-func (s *Service) UpdateLocation(ctx context.Context, id string, in LocationInput) (sqlc.StorageLocation, error) {
+func (s *Service) UpdateLocation(ctx context.Context, id string, in LocationInput, expected *int) (sqlc.StorageLocation, error) {
 	if err := access.RequireAdmin(ctx); err != nil {
 		return sqlc.StorageLocation{}, err
 	}
 	if err := in.validate(); err != nil {
 		return sqlc.StorageLocation{}, err
 	}
+	rev, err := domain.ExpectedRevision(expected)
+	if err != nil {
+		return sqlc.StorageLocation{}, err
+	}
 	l, err := s.q.UpdateStorageLocation(ctx, sqlc.UpdateStorageLocationParams{
-		ID: id, Name: in.Name, Kind: in.Kind, BaseUri: in.BaseURI, Online: in.Online,
+		ID: id, Name: in.Name, Kind: in.Kind, BaseUri: in.BaseURI, Online: in.Online, ExpectedRevision: rev,
 	})
-	return l, access.Audited(ctx, domain.FromPG(err), "location.update", id)
+	err = domain.FromPGUpdate(err, rev, func() (int32, error) {
+		now, err := s.q.GetStorageLocation(ctx, id)
+		return now.Revision, err
+	})
+	return l, access.Audited(ctx, err, "location.update", id)
 }
 
 func (s *Service) DeleteLocation(ctx context.Context, id string) error {

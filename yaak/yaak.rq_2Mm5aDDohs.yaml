@@ -9,19 +9,20 @@ authentication: {}
 authenticationType: null
 body:
   query: |
-    mutation($id: ID!, $in: VersionInput!) {
-      updateAssetVersion(id: $id, input: $in) { id number label status }
+    mutation($id: ID!, $in: VersionInput!, $rev: Int) {
+      updateAssetVersion(id: $id, input: $in, expectedRevision: $rev) { id revision number label status }
     }
   variables: |-
     {
       "id": "${[ version_id ]}",
+      "rev": null,
       "in": {
         "label": "Final",
         "status": "FINAL"
       }
     }
 bodyType: graphql
-description: ''
+description: Replaces all editable fields. Set "rev" to the revision you read to have the update refused with CONFLICT when someone else changed the object since; null overwrites.
 headers:
 - enabled: true
   name: Content-Type

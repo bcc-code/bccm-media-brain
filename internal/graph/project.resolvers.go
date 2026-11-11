@@ -19,8 +19,8 @@ func (r *mutationResolver) CreateProgram(ctx context.Context, input project.Prog
 }
 
 // UpdateProgram is the resolver for the updateProgram field.
-func (r *mutationResolver) UpdateProgram(ctx context.Context, id string, input project.ProgramInput) (*sqlc.Program, error) {
-	return one(r.ProjectsSvc.UpdateProgram(ctx, id, input))
+func (r *mutationResolver) UpdateProgram(ctx context.Context, id string, input project.ProgramInput, expectedRevision *int) (*sqlc.Program, error) {
+	return one(r.ProjectsSvc.UpdateProgram(ctx, id, input, expectedRevision))
 }
 
 // DeleteProgram is the resolver for the deleteProgram field.
@@ -34,8 +34,8 @@ func (r *mutationResolver) CreateProject(ctx context.Context, input project.Proj
 }
 
 // UpdateProject is the resolver for the updateProject field.
-func (r *mutationResolver) UpdateProject(ctx context.Context, id string, input project.ProjectInput) (*sqlc.Project, error) {
-	return one(r.ProjectsSvc.UpdateProject(ctx, id, input))
+func (r *mutationResolver) UpdateProject(ctx context.Context, id string, input project.ProjectInput, expectedRevision *int) (*sqlc.Project, error) {
+	return one(r.ProjectsSvc.UpdateProject(ctx, id, input, expectedRevision))
 }
 
 // DeleteProject is the resolver for the deleteProject field.

@@ -639,8 +639,20 @@ func TestAssetAccessExpiryMigration(t *testing.T) {
 		t.Fatalf("the data should have permanent and expiring access, got %d and %d", permanent, expiring)
 	}
 
-	if err := db.MigrateDown(ctx, url); err != nil {
-		t.Fatal(err)
+	// Later migrations come off first: down to the schema before migration 10.
+	for step := 0; ; step++ {
+		var has bool
+		err := p.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM information_schema.columns
+			WHERE table_name = 'asset_access' AND column_name = 'expires_at')`).Scan(&has)
+		if err != nil || step > 20 {
+			t.Fatalf("migration 10 is still applied after %d steps down (%v)", step, err)
+		}
+		if !has {
+			break
+		}
+		if err := db.MigrateDown(ctx, url); err != nil {
+			t.Fatal(err)
+		}
 	}
 	var count, pairs int
 	err = p.QueryRow(ctx, `SELECT count(*), count(DISTINCT (principal_id, asset_id)) FROM asset_access`).Scan(&count, &pairs)

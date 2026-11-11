@@ -13,8 +13,10 @@ SELECT * FROM asset WHERE id = $1;
 
 -- name: UpdateAsset :one
 UPDATE asset SET type_id = $2, title = $3, description = $4, captured_at = $5, camera = $6, reel = $7,
-    metadata = $8, legacy_ids = $9, original_language = $10
-WHERE id = $1 RETURNING *;
+    metadata = $8, legacy_ids = $9, original_language = $10, revision = revision + 1
+WHERE id = $1
+  AND (sqlc.narg('expected_revision')::integer IS NULL OR revision = sqlc.narg('expected_revision'))
+RETURNING *;
 
 -- name: DeleteAsset :execrows
 DELETE FROM asset WHERE id = $1;
@@ -49,7 +51,10 @@ RETURNING *;
 SELECT * FROM asset_version WHERE id = $1;
 
 -- name: UpdateAssetVersion :one
-UPDATE asset_version SET label = $2, status = $3 WHERE id = $1 RETURNING *;
+UPDATE asset_version SET label = $2, status = $3, revision = revision + 1
+WHERE id = $1
+  AND (sqlc.narg('expected_revision')::integer IS NULL OR revision = sqlc.narg('expected_revision'))
+RETURNING *;
 
 -- name: DeleteAssetVersion :execrows
 DELETE FROM asset_version WHERE id = $1;
@@ -64,7 +69,10 @@ SELECT sqlc.embed(r), v.asset_id FROM rendition r
 JOIN asset_version v ON v.id = r.version_id WHERE r.id = $1;
 
 -- name: UpdateRendition :one
-UPDATE rendition SET language = $2, purpose = $3, overrides = $4, metadata = $5 WHERE id = $1 RETURNING *;
+UPDATE rendition SET language = $2, purpose = $3, overrides = $4, metadata = $5, revision = revision + 1
+WHERE id = $1
+  AND (sqlc.narg('expected_revision')::integer IS NULL OR revision = sqlc.narg('expected_revision'))
+RETURNING *;
 
 -- name: DeleteRendition :execrows
 DELETE FROM rendition WHERE id = $1;
@@ -106,7 +114,8 @@ ORDER BY rendition_id, role, position, file_id;
 SELECT * FROM asset WHERE legacy_ids @> ARRAY[@legacy_id::text] ORDER BY id LIMIT 1;
 
 -- name: SetAssetMetadataKey :one
-UPDATE asset SET metadata = jsonb_set(metadata, ARRAY[@key::text], @value::jsonb) WHERE id = @id RETURNING *;
+UPDATE asset SET metadata = jsonb_set(metadata, ARRAY[@key::text], @value::jsonb), revision = revision + 1
+WHERE id = @id RETURNING *;
 
 -- name: LockLegacyID :exec
 -- Serialises imports of the same legacy id until the transaction ends.
