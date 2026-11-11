@@ -95,7 +95,7 @@ func (s *Service) Import(ctx context.Context, in ImportInput) (sqlc.SubtitleTrac
 		_, err = q.AttachFile(ctx, sqlc.AttachFileParams{RenditionID: r.ID, FileID: *in.SourceFileID, Role: sqlc.FileRoleSubtitle})
 		return domain.FromPG(err)
 	})
-	return track, err
+	return track, access.Audited(ctx, err, "subtitle.import", track.ID, "asset", track.AssetID, "revision", track.Revision)
 }
 
 // addRevision stores a track after the rendition's latest one. Two writers racing for the same
@@ -154,7 +154,7 @@ func (s *Service) Edit(ctx context.Context, trackID string, cues []Cue) (sqlc.Su
 		}, cues)
 		return err
 	})
-	return track, err
+	return track, access.Audited(ctx, err, "subtitle.edit", track.ID, "asset", track.AssetID, "revision", track.Revision)
 }
 
 func (s *Service) track(ctx context.Context, q sqlc.Querier, id string, need sqlc.PermissionLevel) (sqlc.SubtitleTrack, error) {
@@ -203,7 +203,7 @@ func (s *Service) Delete(ctx context.Context, id string) error {
 		return err
 	}
 	_, err := s.q.DeleteSubtitleTrack(ctx, id)
-	return domain.FromPGDelete(err)
+	return access.Audited(ctx, domain.FromPGDelete(err), "subtitle.delete", id)
 }
 
 // TracksFor and CuesFor load children for renditions and tracks the caller was already

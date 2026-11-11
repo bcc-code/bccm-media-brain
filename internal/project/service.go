@@ -47,7 +47,7 @@ func (s *Service) CreateProgram(ctx context.Context, in ProgramInput) (sqlc.Prog
 	p, err := s.q.CreateProgram(ctx, sqlc.CreateProgramParams{
 		Code: in.Code, Name: name, Description: domain.Blank(in.Description), Metadata: meta,
 	})
-	return p, domain.FromPG(err)
+	return p, access.Audited(ctx, domain.FromPG(err), "program.create", p.ID, "code", p.Code)
 }
 
 func nameAndMeta(name string, meta json.RawMessage) (string, json.RawMessage, error) {
@@ -98,7 +98,7 @@ func (s *Service) UpdateProgram(ctx context.Context, id string, in ProgramInput)
 	p, err := s.q.UpdateProgram(ctx, sqlc.UpdateProgramParams{
 		ID: id, Name: name, Description: domain.Blank(in.Description), Metadata: meta,
 	})
-	return p, domain.FromPG(err)
+	return p, access.Audited(ctx, domain.FromPG(err), "program.update", id)
 }
 
 func (s *Service) DeleteProgram(ctx context.Context, id string) error {
@@ -112,7 +112,7 @@ func (s *Service) DeleteProgram(ctx context.Context, id string) error {
 	if n == 0 {
 		return domain.ErrNotFound
 	}
-	return nil
+	return access.Audited(ctx, nil, "program.delete", id)
 }
 
 type ProjectInput struct {
@@ -165,7 +165,7 @@ func (s *Service) CreateProject(ctx context.Context, in ProjectInput) (sqlc.Proj
 		ProgramID: prog.ID, Code: in.Code, Name: name, Status: status,
 		StartsOn: in.StartsOn, EndsOn: in.EndsOn, Metadata: meta,
 	})
-	return p, domain.FromPG(err)
+	return p, access.Audited(ctx, domain.FromPG(err), "project.create", p.ID, "program", p.ProgramID, "code", p.Code)
 }
 
 func (s *Service) project(ctx context.Context, q sqlc.Querier, id string, need sqlc.PermissionLevel) (sqlc.Project, error) {
@@ -222,12 +222,12 @@ func (s *Service) UpdateProject(ctx context.Context, id string, in ProjectInput)
 	p, err := s.q.UpdateProject(ctx, sqlc.UpdateProjectParams{
 		ID: id, Name: name, Status: status, StartsOn: in.StartsOn, EndsOn: in.EndsOn, Metadata: meta,
 	})
-	return p, domain.FromPG(err)
+	return p, access.Audited(ctx, domain.FromPG(err), "project.update", id)
 }
 
 // DeleteProject also drops the access its grants gave to the linked assets.
 func (s *Service) DeleteProject(ctx context.Context, id string) error {
-	return s.tx.InTx(ctx, func(q sqlc.Querier) error {
+	err := s.tx.InTx(ctx, func(q sqlc.Querier) error {
 		if _, err := s.project(ctx, q, id, access.Delete); err != nil {
 			return err
 		}
@@ -240,6 +240,7 @@ func (s *Service) DeleteProject(ctx context.Context, id string) error {
 		}
 		return access.Refresh(ctx, q, assets)
 	})
+	return access.Audited(ctx, err, "project.delete", id)
 }
 
 // ProgramsByID loads the programs of projects the caller was already allowed to see.

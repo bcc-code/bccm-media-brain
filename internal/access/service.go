@@ -175,7 +175,7 @@ func (s *Service) SetAdmin(ctx context.Context, ref string, admin bool) (sqlc.Ap
 		return sqlc.AppUser{}, err
 	}
 	u, err = s.q.SetUserAdmin(ctx, sqlc.SetUserAdminParams{ID: u.ID, IsAdmin: admin})
-	return u, domain.FromPG(err)
+	return u, Audited(ctx, domain.FromPG(err), "user.set_admin", u.ID, "admin", admin)
 }
 
 type UserInput struct {
@@ -199,7 +199,7 @@ func (s *Service) CreateUser(ctx context.Context, in UserInput) (sqlc.AppUser, e
 		ExternalID: ext, Email: domain.Blank(&in.Email), Name: domain.Blank(&in.Name),
 		IsAdmin: in.Admin, Active: !in.Inactive,
 	})
-	return u, domain.FromPG(err)
+	return u, Audited(ctx, domain.FromPG(err), "user.create", u.ID, "admin", in.Admin, "active", !in.Inactive)
 }
 
 // CreateGroup adds a local group with the given members.
@@ -224,7 +224,7 @@ func (s *Service) CreateGroup(ctx context.Context, name string, memberIDs []stri
 		}
 		return nil
 	})
-	return g, err
+	return g, Audited(ctx, err, "group.create", g.ID, "name", name, "members", memberIDs)
 }
 
 type GrantInput struct {
@@ -319,12 +319,14 @@ func (s *Service) Grant(ctx context.Context, in GrantInput) (sqlc.PermissionGran
 		}
 		return RefreshScope(ctx, q, in.Scope, in.ScopeID)
 	})
-	return g, err
+	return g, Audited(ctx, err, "grant.create", g.ID, grantAttrs(g)...)
 }
 
 func (s *Service) Revoke(ctx context.Context, grantID string) error {
-	return s.tx.InTx(ctx, func(q sqlc.Querier) error {
-		g, err := q.GetGrant(ctx, grantID)
+	var g sqlc.PermissionGrant
+	err := s.tx.InTx(ctx, func(q sqlc.Querier) error {
+		var err error
+		g, err = q.GetGrant(ctx, grantID)
 		if err != nil {
 			return domain.FromPG(err)
 		}
@@ -336,6 +338,23 @@ func (s *Service) Revoke(ctx context.Context, grantID string) error {
 		}
 		return RefreshScope(ctx, q, g.Scope, g.ScopeID)
 	})
+	return Audited(ctx, err, "grant.revoke", g.ID, grantAttrs(g)...)
+}
+
+// grantAttrs describes a grant in an audit record: on what, to whom, how much and until when.
+func grantAttrs(g sqlc.PermissionGrant) []any {
+	// Not "level": that key is the log record's own severity.
+	attrs := []any{"scope", string(g.Scope), "scope_id", g.ScopeID, "permission", string(g.Level)}
+	if g.UserID != nil {
+		attrs = append(attrs, "to_user", *g.UserID)
+	}
+	if g.GroupID != nil {
+		attrs = append(attrs, "to_group", *g.GroupID)
+	}
+	if g.ExpiresAt != nil {
+		attrs = append(attrs, "expires_at", g.ExpiresAt.UTC())
+	}
+	return attrs
 }
 
 func (s *Service) Grants(ctx context.Context, scope sqlc.GrantScope, id string) ([]sqlc.PermissionGrant, error) {

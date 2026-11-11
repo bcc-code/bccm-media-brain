@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"log/slog"
 	"net/http"
 	"path/filepath"
 	"regexp"
@@ -282,23 +281,22 @@ func TestSignInCannotBecomeAServiceAccount(t *testing.T) {
 }
 
 func TestAuditLogNamesTheServiceToken(t *testing.T) {
-	var buf bytes.Buffer
-	old := slog.Default()
-	slog.SetDefault(slog.New(slog.NewJSONHandler(&buf, nil)))
-	defer slog.SetDefault(old)
-
+	w := newWorld(t, 35)
+	lines := auditLog(t)
 	as := access.Principal{UserID: "US-00000000000000000000000000", Admin: true, Service: true, TokenID: "TK-00000000000000000000000001"}
 	if r, _ := exec(t, as, 0, createServiceAccount, map[string]any{"in": map[string]any{"name": "x"}}); len(r.Errors) != 1 {
 		t.Fatalf("expected a refusal, got %+v", r.Errors)
 	}
-	lines := strings.Split(strings.TrimSpace(buf.String()), "\n")
-	if len(lines) != 2 {
-		t.Fatalf("audit log = %q", buf.String())
+	if r, _ := exec(t, as, 0, updateAsset, map[string]any{"id": w.c1.asset, "in": map[string]any{"typeId": 1, "title": "x"}}); len(r.Errors) != 0 {
+		t.Fatalf("update: %+v", r.Errors)
 	}
-	for _, line := range lines {
-		var e struct{ Msg, User, Token string }
-		if err := json.Unmarshal([]byte(line), &e); err != nil || !strings.HasPrefix(e.Msg, "audit: ") || e.User != as.UserID || e.Token != as.TokenID {
-			t.Fatalf("log line %q: %v", line, err)
+	got := lines()
+	if len(got) != 2 || got[0]["msg"] != "audit: denied" || got[1]["msg"] != "audit: change" {
+		t.Fatalf("audit log = %v, want a refusal and a change", got)
+	}
+	for _, e := range got {
+		if e["user"] != as.UserID || e["token"] != as.TokenID {
+			t.Fatalf("audit line %v does not name the account and its token", e)
 		}
 	}
 }

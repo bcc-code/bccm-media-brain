@@ -86,7 +86,14 @@ func (s *Service) Create(ctx context.Context, in Input, projectID *string) (sqlc
 		}
 		return access.Refresh(ctx, q, []string{a.ID})
 	})
-	return a, err
+	return a, access.Audited(ctx, err, "asset.create", a.ID, projectAttr(projectID)...)
+}
+
+func projectAttr(projectID *string) []any {
+	if projectID == nil {
+		return nil
+	}
+	return []any{"project", *projectID}
 }
 
 func requireProject(ctx context.Context, q sqlc.Querier, projectID string) error {
@@ -143,7 +150,7 @@ func (s *Service) Update(ctx context.Context, id string, in Input) (sqlc.Asset, 
 		CapturedAt: in.CapturedAt, Camera: domain.Blank(in.Camera), Reel: domain.Blank(in.Reel),
 		Metadata: in.Metadata, LegacyIds: in.LegacyIDs, OriginalLanguage: domain.Blank(in.OriginalLanguage),
 	})
-	return a, domain.FromPG(err)
+	return a, access.Audited(ctx, domain.FromPG(err), "asset.update", id)
 }
 
 // Delete removes the asset with its versions, renditions and subtitles. Files stay.
@@ -152,7 +159,7 @@ func (s *Service) Delete(ctx context.Context, id string) error {
 		return err
 	}
 	_, err := s.q.DeleteAsset(ctx, id)
-	return domain.FromPGDelete(err)
+	return access.Audited(ctx, domain.FromPGDelete(err), "asset.delete", id)
 }
 
 func (s *Service) Link(ctx context.Context, assetID, projectID string, role sqlc.LinkRole) (sqlc.AssetProject, error) {
@@ -176,11 +183,11 @@ func (s *Service) Link(ctx context.Context, assetID, projectID string, role sqlc
 		}
 		return access.Refresh(ctx, q, []string{assetID})
 	})
-	return link, err
+	return link, access.Audited(ctx, err, "asset.link", assetID, "project", projectID, "role", string(role))
 }
 
 func (s *Service) Unlink(ctx context.Context, assetID, projectID string, role sqlc.LinkRole) error {
-	return s.tx.InTx(ctx, func(q sqlc.Querier) error {
+	err := s.tx.InTx(ctx, func(q sqlc.Querier) error {
 		if _, err := s.asset(ctx, q, assetID, access.Edit); err != nil {
 			return err
 		}
@@ -193,6 +200,7 @@ func (s *Service) Unlink(ctx context.Context, assetID, projectID string, role sq
 		}
 		return access.Refresh(ctx, q, []string{assetID})
 	})
+	return access.Audited(ctx, err, "asset.unlink", assetID, "project", projectID, "role", string(role))
 }
 
 type VersionInput struct {
@@ -225,7 +233,7 @@ func (s *Service) CreateVersion(ctx context.Context, assetID string, in VersionI
 	v, err := s.q.CreateAssetVersion(ctx, sqlc.CreateAssetVersionParams{
 		AssetID: assetID, Label: domain.Blank(in.Label), Status: status, CreatedBy: p.UserRef(),
 	})
-	return v, domain.FromPG(err)
+	return v, access.Audited(ctx, domain.FromPG(err), "version.create", v.ID, "asset", assetID)
 }
 
 func (s *Service) version(ctx context.Context, id string, need sqlc.PermissionLevel) (sqlc.AssetVersion, error) {
@@ -249,7 +257,7 @@ func (s *Service) UpdateVersion(ctx context.Context, id string, in VersionInput)
 		return sqlc.AssetVersion{}, err
 	}
 	v, err := s.q.UpdateAssetVersion(ctx, sqlc.UpdateAssetVersionParams{ID: id, Label: domain.Blank(in.Label), Status: status})
-	return v, domain.FromPG(err)
+	return v, access.Audited(ctx, domain.FromPG(err), "version.update", id)
 }
 
 func (s *Service) DeleteVersion(ctx context.Context, id string) error {
@@ -257,7 +265,7 @@ func (s *Service) DeleteVersion(ctx context.Context, id string) error {
 		return err
 	}
 	_, err := s.q.DeleteAssetVersion(ctx, id)
-	return domain.FromPGDelete(err)
+	return access.Audited(ctx, domain.FromPGDelete(err), "version.delete", id)
 }
 
 type RenditionInput struct {
@@ -291,7 +299,7 @@ func (s *Service) CreateRendition(ctx context.Context, versionID string, in Rend
 		VersionID: versionID, Kind: in.Kind, Language: domain.Blank(in.Language),
 		Purpose: domain.Blank(in.Purpose), Overrides: in.Overrides, Metadata: in.Metadata,
 	})
-	return r, domain.FromPG(err)
+	return r, access.Audited(ctx, domain.FromPG(err), "rendition.create", r.ID, "version", versionID)
 }
 
 func (s *Service) rendition(ctx context.Context, id string, need sqlc.PermissionLevel) (sqlc.Rendition, error) {
@@ -317,7 +325,7 @@ func (s *Service) UpdateRendition(ctx context.Context, id string, in RenditionIn
 		ID: id, Language: domain.Blank(in.Language), Purpose: domain.Blank(in.Purpose),
 		Overrides: in.Overrides, Metadata: in.Metadata,
 	})
-	return r, domain.FromPG(err)
+	return r, access.Audited(ctx, domain.FromPG(err), "rendition.update", id)
 }
 
 func (s *Service) DeleteRendition(ctx context.Context, id string) error {
@@ -325,7 +333,7 @@ func (s *Service) DeleteRendition(ctx context.Context, id string) error {
 		return err
 	}
 	_, err := s.q.DeleteRendition(ctx, id)
-	return domain.FromPGDelete(err)
+	return access.Audited(ctx, domain.FromPGDelete(err), "rendition.delete", id)
 }
 
 // AttachFile adds a file to a rendition. Besides Edit on the rendition, the caller needs
@@ -341,7 +349,7 @@ func (s *Service) AttachFile(ctx context.Context, renditionID, fileID string, ro
 		return sqlc.RenditionFile{}, err
 	}
 	rf, err := s.q.AttachFile(ctx, sqlc.AttachFileParams{RenditionID: renditionID, FileID: fileID, Role: role, Position: position})
-	return rf, domain.FromPG(err)
+	return rf, access.Audited(ctx, domain.FromPG(err), "rendition.attach_file", renditionID, "file", fileID, "role", string(role))
 }
 
 func (s *Service) DetachFile(ctx context.Context, renditionID, fileID string, role sqlc.FileRole) error {
@@ -355,7 +363,7 @@ func (s *Service) DetachFile(ctx context.Context, renditionID, fileID string, ro
 	if n == 0 {
 		return domain.ErrNotFound
 	}
-	return nil
+	return access.Audited(ctx, nil, "rendition.detach_file", renditionID, "file", fileID, "role", string(role))
 }
 
 func (s *Service) Types(ctx context.Context) ([]sqlc.AssetType, error) {

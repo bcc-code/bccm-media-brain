@@ -37,7 +37,7 @@ func (s *Service) CreateServiceAccount(ctx context.Context, in ServiceAccountInp
 	u, err := s.q.CreateServiceAccount(ctx, sqlc.CreateServiceAccountParams{
 		ExternalID: serviceSubject + name, Name: name, IsAdmin: in.Admin,
 	})
-	return u, domain.FromPG(err)
+	return u, Audited(ctx, domain.FromPG(err), "service_account.create", u.ID, "name", name, "admin", in.Admin)
 }
 
 func (s *Service) ServiceAccounts(ctx context.Context) ([]sqlc.AppUser, error) {
@@ -76,7 +76,7 @@ func (s *Service) SetServiceAccountActive(ctx context.Context, ref string, activ
 		return sqlc.AppUser{}, err
 	}
 	u, err = s.q.SetServiceAccountActive(ctx, sqlc.SetServiceAccountActiveParams{ID: u.ID, Active: active})
-	return u, domain.FromPG(err)
+	return u, Audited(ctx, domain.FromPG(err), "service_account.set_active", u.ID, "active", active)
 }
 
 type ServiceTokenInput struct {
@@ -122,6 +122,7 @@ func (s *Service) CreateServiceToken(ctx context.Context, in ServiceTokenInput) 
 	if err != nil {
 		return NewServiceToken{}, domain.FromPG(err)
 	}
+	_ = Audited(ctx, nil, "service_token.create", row.ID, "service_account", u.ID, "name", name, "expires_at", expires.UTC())
 	return NewServiceToken{Token: token, ServiceToken: row}, nil
 }
 
@@ -131,7 +132,7 @@ func (s *Service) RevokeServiceToken(ctx context.Context, id string) (sqlc.Servi
 		return sqlc.ServiceToken{}, err
 	}
 	t, err := s.q.RevokeServiceToken(ctx, id)
-	return t, domain.FromPG(err)
+	return t, Audited(ctx, domain.FromPG(err), "service_token.revoke", t.ID, "service_account", t.UserID)
 }
 
 func (s *Service) ServiceTokens(ctx context.Context, account string) ([]sqlc.ServiceToken, error) {

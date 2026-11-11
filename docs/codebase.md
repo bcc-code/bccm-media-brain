@@ -20,6 +20,11 @@ code. Keep it to pointers: the code is the detail.
 - Permission checks: `access.RequireAdmin(ctx)`, `access.RequireAsset(ctx, q, id, level)`,
   `access.RequireProject(...)`. `access.System()` is the administrator principal of the CLI and
   dev data; it has no user id, so `created_by` is NULL.
+- **Audit:** every write method returns through `access.Audited(ctx, err, "object.verb", id,
+  attrs...)`, which logs `audit: change` when `err` is nil and returns `err`. Code that runs
+  several services in one transaction wraps them in `access.HoldAudit` and releases on commit
+  (`vidispineimport.Service.Import`); dev-data scenarios run under `access.WithoutAudit`.
+  `TestAuditLog` and `TestAuditLogOfAnImport` (`e2e/graph_test.go`) show the expected records.
 - Administrator-only today: programs (create/delete), storage locations, all file writes, users
   and groups, Vidispine import and refresh.
 - `access.RequirePersonAdmin(ctx)` is `RequireAdmin` minus machine clients. Use it for anything

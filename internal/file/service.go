@@ -61,7 +61,7 @@ func (s *Service) CreateLocation(ctx context.Context, in LocationInput) (sqlc.St
 	l, err := s.q.CreateStorageLocation(ctx, sqlc.CreateStorageLocationParams{
 		Name: in.Name, Kind: in.Kind, BaseUri: in.BaseURI, Online: in.Online,
 	})
-	return l, domain.FromPG(err)
+	return l, access.Audited(ctx, domain.FromPG(err), "location.create", l.ID)
 }
 
 func (s *Service) UpdateLocation(ctx context.Context, id string, in LocationInput) (sqlc.StorageLocation, error) {
@@ -74,14 +74,14 @@ func (s *Service) UpdateLocation(ctx context.Context, id string, in LocationInpu
 	l, err := s.q.UpdateStorageLocation(ctx, sqlc.UpdateStorageLocationParams{
 		ID: id, Name: in.Name, Kind: in.Kind, BaseUri: in.BaseURI, Online: in.Online,
 	})
-	return l, domain.FromPG(err)
+	return l, access.Audited(ctx, domain.FromPG(err), "location.update", id)
 }
 
 func (s *Service) DeleteLocation(ctx context.Context, id string) error {
 	if err := access.RequireAdmin(ctx); err != nil {
 		return err
 	}
-	return deleted(s.q.DeleteStorageLocation(ctx, id))
+	return access.Audited(ctx, deleted(s.q.DeleteStorageLocation(ctx, id)), "location.delete", id)
 }
 
 func deleted(n int64, err error) error {
@@ -242,7 +242,7 @@ func (s *Service) Register(ctx context.Context, in RegisterInput) (sqlc.File, er
 		}
 		return nil
 	})
-	return f, err
+	return f, access.Audited(ctx, err, "file.register", f.ID)
 }
 
 func addCopy(ctx context.Context, q sqlc.Querier, fileID string, c CopyInput) (sqlc.FileCopy, error) {
@@ -364,7 +364,8 @@ func (s *Service) AddCopy(ctx context.Context, fileID string, c CopyInput) (sqlc
 	if _, err := s.q.GetFile(ctx, fileID); err != nil {
 		return sqlc.FileCopy{}, domain.FromPG(err)
 	}
-	return addCopy(ctx, s.q, fileID, CopyInput{LocationID: c.LocationID, Path: p})
+	cp, err := addCopy(ctx, s.q, fileID, CopyInput{LocationID: c.LocationID, Path: p})
+	return cp, access.Audited(ctx, err, "file.add_copy", fileID, "copy", cp.ID, "location", c.LocationID)
 }
 
 // SetCopyStatus records the result of checking a copy: present and mismatch mean it was seen,
@@ -388,14 +389,14 @@ func (s *Service) SetCopyStatus(ctx context.Context, copyID string, status sqlc.
 	c, err = s.q.SetFileCopyStatus(ctx, sqlc.SetFileCopyStatusParams{
 		ID: copyID, Status: status, LastSeenAt: seen, LastVerifiedAt: &now,
 	})
-	return c, domain.FromPG(err)
+	return c, access.Audited(ctx, domain.FromPG(err), "file.set_copy_status", c.FileID, "copy", copyID, "status", string(status))
 }
 
 func (s *Service) RemoveCopy(ctx context.Context, copyID string) error {
 	if err := access.RequireAdmin(ctx); err != nil {
 		return err
 	}
-	return deleted(s.q.DeleteFileCopy(ctx, copyID))
+	return access.Audited(ctx, deleted(s.q.DeleteFileCopy(ctx, copyID)), "file.remove_copy", copyID)
 }
 
 // Delete removes a file that has no copies and is not used by any rendition or timeline.
@@ -403,5 +404,5 @@ func (s *Service) Delete(ctx context.Context, id string) error {
 	if err := access.RequireAdmin(ctx); err != nil {
 		return err
 	}
-	return deleted(s.q.DeleteFile(ctx, id))
+	return access.Audited(ctx, deleted(s.q.DeleteFile(ctx, id)), "file.delete", id)
 }

@@ -10,15 +10,18 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/bcc-media/mediabrain/internal/access"
 	"github.com/bcc-media/mediabrain/internal/asset"
+	"github.com/bcc-media/mediabrain/internal/db"
 	"github.com/bcc-media/mediabrain/internal/db/sqlc"
 	"github.com/bcc-media/mediabrain/internal/file"
 	"github.com/bcc-media/mediabrain/internal/graph"
@@ -407,17 +410,66 @@ func TestDatabaseFailuresAreContained(t *testing.T) {
 	}
 }
 
-// TestAuditLog checks that changes and refusals are logged with who did what to which object.
-func TestAuditLog(t *testing.T) {
-	w := newWorld(t, 32)
-	viewer := signIn(t)
-	grant(t, w.admin, "ASSET", w.c1.asset, "VIEW", to(viewer))
-
+// auditLog captures what is logged while the test runs and returns a function that gives the
+// audit lines so far, as maps.
+func auditLog(t *testing.T) func() []map[string]any {
+	t.Helper()
 	var buf bytes.Buffer
 	old := slog.Default()
 	slog.SetDefault(slog.New(slog.NewJSONHandler(&buf, nil)))
-	defer slog.SetDefault(old)
+	t.Cleanup(func() { slog.SetDefault(old) })
+	return func() []map[string]any {
+		t.Helper()
+		var out []map[string]any
+		for _, line := range strings.Split(strings.TrimSpace(buf.String()), "\n") {
+			if line == "" {
+				continue
+			}
+			var e map[string]any
+			if err := json.Unmarshal([]byte(line), &e); err != nil {
+				t.Fatalf("log line %q: %v", line, err)
+			}
+			if msg, _ := e["msg"].(string); strings.HasPrefix(msg, "audit: ") {
+				delete(e, "time")
+				delete(e, "level")
+				out = append(out, e)
+			}
+		}
+		buf.Reset()
+		return out
+	}
+}
 
+// TestAuditLog checks that the log says what was changed, by whom and with which details, only
+// once it has happened, and that refusals are logged apart from changes.
+func TestAuditLog(t *testing.T) {
+	w := newWorld(t, 32)
+	viewer := signIn(t)
+	admin := access.Principal{UserID: w.admin.id, Admin: true}
+	lines := auditLog(t)
+	expect := func(what string, want ...map[string]any) {
+		t.Helper()
+		if got := lines(); !reflect.DeepEqual(got, want) {
+			t.Fatalf("%s: audit log = %v, want %v", what, got, want)
+		}
+	}
+
+	// A grant: to whom, on what, how much and until when.
+	expires := time.Now().Add(time.Hour).UTC().Truncate(time.Second)
+	r, _ := exec(t, admin, 0, grantAccess, map[string]any{"in": map[string]any{
+		"scope": "ASSET", "scopeId": w.c1.asset, "level": "VIEW", "userId": viewer.id, "expiresAt": expires}})
+	if len(r.Errors) != 0 {
+		t.Fatalf("grant: %+v", r.Errors)
+	}
+	var granted struct{ GrantAccess struct{ ID string } }
+	_ = json.Unmarshal(r.Data, &granted)
+	grantRecord := func(action string) map[string]any {
+		return map[string]any{"msg": "audit: change", "action": action, "user": w.admin.id, "target": granted.GrantAccess.ID,
+			"scope": "asset", "scope_id": w.c1.asset, "permission": "view", "to_user": viewer.id, "expires_at": expires.Format(time.RFC3339)}
+	}
+	expect("grant", grantRecord("grant.create"))
+
+	// A refusal is not a change, and a query is neither.
 	vars := map[string]any{"id": w.c1.asset, "in": map[string]any{"typeId": 1, "title": "x"}}
 	if r, _ := exec(t, access.Principal{UserID: viewer.id}, 0, updateAsset, vars); len(r.Errors) != 1 {
 		t.Fatalf("expected a refusal, got %+v", r.Errors)
@@ -425,20 +477,72 @@ func TestAuditLog(t *testing.T) {
 	if r, _ := exec(t, access.Principal{UserID: viewer.id}, 0, `{ me { id } }`, nil); len(r.Errors) != 0 {
 		t.Fatalf("me: %+v", r.Errors)
 	}
-	type entry struct{ Msg, User, Mutation, ID, Path string }
-	var entries []entry
-	for _, line := range strings.Split(strings.TrimSpace(buf.String()), "\n") {
-		var e entry
-		if err := json.Unmarshal([]byte(line), &e); err != nil {
-			t.Fatalf("log line %q: %v", line, err)
+	expect("refusal and query", map[string]any{"msg": "audit: denied", "user": viewer.id, "path": "updateAsset"})
+
+	// A write that fails leaves no record; the same write succeeding leaves one.
+	_, statements := exec(t, admin, 0, updateAsset, vars)
+	expect("update", map[string]any{"msg": "audit: change", "action": "asset.update", "user": w.admin.id, "target": w.c1.asset})
+	if r, _ := exec(t, admin, statements, updateAsset, vars); len(r.Errors) != 1 {
+		t.Fatalf("expected the last statement to fail, got %+v", r.Errors)
+	}
+	expect("failed update")
+
+	// Operations whose subject is not an id argument, and ones made outside GraphQL.
+	if r, _ := exec(t, admin, 0, `mutation($u: String!) { setUserAdmin(user: $u, admin: true) { id } }`, map[string]any{"u": viewer.email}); len(r.Errors) != 0 {
+		t.Fatalf("set admin: %+v", r.Errors)
+	}
+	expect("set admin", map[string]any{"msg": "audit: change", "action": "user.set_admin", "user": w.admin.id, "target": viewer.id, "admin": true})
+	svc := access.NewService(sqlc.New(pool), db.PoolTx(pool))
+	if _, err := svc.SetAdmin(access.With(context.Background(), access.System()), viewer.id, false); err != nil {
+		t.Fatal(err)
+	}
+	expect("command line", map[string]any{"msg": "audit: change", "action": "user.set_admin", "user": "system", "target": viewer.id, "admin": false})
+
+	if r, _ := exec(t, admin, 0, `mutation($id: ID!) { revokeAccess(id: $id) }`, map[string]any{"id": granted.GrantAccess.ID}); len(r.Errors) != 0 {
+		t.Fatalf("revoke: %+v", r.Errors)
+	}
+	expect("revoke", grantRecord("grant.revoke"))
+}
+
+// The Vidispine import runs several services in one transaction: their records appear when it
+// commits and not at all when it does not.
+func TestAuditLogOfAnImport(t *testing.T) {
+	w := newWorld(t, 34)
+	admin := access.Principal{UserID: w.admin.id, Admin: true}
+	storage := newVidispineStorage()
+	first, second := vidispineItem(w.f, storage), vidispineItem(w.f, storage)
+	lines := auditLog(t)
+
+	r, statements := exec(t, admin, 0, importFromVidispine, importVars(first.ID, w.projectA))
+	if len(r.Errors) != 0 {
+		t.Fatalf("import: %+v", r.Errors)
+	}
+	got := lines()
+	var actions []string
+	for _, e := range got {
+		actions = append(actions, e["action"].(string))
+	}
+	if len(got) < 2 || actions[0] != "asset.create" || actions[len(actions)-1] != "vidispine.import" || got[len(got)-1]["item"] != first.ID {
+		t.Fatalf("import logged %v", got)
+	}
+
+	// Fail at every statement in turn: there are records exactly when the asset exists.
+	rolledBack := 0
+	for failAt := int64(1); failAt <= statements; failAt++ {
+		exec(t, admin, failAt, importFromVidispine, importVars(second.ID, w.projectA))
+		var imported int
+		if err := pool.QueryRow(context.Background(), `SELECT count(*) FROM asset WHERE legacy_ids @> ARRAY[$1::text]`, second.ID).Scan(&imported); err != nil {
+			t.Fatal(err)
 		}
-		entries = append(entries, e)
+		if got := lines(); (imported == 1) != (len(got) > 0) {
+			t.Fatalf("statement %d failed: %d assets imported, audit log = %v", failAt, imported, got)
+		}
+		if imported == 1 {
+			break
+		}
+		rolledBack++
 	}
-	want := []entry{
-		{Msg: "audit: mutation", User: viewer.id, Mutation: "updateAsset", ID: w.c1.asset},
-		{Msg: "audit: denied", User: viewer.id, Path: "updateAsset"},
-	}
-	if len(entries) != 2 || entries[0] != want[0] || entries[1] != want[1] {
-		t.Fatalf("audit log = %+v, want %+v (queries are not logged)", entries, want)
+	if rolledBack < 5 {
+		t.Fatalf("only %d imports were rolled back; the test needs failures inside the transaction", rolledBack)
 	}
 }

@@ -135,6 +135,10 @@ func (s *Service) Import(ctx context.Context, in ImportInput) (sqlc.Asset, error
 	}
 	assetMeta, _ := json.Marshal(map[string]json.RawMessage{MetadataKey: metadataOf(meta, itemID)})
 
+	// The services below run in this transaction, so what they record only happened once it
+	// commits.
+	caller := ctx
+	ctx, release := access.HoldAudit(ctx)
 	var a sqlc.Asset
 	err = s.tx.InTx(ctx, func(q sqlc.Querier) error {
 		if err := q.LockLegacyID(ctx, itemID); err != nil {
@@ -181,7 +185,8 @@ func (s *Service) Import(ctx context.Context, in ImportInput) (sqlc.Asset, error
 		_, err = assets.AttachFile(ctx, r.ID, f.ID, orig.role, 0)
 		return err
 	})
-	return a, err
+	release(err == nil)
+	return a, access.Audited(caller, err, "vidispine.import", a.ID, "item", itemID)
 }
 
 // Refresh replaces the Vidispine metadata of an imported asset with Vidispine's current values.
@@ -203,7 +208,7 @@ func (s *Service) Refresh(ctx context.Context, assetID string) (sqlc.Asset, erro
 		return sqlc.Asset{}, upstream(ctx, err, itemID)
 	}
 	a, err = s.q.SetAssetMetadataKey(ctx, sqlc.SetAssetMetadataKeyParams{ID: assetID, Key: MetadataKey, Value: metadataOf(meta, itemID)})
-	return a, domain.FromPG(err)
+	return a, access.Audited(ctx, domain.FromPG(err), "vidispine.refresh", assetID, "item", itemID)
 }
 
 // ItemID returns the Vidispine item an asset was imported from, or "".

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"log/slog"
-	"strings"
 
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/99designs/gqlgen/graphql/handler"
@@ -43,34 +42,17 @@ func NewServer(r *Resolver, introspection bool) *handler.Server {
 	srv.AroundOperations(func(ctx context.Context, next graphql.OperationHandler) graphql.ResponseHandler {
 		return next(withLoaders(ctx, r))
 	})
-	srv.AroundRootFields(auditMutations)
 	srv.SetErrorPresenter(presentError)
 	return srv
 }
 
-// caller is who an audit line is about. A machine client is named with the token it used, so
-// a line can be traced to one credential.
+// caller is who a refusal is logged about, named the way access.Audited names who made a change.
 func caller(ctx context.Context) []any {
 	p, _ := access.From(ctx)
 	if p.TokenID != "" {
 		return []any{"user", p.UserID, "token", p.TokenID}
 	}
 	return []any{"user", p.UserID}
-}
-
-func auditMutations(ctx context.Context, next graphql.RootResolver) graphql.Marshaler {
-	// On a root field, the enclosing field context names the operation type.
-	rc, fc := graphql.GetRootFieldContext(ctx), graphql.GetFieldContext(ctx)
-	if rc != nil && fc != nil && fc.Object == "Mutation" {
-		attrs := append(caller(ctx), "mutation", rc.Field.Name)
-		for name, v := range rc.Field.ArgumentMap(graphql.GetOperationContext(ctx).Variables) {
-			if id, ok := v.(string); ok && (name == "id" || strings.HasSuffix(name, "Id")) {
-				attrs = append(attrs, name, id)
-			}
-		}
-		slog.InfoContext(ctx, "audit: mutation", attrs...)
-	}
-	return next(ctx)
 }
 
 // presentError gives domain errors a code and logs the cause of masked ones.

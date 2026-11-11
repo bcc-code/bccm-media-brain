@@ -66,7 +66,7 @@ can do for machines.
   token is made without a browser.
 - An ingest tool has to be an administrator today, because registering files is
   administrator-only. That is more than it needs; see "Not covered yet".
-- The audit log names the token (`token=TK-...`) next to the account on every mutation and
+- The audit log names the token (`token=TK-...`) next to the account on every change and
   refusal by a machine client.
 
 ### Debug bypass (development only)
@@ -176,8 +176,17 @@ to every caller. Dev-data scenarios and the CLI run as an explicit system princi
 - One operation may select at most 2000 fields; request bodies are limited to 8 MB (a subtitle
   file to 5 MB); the server has header, read and idle timeouts.
 - Unexpected errors reach the client only as `INTERNAL` / "internal error"; the cause is logged.
-- Audit log (`slog`): every mutation (`audit: mutation`, with user and object ids) and every
-  refusal (`audit: denied`). Refused sign-ins are logged with the reason. Tokens are not logged.
+- Audit log (`slog`):
+  - `audit: change` for every change that was made, written by the service after the write
+    succeeded: `action` (`grant.create`, `asset.update`, ...), `user` (`system` for the command
+    line), `token` for a machine client, `target` and what matters about the change. A grant or
+    revoke names scope, recipient, `permission` and expiry; `user.set_admin` the new value;
+    a service token its account and expiry. A write that failed or was rolled back leaves no
+    record. Metadata, titles and token values are never logged.
+  - `audit: denied` for every `FORBIDDEN` answer of the API, with the user and the operation.
+  - Refused sign-ins are logged with the reason.
+  - Not recorded: reads, sign-ins that create or update a user, the sweeper, and data generated
+    by dev-data scenarios. The log is the only store; there is no audit table.
 
 ## How this is tested
 

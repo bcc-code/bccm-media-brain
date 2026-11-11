@@ -85,7 +85,8 @@ func (s *Store) Apply(ctx context.Context, name string, req ApplyRequest) (Resul
 	}
 	reset := req.Reset || sc.AlwaysReset
 	start := time.Now()
-	ctx = access.With(ctx, access.System())
+	// Generated data is not a change anyone made: hundreds of audit records would bury real ones.
+	ctx = access.WithoutAudit(access.With(ctx, access.System()))
 
 	var summary string
 	err = pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {

@@ -148,7 +148,8 @@ need no updates. The one exception: reference tables that a migration seeds (`as
    scenario automatically, so a broken scenario fails `make check`.
 7. **Security:** decide who may call the new operation and enforce it in the service with
    `internal/access` (never in a resolver). Add the operation to the permission tests in
-   `e2e/access_test.go` and to the fault sweep in `e2e/graph_test.go`.
+   `e2e/access_test.go` and to the fault sweep in `e2e/graph_test.go`. A write returns through
+   `access.Audited` so the audit log records it (see `docs/codebase.md`).
 8. **No N+1:** nested GraphQL fields load through a dataloader (`internal/graph/loaders.go`)
    backed by a query that takes a list of parent ids. `TestNestedQueriesAreBatched` fails if a
    field queries per item.

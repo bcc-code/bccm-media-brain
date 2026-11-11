@@ -2,6 +2,23 @@
 
 Newest first. Each entry: what changed, why, and what was left out on purpose.
 
+## 2026-11-11 — The audit log records what happened
+
+- Services now write `audit: change` after a successful write (`access.Audited`), with the
+  actor, an action name, the target and the details that matter: a grant's scope, recipient,
+  level and expiry, the new value of `is_admin`, a service token's account and expiry. Why: the
+  log was written by a GraphQL hook before the mutation ran, so it recorded attempts, looked
+  the same for success and failure, kept only top-level `id` arguments (nothing of a grant's
+  input, nothing for `setUserAdmin`), and missed the command line (architecture review,
+  finding 10).
+- The hook (`audit: mutation`) is gone; `audit: denied` stays where it was, in the error
+  presenter, because only the API can be refused: the command line acts as the system.
+- A transaction over several services holds their records until it commits
+  (`access.HoldAudit`), so a rolled-back Vidispine import logs nothing.
+- Left out: an audit table (the log is the only store, so retention is the log pipeline's),
+  a request id to tie the records of one operation together, refusals that look like
+  `NOT_FOUND`, and dev-data scenarios, whose records are dropped on purpose.
+
 ## 2026-11-11 — Asset access expires by the clock, not by the sweeper
 
 - `asset_access` now has one row per principal, asset and level with `expires_at`, and every

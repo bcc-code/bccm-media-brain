@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"log/slog"
 	"strings"
 	"testing"
 
@@ -113,5 +114,57 @@ func TestLevels(t *testing.T) {
 	}
 	if higher(View, Edit) != Edit || higher(Admin, Edit) != Admin || higher(None, None) != None {
 		t.Error("higher")
+	}
+}
+
+func TestAudited(t *testing.T) {
+	var buf bytes.Buffer
+	old := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, nil)))
+	defer slog.SetDefault(old)
+	logged := func() int {
+		n := strings.Count(buf.String(), AuditChange)
+		buf.Reset()
+		return n
+	}
+	ctx := With(context.Background(), Principal{UserID: "US-1", TokenID: "TK-1"})
+
+	failure := errors.New("no")
+	if err := Audited(ctx, failure, "a", "t"); err != failure || logged() != 0 {
+		t.Fatalf("a failed write was recorded or its error lost: %v", err)
+	}
+	if err := Audited(ctx, nil, "a", "t", "k", "v"); err != nil || !strings.Contains(buf.String(), "user=US-1 token=TK-1 target=t k=v") || logged() != 1 {
+		t.Fatalf("record = %q, %v", buf.String(), err)
+	}
+	_ = Audited(With(context.Background(), System()), nil, "a", "t")
+	if !strings.Contains(buf.String(), "user=system target=t") || logged() != 1 {
+		t.Fatalf("system record = %q", buf.String())
+	}
+
+	// Held records appear on commit, in order, and later ones are written straight away.
+	held, release := HoldAudit(ctx)
+	inner, releaseInner := HoldAudit(held)
+	_ = Audited(held, nil, "first", "t")
+	_ = Audited(inner, nil, "second", "t")
+	releaseInner(false) // the outer hold decides
+	if logged() != 0 {
+		t.Fatal("held records were written before the release")
+	}
+	release(true)
+	if i, j := strings.Index(buf.String(), "action=first"), strings.Index(buf.String(), "action=second"); i < 0 || j < i || logged() != 2 {
+		t.Fatalf("released records = %q", buf.String())
+	}
+	release(true)
+	_ = Audited(held, nil, "late", "t")
+	if logged() != 1 {
+		t.Fatal("a record after the release should be written once")
+	}
+
+	held, release = HoldAudit(ctx)
+	_ = Audited(held, nil, "dropped", "t")
+	release(false)
+	_ = Audited(WithoutAudit(ctx), nil, "muted", "t")
+	if logged() != 0 {
+		t.Fatal("dropped or muted records were written")
 	}
 }
