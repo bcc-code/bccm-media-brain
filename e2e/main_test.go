@@ -29,11 +29,11 @@ import (
 )
 
 var (
-	dbURL   string // connection string of the test container
-	baseURL string // http://host:port of the running app
-	issuer  *authtest.Issuer
-	pool    *pgxpool.Pool // direct database access for test setup and assertions
-	cantemo *vidispinetest.Server
+	dbURL    string // connection string of the test container
+	baseURL  string // http://host:port of the running app
+	issuer   *authtest.Issuer
+	pool     *pgxpool.Pool // direct database access for test setup and assertions
+	vsServer *vidispinetest.Server
 )
 
 func TestMain(m *testing.M) { os.Exit(run(m)) }
@@ -43,7 +43,7 @@ func appConfig() config.Config {
 		DatabaseURL: dbURL, HTTPAddr: "127.0.0.1:0", AutoMigrate: true, Playground: true, Debug: true,
 		AuthHeader: "Authorization", AuthGroupsClaim: "groups", AuthTrustedProxies: "127.0.0.1",
 		AuthIssuer: issuer.URL, AuthAudience: authtest.Audience, AuthJWKSURL: issuer.JWKSURL,
-		CantemoURL: cantemo.URL, CantemoUsername: vidispinetest.Username, CantemoPassword: vidispinetest.Password,
+		VidispineURL: vsServer.URL, VidispineUsername: vidispinetest.Username, VidispinePassword: vidispinetest.Password,
 	}
 }
 
@@ -68,8 +68,8 @@ func run(m *testing.M) int {
 	}
 	issuer = authtest.NewIssuer()
 	defer issuer.Close()
-	cantemo = vidispinetest.NewServer()
-	defer cantemo.Close()
+	vsServer = vidispinetest.NewServer()
+	defer vsServer.Close()
 
 	a, err := app.New(ctx, appConfig())
 	if err != nil {

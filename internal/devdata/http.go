@@ -7,8 +7,8 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/bcc-media/mediabrain/internal/cantemo"
 	"github.com/bcc-media/mediabrain/internal/domain"
+	"github.com/bcc-media/mediabrain/internal/vidispineimport"
 )
 
 //go:embed ui/index.html
@@ -21,9 +21,9 @@ type Backend interface {
 	Stats(ctx context.Context) ([]TableStat, error)
 	Users(ctx context.Context) ([]User, error)
 	CreateUser(ctx context.Context, email string, admin bool) (User, error)
-	CantemoConfigured() bool
-	CantemoImport(ctx context.Context, in cantemo.ImportInput) (CantemoAsset, error)
-	CantemoRefresh(ctx context.Context, assetID string) (CantemoAsset, error)
+	VidispineConfigured() bool
+	VidispineImport(ctx context.Context, in vidispineimport.ImportInput) (VidispineAsset, error)
+	VidispineRefresh(ctx context.Context, assetID string) (VidispineAsset, error)
 }
 
 // Handler serves the debug UI and its JSON API. Mount it with
@@ -36,9 +36,9 @@ type Backend interface {
 //	POST /api/reset              truncate all tables
 //	GET  /api/users              users to act as
 //	POST /api/users              create a user (body: {"email": ..., "admin": ...})
-//	GET  /api/cantemo            whether Cantemo is configured
-//	POST /api/cantemo/import     import one item (body: {"itemId": ..., "typeId": ..., "projectId": ...})
-//	POST /api/cantemo/refresh    refresh an imported asset (body: {"assetId": ...})
+//	GET  /api/vidispine            whether Vidispine is configured
+//	POST /api/vidispine/import     import one item (body: {"itemId": ..., "typeId": ..., "projectId": ...})
+//	POST /api/vidispine/refresh    refresh an imported asset (body: {"assetId": ...})
 func Handler(b Backend) http.Handler {
 	mux := http.NewServeMux()
 
@@ -119,11 +119,11 @@ func Handler(b Backend) http.Handler {
 		}
 	})
 
-	mux.HandleFunc("GET /api/cantemo", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, http.StatusOK, map[string]bool{"configured": b.CantemoConfigured()})
+	mux.HandleFunc("GET /api/vidispine", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]bool{"configured": b.VidispineConfigured()})
 	})
 
-	mux.HandleFunc("POST /api/cantemo/import", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("POST /api/vidispine/import", func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
 			ItemID    string `json:"itemId"`
 			TypeID    int16  `json:"typeId"`
@@ -133,15 +133,15 @@ func Handler(b Backend) http.Handler {
 			writeErr(w, http.StatusBadRequest, err)
 			return
 		}
-		in := cantemo.ImportInput{ItemID: req.ItemID, TypeID: req.TypeID}
+		in := vidispineimport.ImportInput{ItemID: req.ItemID, TypeID: req.TypeID}
 		if req.ProjectID != "" {
 			in.ProjectID = &req.ProjectID
 		}
-		a, err := b.CantemoImport(r.Context(), in)
+		a, err := b.VidispineImport(r.Context(), in)
 		writeResult(w, a, err)
 	})
 
-	mux.HandleFunc("POST /api/cantemo/refresh", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("POST /api/vidispine/refresh", func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
 			AssetID string `json:"assetId"`
 		}
@@ -149,7 +149,7 @@ func Handler(b Backend) http.Handler {
 			writeErr(w, http.StatusBadRequest, err)
 			return
 		}
-		a, err := b.CantemoRefresh(r.Context(), req.AssetID)
+		a, err := b.VidispineRefresh(r.Context(), req.AssetID)
 		writeResult(w, a, err)
 	})
 

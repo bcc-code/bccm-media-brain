@@ -28,14 +28,14 @@ type Config struct {
 	AuthJWKSURL        string // AUTH_JWKS_URL: where the proxy's signing keys are published
 	AuthGroupsClaim    string // AUTH_GROUPS_CLAIM (default "groups"): claim listing SSO groups
 
-	// Cantemo Portal (Vidispine), from which assets are imported. Optional as a group.
-	CantemoURL      string // CANTEMO_URL: root of the Vidispine API, e.g. https://cantemo.example.com/API
-	CantemoUsername string // CANTEMO_USERNAME
-	CantemoPassword string // CANTEMO_PASSWORD
+	// Vidispine, from which assets are imported. Optional as a group.
+	VidispineURL      string // VIDISPINE_URL: root of the Vidispine API, e.g. https://vidispine.example.com/API
+	VidispineUsername string // VIDISPINE_USERNAME
+	VidispinePassword string // VIDISPINE_PASSWORD
 }
 
-// ErrCantemoIncomplete is returned when CANTEMO_URL is set without credentials.
-var ErrCantemoIncomplete = errors.New("config: CANTEMO_URL needs CANTEMO_USERNAME and CANTEMO_PASSWORD")
+// ErrVidispineIncomplete is returned when VIDISPINE_URL is set without credentials.
+var ErrVidispineIncomplete = errors.New("config: VIDISPINE_URL needs VIDISPINE_USERNAME and VIDISPINE_PASSWORD")
 
 // ErrAuthNotConfigured is returned when the AUTH_* settings are missing outside debug mode.
 var ErrAuthNotConfigured = errors.New("config: AUTH_ISSUER, AUTH_AUDIENCE, AUTH_JWKS_URL and AUTH_TRUSTED_PROXIES are required unless DEBUG=true")
@@ -107,14 +107,14 @@ func LoadFrom(lookup func(string) (string, bool)) (Config, error) {
 		"AUTH_HEADER": &cfg.AuthHeader, "AUTH_TRUSTED_PROXIES": &cfg.AuthTrustedProxies,
 		"AUTH_ISSUER": &cfg.AuthIssuer, "AUTH_AUDIENCE": &cfg.AuthAudience,
 		"AUTH_JWKS_URL": &cfg.AuthJWKSURL, "AUTH_GROUPS_CLAIM": &cfg.AuthGroupsClaim,
-		"CANTEMO_URL": &cfg.CantemoURL, "CANTEMO_USERNAME": &cfg.CantemoUsername, "CANTEMO_PASSWORD": &cfg.CantemoPassword,
+		"VIDISPINE_URL": &cfg.VidispineURL, "VIDISPINE_USERNAME": &cfg.VidispineUsername, "VIDISPINE_PASSWORD": &cfg.VidispinePassword,
 	} {
 		if v, ok := lookup(key); ok && v != "" {
 			*dst = v
 		}
 	}
-	if cfg.CantemoURL != "" && (cfg.CantemoUsername == "" || cfg.CantemoPassword == "") {
-		return Config{}, ErrCantemoIncomplete
+	if cfg.VidispineURL != "" && (cfg.VidispineUsername == "" || cfg.VidispinePassword == "") {
+		return Config{}, ErrVidispineIncomplete
 	}
 	return cfg, nil
 }

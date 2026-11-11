@@ -7,10 +7,10 @@ package graph
 import (
 	"github.com/bcc-media/mediabrain/internal/access"
 	"github.com/bcc-media/mediabrain/internal/asset"
-	"github.com/bcc-media/mediabrain/internal/cantemo"
 	"github.com/bcc-media/mediabrain/internal/file"
 	"github.com/bcc-media/mediabrain/internal/project"
 	"github.com/bcc-media/mediabrain/internal/subtitle"
+	"github.com/bcc-media/mediabrain/internal/vidispineimport"
 )
 
 type Resolver struct {
@@ -19,5 +19,5 @@ type Resolver struct {
 	FilesSvc     *file.Service
 	AssetsSvc    *asset.Service
 	SubtitlesSvc *subtitle.Service
-	CantemoSvc   *cantemo.Service
+	VidispineSvc *vidispineimport.Service
 }

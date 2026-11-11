@@ -231,9 +231,9 @@ models:
         value: github.com/bcc-media/mediabrain/internal/db/sqlc.LocationKindS3
       LOCAL:
         value: github.com/bcc-media/mediabrain/internal/db/sqlc.LocationKindLocal
-  CantemoImportInput:
+  VidispineImportInput:
     model:
-      - github.com/bcc-media/mediabrain/internal/cantemo.ImportInput
+      - github.com/bcc-media/mediabrain/internal/vidispineimport.ImportInput
   HashAlgo:
     model:
       - github.com/bcc-media/mediabrain/internal/db/sqlc.HashAlgo

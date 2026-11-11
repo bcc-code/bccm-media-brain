@@ -63,7 +63,7 @@ variables:
   value: ''
   id: 40Qbp99HLj
 - enabled: true
-  name: cantemo_item_id
+  name: vidispine_item_id
   value: VX-1
   id: Ct7mItemId
 color: null

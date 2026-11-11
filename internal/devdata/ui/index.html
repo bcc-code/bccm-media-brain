@@ -56,20 +56,20 @@
 </header>
 <main>
   <section>
-    <h2>Cantemo</h2>
+    <h2>Vidispine</h2>
     <div class="card">
-      <p id="cantemo-status">Loading…</p>
-      <form id="cantemo-import" class="fields">
+      <p id="vidispine-status">Loading…</p>
+      <form id="vidispine-import" class="fields">
         <label>Item id<input type="text" name="itemId" placeholder="VX-123" required></label>
         <label title="Asset type id (1 = raw material)">Type<input type="number" name="typeId" value="1" min="1" style="width:70px"></label>
         <label title="Optional. Without a project only administrators see the asset">Project<input type="text" name="projectId" placeholder="PJ-… (optional)" style="width:240px"></label>
         <button type="submit">Import</button>
       </form>
-      <form id="cantemo-refresh" class="fields" style="margin-top:12px">
+      <form id="vidispine-refresh" class="fields" style="margin-top:12px">
         <label>Asset id<input type="text" name="assetId" placeholder="AS-…" required style="width:260px"></label>
         <button type="submit" class="ghost">Refresh metadata</button>
       </form>
-      <pre id="cantemo-result" hidden></pre>
+      <pre id="vidispine-result" hidden></pre>
     </div>
     <h2>Scenarios</h2>
     <div id="scenarios">Loading…</div>
@@ -210,18 +210,18 @@ document.getElementById('newuser').onsubmit = async ev => {
 };
 
 // Imports and refreshes run as the system principal, whoever this browser acts as.
-async function loadCantemo() {
-  const status = document.getElementById('cantemo-status');
+async function loadVidispine() {
+  const status = document.getElementById('vidispine-status');
   try {
-    const { configured } = await api('cantemo');
+    const { configured } = await api('vidispine');
     status.textContent = configured
-      ? 'Import one item from the configured Cantemo, or refresh the Cantemo metadata of an imported asset.'
-      : 'Cantemo is not configured: set CANTEMO_URL, CANTEMO_USERNAME and CANTEMO_PASSWORD in .env and restart. The "cantemo" scenario below creates assets that look imported.';
-    for (const b of document.querySelectorAll('#cantemo-import button, #cantemo-refresh button')) b.disabled = !configured;
-  } catch (e) { status.textContent = 'Cantemo: ' + e.message; }
+      ? 'Import one item from the configured Vidispine, or refresh the Vidispine metadata of an imported asset.'
+      : 'Vidispine is not configured: set VIDISPINE_URL, VIDISPINE_USERNAME and VIDISPINE_PASSWORD in .env and restart. The "vidispine" scenario below creates assets that look imported.';
+    for (const b of document.querySelectorAll('#vidispine-import button, #vidispine-refresh button')) b.disabled = !configured;
+  } catch (e) { status.textContent = 'Vidispine: ' + e.message; }
 }
 
-function cantemoForm(id, path, body, done) {
+function vidispineForm(id, path, body, done) {
   const form = document.getElementById(id);
   form.onsubmit = async ev => {
     ev.preventDefault();
@@ -229,19 +229,19 @@ function cantemoForm(id, path, body, done) {
     btn.disabled = true;
     try {
       const a = await api(path, { method: 'POST', body: JSON.stringify(body(form)) });
-      const out = document.getElementById('cantemo-result');
+      const out = document.getElementById('vidispine-result');
       out.textContent = JSON.stringify(a, null, 2);
       out.hidden = false;
-      document.getElementById('cantemo-refresh').assetId.value = a.id;
-      log(`cantemo: ${done} ${(a.legacyIds || []).join(', ')} as ${a.id} "${a.title}"`, 'ok');
+      document.getElementById('vidispine-refresh').assetId.value = a.id;
+      log(`vidispine: ${done} ${(a.legacyIds || []).join(', ')} as ${a.id} "${a.title}"`, 'ok');
       loadStats();
-    } catch (e) { log(`cantemo: ${e.message}`, 'err'); }
+    } catch (e) { log(`vidispine: ${e.message}`, 'err'); }
     finally { btn.disabled = false; }
   };
 }
-cantemoForm('cantemo-import', 'cantemo/import',
+vidispineForm('vidispine-import', 'vidispine/import',
   f => ({ itemId: f.itemId.value.trim(), typeId: Number(f.typeId.value || 1), projectId: f.projectId.value.trim() }), 'imported');
-cantemoForm('cantemo-refresh', 'cantemo/refresh', f => ({ assetId: f.assetId.value.trim() }), 'refreshed');
+vidispineForm('vidispine-refresh', 'vidispine/refresh', f => ({ assetId: f.assetId.value.trim() }), 'refreshed');
 
 document.getElementById('refresh').onclick = () => { loadStats(); loadUsers(); };
 document.getElementById('reset').onclick = async () => {
@@ -249,7 +249,7 @@ document.getElementById('reset').onclick = async () => {
   try { await api('reset', { method: 'POST' }); log('all data reset', 'ok'); loadStats(); loadUsers(); }
   catch (e) { log('reset: ' + e.message, 'err'); }
 };
-loadCantemo();
+loadVidispine();
 loadScenarios();
 loadStats();
 loadUsers();

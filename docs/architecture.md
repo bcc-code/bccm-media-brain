@@ -12,8 +12,8 @@ HTTP  ->  auth middleware  ->  GraphQL resolvers  ->  domain services  ->  sqlc 
   types are bound directly to the sqlc models and inputs to the services' input structs
   (`gqlgen.yml`), so there is no mapping layer to keep in sync.
 - **Domain services hold the rules**: validation, permission checks, multi-step writes. One
-  package per area: `project`, `file`, `asset`, `subtitle`, `cantemo` (import from Cantemo, see
-  [cantemo.md](cantemo.md)), plus `access` for users and grants.
+  package per area: `project`, `file`, `asset`, `subtitle`, `vidispineimport` (import from Vidispine, see
+  [vidispine.md](vidispine.md)), plus `access` for users and grants.
 - **`pkg/`** holds code other Go projects may import (`pkg/vidispine`). It never imports
   `internal/`.
 - **`internal/access` answers "may this caller do that?"** Services call it; resolvers never do.
@@ -39,7 +39,7 @@ Services return the values in `internal/domain`. The GraphQL layer turns them in
 | `CONFLICT` | Already exists, still in use, or a newer revision exists |
 | `FORBIDDEN` | The caller can see the object but may not do this |
 | `UNAUTHENTICATED` | No valid token (also HTTP 401 before GraphQL runs) |
-| `UNAVAILABLE` | A system MediaBrain depends on (Cantemo) is not configured or did not answer. The cause is logged, never sent |
+| `UNAVAILABLE` | A system MediaBrain depends on (Vidispine) is not configured or did not answer. The cause is logged, never sent |
 | `INTERNAL` | Anything unexpected. The cause is logged, never sent |
 
 Lookups by id (`asset(id:)`, `file(id:)`, ...) return `null` instead of `NOT_FOUND`.

@@ -1,0 +1,21 @@
+input VidispineImportInput {
+  "The Vidispine item id, e.g. VX-123."
+  itemId: String!
+  typeId: Int!
+  "Links the new asset to this project. Without it only administrators see the asset."
+  projectId: ID
+}
+
+extend type Mutation {
+  """
+  Administrators only. Creates an asset from one Vidispine item: its metadata under
+  metadata.vidispine, the item id in legacyIds and, when the item has an original file, a version
+  with a master rendition holding that file. An item can be imported once.
+  """
+  importFromVidispine(input: VidispineImportInput!): Asset!
+  """
+  Administrators only. Replaces metadata.vidispine of an imported asset with Vidispine's current
+  values. Nothing else on the asset changes.
+  """
+  refreshFromVidispine(assetId: ID!): Asset!
+}

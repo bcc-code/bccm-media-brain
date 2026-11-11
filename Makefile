@@ -6,7 +6,7 @@ MIGRATIONS := internal/db/migrations
 MB         := go run ./cmd/mediabrain
 
 .PHONY: help dev db-up db-down db-reset migrate-up migrate-down migrate-status migrate-new \
-        seed seed-list reset-data admin-grant admin-revoke cantemo-import cantemo-refresh generate fmt run build vet test test-e2e cover check hooks clean
+        seed seed-list reset-data admin-grant admin-revoke vidispine-import vidispine-refresh generate fmt run build vet test test-e2e cover check hooks clean
 
 help: ## Show targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  %-16s %s\n",$$1,$$2}'
@@ -54,13 +54,13 @@ admin-revoke: ## Remove system administrator rights: make admin-revoke u=me@exam
 	@test -n "$(u)" || (echo "usage: make admin-revoke u=<email or user id>" && exit 1)
 	$(MB) admin revoke $(u)
 
-cantemo-import: ## Import one Cantemo item: make cantemo-import id=VX-123 [args="-type 2 -project PJ-..."]
-	@test -n "$(id)" || (echo 'usage: make cantemo-import id=<VX-id> [args="-type N -project PJ-..."]' && exit 1)
-	$(MB) cantemo import $(args) $(id)
+vidispine-import: ## Import one Vidispine item: make vidispine-import id=VX-123 [args="-type 2 -project PJ-..."]
+	@test -n "$(id)" || (echo 'usage: make vidispine-import id=<VX-id> [args="-type N -project PJ-..."]' && exit 1)
+	$(MB) vidispine import $(args) $(id)
 
-cantemo-refresh: ## Refresh an imported asset's Cantemo metadata: make cantemo-refresh a=AS-...
-	@test -n "$(a)" || (echo "usage: make cantemo-refresh a=<asset id>" && exit 1)
-	$(MB) cantemo refresh $(a)
+vidispine-refresh: ## Refresh an imported asset's Vidispine metadata: make vidispine-refresh a=AS-...
+	@test -n "$(a)" || (echo "usage: make vidispine-refresh a=<asset id>" && exit 1)
+	$(MB) vidispine refresh $(a)
 
 fmt: ## gofmt all Go files
 	gofmt -w cmd internal pkg e2e

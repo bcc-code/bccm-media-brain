@@ -165,17 +165,17 @@ func (x *Faker) VTT(n int) string {
 	return text
 }
 
-// CantemoItem is an item as the Vidispine API of a Cantemo Portal describes it.
-type CantemoItem struct {
+// VidispineItem is an item as the Vidispine API of a Cantemo Portal describes it.
+type VidispineItem struct {
 	ID     string
 	Fields map[string]string
 	Shapes []vidispine.Shape
 }
 
-// CantemoItem builds an item whose original file lies on the given Vidispine storage, with a
+// VidispineItem builds an item whose original file lies on the given Vidispine storage, with a
 // low-resolution shape next to it.
-func (x *Faker) CantemoItem(storageID string) CantemoItem {
-	item := x.CantemoPlaceholder()
+func (x *Faker) VidispineItem(storageID string) VidispineItem {
+	item := x.VidispinePlaceholder()
 	path := "raw/" + x.Path("mxf")
 	name := path[strings.LastIndex(path, "/")+1:]
 	seconds := x.f.Number(5, 3600)
@@ -204,9 +204,9 @@ func (x *Faker) CantemoItem(storageID string) CantemoItem {
 	return item
 }
 
-// CantemoPlaceholder builds an item that has metadata but no files yet.
-func (x *Faker) CantemoPlaceholder() CantemoItem {
-	return CantemoItem{
+// VidispinePlaceholder builds an item that has metadata but no files yet.
+func (x *Faker) VidispinePlaceholder() VidispineItem {
+	return VidispineItem{
 		ID: fmt.Sprintf("VX-%d", x.f.Number(1000, 9_999_999)),
 		Fields: map[string]string{
 			vidispine.FieldTitle: x.Title(),

@@ -31,7 +31,7 @@ var ErrNotFound = errors.New("vidispine: not found")
 var ErrShapeTagNotFound = errors.New("vidispine: shape tag not configured")
 
 type Config struct {
-	// BaseURL is the API root, for example "https://cantemo.example.com/API".
+	// BaseURL is the API root, for example "https://vidispine.example.com/API".
 	BaseURL  string
 	Username string
 	Password string

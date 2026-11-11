@@ -1,4 +1,4 @@
-package cantemo
+package vidispineimport
 
 import (
 	"errors"
@@ -49,10 +49,10 @@ func TestItemID(t *testing.T) {
 		legacy   []string
 		want     string
 	}{
-		{"from the metadata", `{"cantemo":{"itemId":"VX-12"}}`, []string{"VX-99"}, "VX-12"},
+		{"from the metadata", `{"vidispine":{"itemId":"VX-12"}}`, []string{"VX-99"}, "VX-12"},
 		{"from the legacy ids", `{}`, []string{"LEG-1", "VX-34"}, "VX-34"},
-		{"edited metadata is not trusted", `{"cantemo":{"itemId":"../storage"}}`, []string{"VX-56"}, "VX-56"},
-		{"metadata of another shape", `{"cantemo":"VX-1"}`, nil, ""},
+		{"edited metadata is not trusted", `{"vidispine":{"itemId":"../storage"}}`, []string{"VX-56"}, "VX-56"},
+		{"metadata of another shape", `{"vidispine":"VX-1"}`, nil, ""},
 		{"broken metadata", `[`, nil, ""},
 		{"not imported", `{"note":"x"}`, []string{"LEG-1"}, ""},
 	}
@@ -67,10 +67,10 @@ func TestNewSource(t *testing.T) {
 	if src, err := NewSource("", "u", "p"); src != nil || err != nil {
 		t.Fatalf("empty URL: %v, %v", src, err)
 	}
-	if src, err := NewSource("https://cantemo.example.com/API", "u", "p"); src == nil || err != nil {
+	if src, err := NewSource("https://vidispine.example.com/API", "u", "p"); src == nil || err != nil {
 		t.Fatalf("URL: %v, %v", src, err)
 	}
-	if _, err := NewSource("cantemo.example.com", "u", "p"); err == nil {
+	if _, err := NewSource("vidispine.example.com", "u", "p"); err == nil {
 		t.Fatal("relative URL accepted")
 	}
 }

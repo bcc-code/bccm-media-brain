@@ -51,12 +51,12 @@ func TestUsageErrors(t *testing.T) {
 		{"admin"},
 		{"admin", "grant"},
 		{"admin", "promote", "a@example.test"},
-		{"cantemo"},
-		{"cantemo", "sync", "VX-1"},
-		{"cantemo", "import"},
-		{"cantemo", "import", "-bogus", "VX-1"},
-		{"cantemo", "import", "-type", "many", "VX-1"},
-		{"cantemo", "refresh", "AS-1", "AS-2"},
+		{"vidispine"},
+		{"vidispine", "sync", "VX-1"},
+		{"vidispine", "import"},
+		{"vidispine", "import", "-bogus", "VX-1"},
+		{"vidispine", "import", "-type", "many", "VX-1"},
+		{"vidispine", "refresh", "AS-1", "AS-2"},
 	}
 	for _, args := range cases {
 		if err := Run(context.Background(), args, &bytes.Buffer{}); !errors.Is(err, ErrUsage) {
@@ -84,7 +84,7 @@ func TestDBErrors(t *testing.T) {
 	for _, args := range [][]string{
 		{"migrate", "up"}, {"migrate", "down"}, {"migrate", "status"}, {"migrate", "reset"},
 		{"reset-data"}, {"seed", "catalog", "assets=1"}, {"serve"}, {"admin", "grant", "a@example.test"},
-		{"cantemo", "import", "VX-1"}, {"cantemo", "refresh", "AS-1"},
+		{"vidispine", "import", "VX-1"}, {"vidispine", "refresh", "AS-1"},
 	} {
 		if err := Run(context.Background(), args, &bytes.Buffer{}); err == nil || errors.Is(err, ErrUsage) {
 			t.Errorf("%v: err = %v, want connection error", args, err)

@@ -11,3 +11,6 @@
 /web/node_modules/
 /web/dist/
 /tmp/
+
+# local media for trying things out
+/samples/

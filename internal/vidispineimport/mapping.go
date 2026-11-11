@@ -1,4 +1,4 @@
-package cantemo
+package vidispineimport
 
 import (
 	"encoding/hex"
@@ -45,15 +45,15 @@ func originalOf(shapes *vidispine.ShapeResult) (*original, error) {
 	}
 	f := shape.File()
 	if f.State != vidispine.FileStateClosed {
-		return nil, domain.Invalid("the original file is still being written in Cantemo (state %q)", f.State)
+		return nil, domain.Invalid("the original file is still being written in Vidispine (state %q)", f.State)
 	}
 	hash := strings.ToLower(strings.TrimSpace(f.Hash))
 	if raw, err := hex.DecodeString(hash); err != nil || len(raw) != 20 {
-		return nil, domain.Invalid("Cantemo has no SHA-1 hash for the original file yet")
+		return nil, domain.Invalid("Vidispine has no SHA-1 hash for the original file yet")
 	}
 	path := strings.TrimLeft(f.Path, "/")
 	if f.Storage == "" || path == "" {
-		return nil, domain.Invalid("Cantemo does not say where the original file is stored")
+		return nil, domain.Invalid("Vidispine does not say where the original file is stored")
 	}
 	o := &original{
 		shapeID: shape.ID, fileID: f.ID, storageID: f.Storage, path: path, sha1: hash, size: f.Size,
@@ -119,7 +119,7 @@ func locationOf(storageID string, storage *vidispine.StorageResult) (file.Locati
 		}
 	}
 	if len(uris) == 0 {
-		return file.LocationInput{}, domain.Invalid("Cantemo storage %s has no address", storageID)
+		return file.LocationInput{}, domain.Invalid("Vidispine storage %s has no address", storageID)
 	}
 	kind := sqlc.LocationKindNas
 	if uris[0].Scheme == "s3" {

@@ -10,10 +10,10 @@ code. Keep it to pointers: the code is the detail.
   (`internal/asset/service.go`). The caller comes from `access.From(ctx)`.
 - A write over several statements runs in `s.tx.InTx(ctx, func(q sqlc.Querier) error {...})`.
 - **Several services in one transaction:** inside `InTx`, build them over `db.SameTx(q)`.
-  `internal/cantemo/service.go` (`Import`) and `internal/devdata/scenarios.go` (`newServices`) do
+  `internal/vidispineimport/service.go` (`Import`) and `internal/devdata/scenarios.go` (`newServices`) do
   this. Services built with `db.PoolTx` open their own transaction per call.
 - Never call another system inside a transaction: read first, then open it
-  (`cantemo.Service.Import`).
+  (`vidispineimport.Service.Import`).
 - Database errors go through `domain.FromPG` (`FromPGDelete` for deletes). An unknown foreign key
   or an enum value the database rejects becomes `INVALID_INPUT` there; services do not check
   those in Go first.
@@ -21,7 +21,7 @@ code. Keep it to pointers: the code is the detail.
   `access.RequireProject(...)`. `access.System()` is the administrator principal of the CLI and
   dev data; it has no user id, so `created_by` is NULL.
 - Administrator-only today: programs (create/delete), storage locations, all file writes, users
-  and groups, Cantemo import and refresh.
+  and groups, Vidispine import and refresh.
 
 ## Services are constructed in three places
 
@@ -46,13 +46,13 @@ A new service, or a new dependency of one, must be added to all of them:
 - Subtitle import always adds a revision; only SRT and WebVTT parse.
 - `language.alt_codes` holds 3-letter codes, but no query reads it yet.
 - Postgres cannot drop an enum value: a migration that adds one rebuilds the type in its Down
-  (`00003_languages.sql`, `00008_cantemo_import.sql`).
+  (`00003_languages.sql`, `00008_vidispine_import.sql`).
 
 ## Config
 
 `internal/config/config.go`: flat fields on `Config`, the env name in a trailing comment. Plain
 strings are read in the map loop of `LoadFrom`; booleans with `boolEnv`. A group that must be
-complete is checked at the end of `LoadFrom` (`ErrCantemoIncomplete`). `Validate` (AUTH required
+complete is checked at the end of `LoadFrom` (`ErrVidispineIncomplete`). `Validate` (AUTH required
 unless `DEBUG`) runs only in `app.New`, so CLI commands other than `serve` skip it. New settings
 also go in `.env.example` and `AGENTS.md`.
 
@@ -81,15 +81,15 @@ write results to `out` and return `usageErr(...)` for bad command lines. Flags u
 ## Other systems
 
 Outbound HTTP uses `net/http` directly. The consumer declares a small interface
-(`auth.Verifier`, `cantemo.Source`) and tests run against a real `httptest` server from a
+(`auth.Verifier`, `vidispineimport.Source`) and tests run against a real `httptest` server from a
 non-test package that e2e can import: `internal/auth/authtest` (token issuer),
 `pkg/vidispine/vidispinetest` (fake Vidispine). Code other projects may import lives under
 `pkg/` and must not import `internal/`.
 
 ## Tests
 
-- `e2e/main_test.go` starts Postgres (testcontainers), the token issuer, the fake Cantemo and the
-  app; `appConfig()` is the app's configuration. Globals: `pool`, `baseURL`, `issuer`, `cantemo`.
+- `e2e/main_test.go` starts Postgres (testcontainers), the token issuer, the fake Vidispine and the
+  app; `appConfig()` is the app's configuration. Globals: `pool`, `baseURL`, `issuer`, `vsServer`.
 - Users: `signIn(t)`, `signInAdmin(t)`; `u.must`, `u.fails(t, code, query, vars)`, `u.sees`,
   `u.isNull`. Builders in `e2e/fixtures_test.go` (`newProgram`, `newProject`, `newClip`, ...);
   `newWorld` in `e2e/access_test.go`. Tests do not run in parallel.
@@ -100,7 +100,7 @@ non-test package that e2e can import: `internal/auth/authtest` (token issuer),
   objects when the operation cannot be repeated.
 - New nested fields go in `deepQuery` (`TestNestedQueriesAreBatched`).
 - CLI: usage and connection-error tables in `internal/cli/cli_test.go`; success paths in e2e
-  (`TestAdminCLI`, `TestCantemoCLI`, `TestCLIAgainstDB`). `startApp` and `freshDB` in
+  (`TestAdminCLI`, `TestVidispineCLI`, `TestCLIAgainstDB`). `startApp` and `freshDB` in
   `e2e/devdata_test.go` run a second app or database.
 - `TestStoreScenarios` runs every registered scenario; `fake_test.go` `build()` lists every
   builder for the determinism test.
@@ -112,7 +112,7 @@ non-test package that e2e can import: `internal/auth/authtest` (token issuer),
 A scenario is an entry in `registry` (`internal/devdata/scenarios.go`) with `Params` and a
 `Run(ctx, env, values)` that goes through the services. `internal/fake` builders return service
 input structs and never read the clock. A scenario that needs another system uses a stand-in held
-in memory (`cantemoItems`).
+in memory (`vidispineItems`).
 
 The debug UI is one file, `internal/devdata/ui/index.html`, over the JSON API in
 `internal/devdata/http.go`. The handler sees only the `Backend` interface (`Store` implements

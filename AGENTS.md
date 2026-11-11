@@ -28,7 +28,7 @@ added to. Add to it when you learn something a future change would have to redis
 
 ```
 cmd/mediabrain/         thin main -> internal/cli
-internal/cli/           subcommands: serve | migrate | seed | reset-data | admin | cantemo
+internal/cli/           subcommands: serve | migrate | seed | reset-data | admin | vidispine
 internal/app/           wiring (DB, migrations, services, HTTP server), routes, request logging
 internal/config/        env + .env config
 internal/logging/       slog setup (text/json)
@@ -39,14 +39,14 @@ internal/db/            pgx pool, embedded goose migrations
 internal/domain/        shared errors, paging and input rules
 internal/access/        principals, permission levels, grants, asset_access refresh; users and groups
 internal/auth/          verifies the proxy's JWT, trusted proxies, debug bypass (authtest/: test issuer)
-internal/<domain>/      domain services over sqlc.Querier: project, file, asset, subtitle, cantemo (import)
+internal/<domain>/      domain services over sqlc.Querier: project, file, asset, subtitle, vidispineimport
 internal/graph/         gqlgen resolvers (hand-written), dataloaders, error presenter, server setup
   schema/*.graphqls     GraphQL schema (source of truth)
   loader/, scalar/      generic batching loader; Date and JSON scalars
   generated/, model/models_gen.go   GENERATED, do not edit
 internal/fake/          gofakeit-based, seedable fake input builders (tests + dev data)
 internal/devdata/       dev-data SCENARIOS, debug UI (ui/index.html) and its JSON API
-pkg/vidispine/          Vidispine (Cantemo) REST client other Go projects may import; vidispinetest/: fake server
+pkg/vidispine/          Vidispine REST client other Go projects may import; vidispinetest/: fake server
 e2e/                    tests against real Postgres (build tag `e2e`, testcontainers): API, permissions, scenarios
 docs/                   what has been built and why
 yaak/                   Yaak API-client workspace with requests for the standard operations
@@ -85,7 +85,7 @@ Live reload caveats:
 | Run once, no reload | `make run` |
 | Dev data: list / run scenario | `make seed-list` / `make seed s=catalog args="-reset -seed 42 assets=20"` |
 | System administrator | `make admin-grant u=me@example.com` / `make admin-revoke u=...` (the user must have signed in once) |
-| Cantemo: import one item / refresh | `make cantemo-import id=VX-123 args="-type 1 -project PJ-..."` / `make cantemo-refresh a=AS-...` (needs `CANTEMO_*`) |
+| Vidispine: import one item / refresh | `make vidispine-import id=VX-123 args="-type 1 -project PJ-..."` / `make vidispine-refresh a=AS-...` (needs `VIDISPINE_*`) |
 | Format | `make fmt` |
 | Wipe data / rebuild schema | `make reset-data` / `make db-reset` |
 | New migration | `make migrate-new name=add_something` |
@@ -115,7 +115,7 @@ The debug UI also lists users and lets you act as one of them ("Act as user"): i
 `mb_debug_user` cookie that `/query` honours when `DEBUG=true`. `X-Debug-User: <email or id>` does
 the same for curl.
 
-With the `CANTEMO_*` settings, the **Cantemo** card imports one item or refreshes an imported
+With the `VIDISPINE_*` settings, the **Vidispine** card imports one item or refreshes an imported
 asset (as the system principal) and shows the result.
 
 Reset and stats work from the schema (they read every table in `public` except goose's), so they
@@ -169,7 +169,7 @@ need no updates. The one exception: reference tables that a migration seeds (`as
   `.env.example`, and in this file. Current settings: `DATABASE_URL`, `HTTP_ADDR`, `AUTO_MIGRATE`,
   `GRAPHQL_PLAYGROUND`, `DEBUG`, `DEBUG_USER`, `LOG_FORMAT`, `LOG_LEVEL`, and for sign-in `AUTH_ISSUER`,
   `AUTH_AUDIENCE`, `AUTH_JWKS_URL`, `AUTH_TRUSTED_PROXIES`, `AUTH_HEADER`, `AUTH_GROUPS_CLAIM`, and for
-  the Cantemo import `CANTEMO_URL`, `CANTEMO_USERNAME`, `CANTEMO_PASSWORD` (optional, all or none).
+  the Vidispine import `VIDISPINE_URL`, `VIDISPINE_USERNAME`, `VIDISPINE_PASSWORD` (optional, all or none).
 - **Security is not optional.** Every query and mutation is authenticated and checks permissions
   in its domain service. Reading something without access must look exactly like "not found".
   Unexpected errors reach the client only as a generic `INTERNAL` error. The server must refuse to

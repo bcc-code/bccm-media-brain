@@ -8,13 +8,13 @@ import (
 
 	"github.com/bcc-media/mediabrain/internal/access"
 	"github.com/bcc-media/mediabrain/internal/asset"
-	"github.com/bcc-media/mediabrain/internal/cantemo"
 	"github.com/bcc-media/mediabrain/internal/db"
 	"github.com/bcc-media/mediabrain/internal/db/sqlc"
 	"github.com/bcc-media/mediabrain/internal/fake"
 	"github.com/bcc-media/mediabrain/internal/file"
 	"github.com/bcc-media/mediabrain/internal/project"
 	"github.com/bcc-media/mediabrain/internal/subtitle"
+	"github.com/bcc-media/mediabrain/internal/vidispineimport"
 	"github.com/bcc-media/mediabrain/pkg/vidispine"
 )
 
@@ -59,14 +59,14 @@ var registry = []Scenario{
 		Run: runSubtitleRevisions,
 	},
 	{
-		Name: "cantemo",
-		Description: "Assets as an import from Cantemo leaves them: the item id in legacyIds, Cantemo's fields under " +
-			"metadata.cantemo, and the original file on a storage location named after the Vidispine storage. One more " +
-			"item is a placeholder without files and without a project. No Cantemo is contacted: the items are made up.",
+		Name: "vidispine",
+		Description: "Assets as an import from Vidispine leaves them: the item id in legacyIds, Vidispine's fields under " +
+			"metadata.vidispine, and the original file on a storage location named after the Vidispine storage. One more " +
+			"item is a placeholder without files and without a project. No Vidispine is contacted: the items are made up.",
 		Params: []Param{
 			{Name: "items", Label: "Items", Type: Int, Default: "5", Min: ptr(1), Max: ptr(500)},
 		},
-		Run: runCantemo,
+		Run: runVidispine,
 	},
 	{
 		Name: "edge-cases",
@@ -83,25 +83,25 @@ type services struct {
 	files     *file.Service
 	assets    *asset.Service
 	subtitles *subtitle.Service
-	// cantemo imports from the made-up items added to source.
-	cantemo *cantemo.Service
-	source  *cantemoItems
+	// vidispine imports from the made-up items added to source.
+	vidispine *vidispineimport.Service
+	source    *vidispineItems
 }
 
 func newServices(q sqlc.Querier) services {
 	tx := db.SameTx(q)
-	source := &cantemoItems{items: map[string]fake.CantemoItem{}}
+	source := &vidispineItems{items: map[string]fake.VidispineItem{}}
 	return services{
 		access: access.NewService(q, tx), projects: project.NewService(q, tx), files: file.NewService(q, tx),
 		assets: asset.NewService(q, tx), subtitles: subtitle.NewService(q, tx),
-		cantemo: cantemo.NewService(q, tx, source), source: source,
+		vidispine: vidispineimport.NewService(q, tx, source), source: source,
 	}
 }
 
-// cantemoItems stands in for the Vidispine API with items held in memory.
-type cantemoItems struct{ items map[string]fake.CantemoItem }
+// vidispineItems stands in for the Vidispine API with items held in memory.
+type vidispineItems struct{ items map[string]fake.VidispineItem }
 
-func (c *cantemoItems) GetMetadata(_ context.Context, itemID string) (*vidispine.MetadataResult, error) {
+func (c *vidispineItems) GetMetadata(_ context.Context, itemID string) (*vidispine.MetadataResult, error) {
 	out := &vidispine.MetadataResult{ID: itemID, Terse: map[string][]*vidispine.MetadataField{}}
 	for name, value := range c.items[itemID].Fields {
 		out.Terse[name] = []*vidispine.MetadataField{{Start: vidispine.MinusInf, End: vidispine.PlusInf, Value: value}}
@@ -109,15 +109,15 @@ func (c *cantemoItems) GetMetadata(_ context.Context, itemID string) (*vidispine
 	return out, nil
 }
 
-func (c *cantemoItems) GetShapes(_ context.Context, itemID string) (*vidispine.ShapeResult, error) {
+func (c *vidispineItems) GetShapes(_ context.Context, itemID string) (*vidispine.ShapeResult, error) {
 	return &vidispine.ShapeResult{ID: itemID, Shape: c.items[itemID].Shapes}, nil
 }
 
-func (c *cantemoItems) GetStorageMethods(_ context.Context, storageID string) (*vidispine.StorageResult, error) {
+func (c *vidispineItems) GetStorageMethods(_ context.Context, storageID string) (*vidispine.StorageResult, error) {
 	return &vidispine.StorageResult{Methods: []vidispine.StorageMethod{{URI: "file:///mnt/" + storageID + "/"}}}, nil
 }
 
-func runCantemo(ctx context.Context, env Env, v Values) (string, error) {
+func runVidispine(ctx context.Context, env Env, v Values) (string, error) {
 	s, f := newServices(env.Q), env.Fake
 	prog, err := s.program(ctx, f)
 	if err != nil {
@@ -129,15 +129,15 @@ func runCantemo(ctx context.Context, env Env, v Values) (string, error) {
 	}
 	storage := fmt.Sprintf("VX-%d", f.Int(1, 99))
 	for range v.Int("items") {
-		item := f.CantemoItem(storage)
+		item := f.VidispineItem(storage)
 		s.source.items[item.ID] = item
-		if _, err := s.cantemo.Import(ctx, cantemo.ImportInput{ItemID: item.ID, TypeID: 1, ProjectID: &pj.ID}); err != nil {
+		if _, err := s.vidispine.Import(ctx, vidispineimport.ImportInput{ItemID: item.ID, TypeID: 1, ProjectID: &pj.ID}); err != nil {
 			return "", err
 		}
 	}
-	placeholder := f.CantemoPlaceholder()
+	placeholder := f.VidispinePlaceholder()
 	s.source.items[placeholder.ID] = placeholder
-	a, err := s.cantemo.Import(ctx, cantemo.ImportInput{ItemID: placeholder.ID, TypeID: 1})
+	a, err := s.vidispine.Import(ctx, vidispineimport.ImportInput{ItemID: placeholder.ID, TypeID: 1})
 	if err != nil {
 		return "", err
 	}

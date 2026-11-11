@@ -8,7 +8,7 @@ detail, these pages are the reasoning.
 | [architecture.md](architecture.md) | Layers, transactions, errors, dataloaders, testing approach |
 | [data-model.md](data-model.md) | The entities in use and why they are shaped this way |
 | [api.md](api.md) | The GraphQL surface per area, with examples |
-| [cantemo.md](cantemo.md) | Importing and refreshing assets from Cantemo, and the reusable Vidispine client |
+| [vidispine.md](vidispine.md) | Importing and refreshing assets from Vidispine, and the reusable Vidispine client |
 | [security.md](security.md) | Sign-in, permission rules, administrators, hardening, known limits |
 | [codebase.md](codebase.md) | Where things are and which conventions to follow: read this instead of exploring |
 | [log.md](log.md) | Dated entries: what changed and why |

@@ -15,7 +15,7 @@ and choose this folder. Yaak keeps the files in sync, so changes you make show u
 | `user` | Who to act as in debug mode (sent as `X-Debug-User`): an email or user id. The default `admin@example.test` is the `DEBUG_USER` of `.env.example`, which the server creates as an administrator when missing, so it works on an empty database. Other users must exist (`make seed s=access` creates one per permission level) |
 | `token` | Only for a deployed server, and only if its auth proxy accepts a bearer token from API clients: point `base_url` at the proxy and enable the bearer authentication on the folders. Not needed for `make dev` |
 | `program_id`, `project_id`, `location_id`, `file_id`, `copy_id`, `asset_id`, `version_id`, `rendition_id`, `track_id`, `grant_id` | Ids used by the requests. Paste them in from the response of the matching "Create ..." request |
-| `cantemo_item_id` | The Cantemo (Vidispine) item to import, e.g. `VX-123` |
+| `vidispine_item_id` | The Vidispine item to import, e.g. `VX-123` |
 
 ## Typical run on an empty database
 
@@ -26,9 +26,9 @@ and choose this folder. Yaak keeps the files in sync, so changes you make show u
 5. *Subtitles*: Import subtitles → Track with cues → Edit subtitles → Export track.
 6. *Access*: `make seed s=access` adds a persona per permission level (it wipes the data first).
    Grant access to one of them, then change `user` to their email to see what they see.
-7. *Cantemo*: with `CANTEMO_URL`, `CANTEMO_USERNAME` and `CANTEMO_PASSWORD` set on the server, put an
-   item id into `cantemo_item_id` → Import from Cantemo → Refresh from Cantemo. Without a Cantemo,
-   `make seed s=cantemo` creates assets that look imported.
+7. *Vidispine*: with `VIDISPINE_URL`, `VIDISPINE_USERNAME` and `VIDISPINE_PASSWORD` set on the server, put an
+   item id into `vidispine_item_id` → Import from Vidispine → Refresh from Vidispine. Without a Vidispine,
+   `make seed s=vidispine` creates assets that look imported.
 
 Requests marked "(admin)" need a system administrator. Keep this folder in step with the schema
 when operations are added or changed.

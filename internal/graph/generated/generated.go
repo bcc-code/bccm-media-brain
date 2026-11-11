@@ -17,12 +17,12 @@ import (
 	"github.com/99designs/gqlgen/graphql/introspection"
 	"github.com/bcc-media/mediabrain/internal/access"
 	"github.com/bcc-media/mediabrain/internal/asset"
-	"github.com/bcc-media/mediabrain/internal/cantemo"
 	"github.com/bcc-media/mediabrain/internal/db/sqlc"
 	"github.com/bcc-media/mediabrain/internal/file"
 	"github.com/bcc-media/mediabrain/internal/graph/scalar"
 	"github.com/bcc-media/mediabrain/internal/project"
 	"github.com/bcc-media/mediabrain/internal/subtitle"
+	"github.com/bcc-media/mediabrain/internal/vidispineimport"
 	gqlparser "github.com/vektah/gqlparser/v2"
 	"github.com/vektah/gqlparser/v2/ast"
 )
@@ -174,10 +174,10 @@ type ComplexityRoot struct {
 		DetachFile             func(childComplexity int, renditionID string, fileID string, role sqlc.FileRole) int
 		EditSubtitles          func(childComplexity int, trackID string, cues []*subtitle.Cue) int
 		GrantAccess            func(childComplexity int, input access.GrantInput) int
-		ImportFromCantemo      func(childComplexity int, input cantemo.ImportInput) int
+		ImportFromVidispine    func(childComplexity int, input vidispineimport.ImportInput) int
 		ImportSubtitles        func(childComplexity int, input subtitle.ImportInput) int
 		LinkAssetToProject     func(childComplexity int, assetID string, projectID string, role sqlc.LinkRole) int
-		RefreshFromCantemo     func(childComplexity int, assetID string) int
+		RefreshFromVidispine   func(childComplexity int, assetID string) int
 		RegisterFile           func(childComplexity int, input file.RegisterInput) int
 		RemoveFileCopy         func(childComplexity int, id string) int
 		RevokeAccess           func(childComplexity int, id string) int
@@ -356,8 +356,6 @@ type MutationResolver interface {
 	DeleteRendition(ctx context.Context, id string) (bool, error)
 	AttachFile(ctx context.Context, renditionID string, fileID string, role sqlc.FileRole, position int) (*sqlc.RenditionFile, error)
 	DetachFile(ctx context.Context, renditionID string, fileID string, role sqlc.FileRole) (bool, error)
-	ImportFromCantemo(ctx context.Context, input cantemo.ImportInput) (*sqlc.Asset, error)
-	RefreshFromCantemo(ctx context.Context, assetID string) (*sqlc.Asset, error)
 	CreateStorageLocation(ctx context.Context, input file.LocationInput) (*sqlc.StorageLocation, error)
 	UpdateStorageLocation(ctx context.Context, id string, input file.LocationInput) (*sqlc.StorageLocation, error)
 	DeleteStorageLocation(ctx context.Context, id string) (bool, error)
@@ -375,6 +373,8 @@ type MutationResolver interface {
 	ImportSubtitles(ctx context.Context, input subtitle.ImportInput) (*sqlc.SubtitleTrack, error)
 	EditSubtitles(ctx context.Context, trackID string, cues []*subtitle.Cue) (*sqlc.SubtitleTrack, error)
 	DeleteSubtitleTrack(ctx context.Context, id string) (bool, error)
+	ImportFromVidispine(ctx context.Context, input vidispineimport.ImportInput) (*sqlc.Asset, error)
+	RefreshFromVidispine(ctx context.Context, assetID string) (*sqlc.Asset, error)
 }
 type ProgramResolver interface {
 	Projects(ctx context.Context, obj *sqlc.Program) ([]*sqlc.Project, error)
@@ -1079,17 +1079,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.GrantAccess(childComplexity, args["input"].(access.GrantInput)), true
-	case "Mutation.importFromCantemo":
-		if e.ComplexityRoot.Mutation.ImportFromCantemo == nil {
+	case "Mutation.importFromVidispine":
+		if e.ComplexityRoot.Mutation.ImportFromVidispine == nil {
 			break
 		}
 
-		args, err := ec.field_Mutation_importFromCantemo_args(ctx, rawArgs)
+		args, err := ec.field_Mutation_importFromVidispine_args(ctx, rawArgs)
 		if err != nil {
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.ImportFromCantemo(childComplexity, args["input"].(cantemo.ImportInput)), true
+		return e.ComplexityRoot.Mutation.ImportFromVidispine(childComplexity, args["input"].(vidispineimport.ImportInput)), true
 	case "Mutation.importSubtitles":
 		if e.ComplexityRoot.Mutation.ImportSubtitles == nil {
 			break
@@ -1112,17 +1112,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.LinkAssetToProject(childComplexity, args["assetId"].(string), args["projectId"].(string), args["role"].(sqlc.LinkRole)), true
-	case "Mutation.refreshFromCantemo":
-		if e.ComplexityRoot.Mutation.RefreshFromCantemo == nil {
+	case "Mutation.refreshFromVidispine":
+		if e.ComplexityRoot.Mutation.RefreshFromVidispine == nil {
 			break
 		}
 
-		args, err := ec.field_Mutation_refreshFromCantemo_args(ctx, rawArgs)
+		args, err := ec.field_Mutation_refreshFromVidispine_args(ctx, rawArgs)
 		if err != nil {
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Mutation.RefreshFromCantemo(childComplexity, args["assetId"].(string)), true
+		return e.ComplexityRoot.Mutation.RefreshFromVidispine(childComplexity, args["assetId"].(string)), true
 	case "Mutation.registerFile":
 		if e.ComplexityRoot.Mutation.RegisterFile == nil {
 			break
@@ -1913,7 +1913,6 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		return graphql.NewInputUnmarshalerIndex(
 			graphql.NewInputUnmarshaler("AssetFilter", ec.unmarshalInputAssetFilter),
 			graphql.NewInputUnmarshaler("AssetInput", ec.unmarshalInputAssetInput),
-			graphql.NewInputUnmarshaler("CantemoImportInput", ec.unmarshalInputCantemoImportInput),
 			graphql.NewInputUnmarshaler("CreateProgramInput", ec.unmarshalInputCreateProgramInput),
 			graphql.NewInputUnmarshaler("CreateProjectInput", ec.unmarshalInputCreateProjectInput),
 			graphql.NewInputUnmarshaler("CreateRenditionInput", ec.unmarshalInputCreateRenditionInput),
@@ -1928,6 +1927,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 			graphql.NewInputUnmarshaler("UpdateProjectInput", ec.unmarshalInputUpdateProjectInput),
 			graphql.NewInputUnmarshaler("UpdateRenditionInput", ec.unmarshalInputUpdateRenditionInput),
 			graphql.NewInputUnmarshaler("VersionInput", ec.unmarshalInputVersionInput),
+			graphql.NewInputUnmarshaler("VidispineImportInput", ec.unmarshalInputVidispineImportInput),
 		)
 	}
 	first := true
@@ -2277,28 +2277,6 @@ extend type Mutation {
   detachFile(renditionId: ID!, fileId: ID!, role: FileRole!): Boolean!
 }
 `, BuiltIn: false},
-	{Name: "../schema/cantemo.graphqls", Input: `input CantemoImportInput {
-  "The Cantemo (Vidispine) item id, e.g. VX-123."
-  itemId: String!
-  typeId: Int!
-  "Links the new asset to this project. Without it only administrators see the asset."
-  projectId: ID
-}
-
-extend type Mutation {
-  """
-  Administrators only. Creates an asset from one Cantemo item: its metadata under
-  metadata.cantemo, the item id in legacyIds and, when the item has an original file, a version
-  with a master rendition holding that file. An item can be imported once.
-  """
-  importFromCantemo(input: CantemoImportInput!): Asset!
-  """
-  Administrators only. Replaces metadata.cantemo of an imported asset with Cantemo's current
-  values. Nothing else on the asset changes.
-  """
-  refreshFromCantemo(assetId: ID!): Asset!
-}
-`, BuiltIn: false},
 	{Name: "../schema/file.graphqls", Input: `enum LocationKind {
   NAS
   LTO
@@ -2311,7 +2289,7 @@ enum HashAlgo {
   BLAKE3
   SHA256
   MD5
-  "What Vidispine (Cantemo) records for its files."
+  "What Vidispine records for its files."
   SHA1
 }
 
@@ -2598,6 +2576,28 @@ extend type Mutation {
   "Writes a new revision with exactly these cues. Only the latest revision can be edited."
   editSubtitles(trackId: ID!, cues: [SubtitleCueInput!]!): SubtitleTrack!
   deleteSubtitleTrack(id: ID!): Boolean!
+}
+`, BuiltIn: false},
+	{Name: "../schema/vidispine.graphqls", Input: `input VidispineImportInput {
+  "The Vidispine item id, e.g. VX-123."
+  itemId: String!
+  typeId: Int!
+  "Links the new asset to this project. Without it only administrators see the asset."
+  projectId: ID
+}
+
+extend type Mutation {
+  """
+  Administrators only. Creates an asset from one Vidispine item: its metadata under
+  metadata.vidispine, the item id in legacyIds and, when the item has an original file, a version
+  with a master rendition holding that file. An item can be imported once.
+  """
+  importFromVidispine(input: VidispineImportInput!): Asset!
+  """
+  Administrators only. Replaces metadata.vidispine of an imported asset with Vidispine's current
+  values. Nothing else on the asset changes.
+  """
+  refreshFromVidispine(assetId: ID!): Asset!
 }
 `, BuiltIn: false},
 }
@@ -3457,12 +3457,12 @@ func (ec *executionContext) field_Mutation_grantAccess_args(ctx context.Context,
 	return args, nil
 }
 
-func (ec *executionContext) field_Mutation_importFromCantemo_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+func (ec *executionContext) field_Mutation_importFromVidispine_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
-		func(ctx context.Context, v any) (cantemo.ImportInput, error) {
-			return ec.unmarshalNCantemoImportInput2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋcantemoᚐImportInput(ctx, v)
+		func(ctx context.Context, v any) (vidispineimport.ImportInput, error) {
+			return ec.unmarshalNVidispineImportInput2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋvidispineimportᚐImportInput(ctx, v)
 		})
 	if err != nil {
 		return nil, err
@@ -3515,7 +3515,7 @@ func (ec *executionContext) field_Mutation_linkAssetToProject_args(ctx context.C
 	return args, nil
 }
 
-func (ec *executionContext) field_Mutation_refreshFromCantemo_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+func (ec *executionContext) field_Mutation_refreshFromVidispine_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "assetId",
@@ -6628,94 +6628,6 @@ func (ec *executionContext) fieldContext_Mutation_detachFile(ctx context.Context
 	return fc, nil
 }
 
-func (ec *executionContext) _Mutation_importFromCantemo(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_Mutation_importFromCantemo(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().ImportFromCantemo(ctx, fc.Args["input"].(cantemo.ImportInput))
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v *sqlc.Asset) graphql.Marshaler {
-			return ec.marshalNAsset2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐAsset(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_Mutation_importFromCantemo(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Mutation",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.childFields_Asset(ctx, field)
-		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Mutation_importFromCantemo_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Mutation_refreshFromCantemo(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_Mutation_refreshFromCantemo(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().RefreshFromCantemo(ctx, fc.Args["assetId"].(string))
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v *sqlc.Asset) graphql.Marshaler {
-			return ec.marshalNAsset2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐAsset(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_Mutation_refreshFromCantemo(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Mutation",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.childFields_Asset(ctx, field)
-		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Mutation_refreshFromCantemo_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
-	}
-	return fc, nil
-}
-
 func (ec *executionContext) _Mutation_createStorageLocation(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -7458,6 +7370,94 @@ func (ec *executionContext) fieldContext_Mutation_deleteSubtitleTrack(ctx contex
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_deleteSubtitleTrack_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_importFromVidispine(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_importFromVidispine(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().ImportFromVidispine(ctx, fc.Args["input"].(vidispineimport.ImportInput))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *sqlc.Asset) graphql.Marshaler {
+			return ec.marshalNAsset2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐAsset(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_importFromVidispine(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Asset(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_importFromVidispine_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_refreshFromVidispine(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_refreshFromVidispine(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().RefreshFromVidispine(ctx, fc.Args["assetId"].(string))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *sqlc.Asset) graphql.Marshaler {
+			return ec.marshalNAsset2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐAsset(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_refreshFromVidispine(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Asset(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_refreshFromVidispine_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -11315,62 +11315,6 @@ func UnmarshalAssetInput(ctx context.Context, raw any) (asset.Input, error) {
 	return out, err
 }
 
-func (ec *executionContext) unmarshalInputCantemoImportInput(ctx context.Context, obj any) (cantemo.ImportInput, error) {
-	var it cantemo.ImportInput
-	if obj == nil {
-		return it, nil
-	}
-
-	asMap := map[string]any{}
-	for k, v := range obj.(map[string]any) {
-		asMap[k] = v
-	}
-
-	fieldsInOrder := [...]string{"itemId", "typeId", "projectId"}
-	for _, k := range fieldsInOrder {
-		v, ok := asMap[k]
-		if !ok {
-			continue
-		}
-		switch k {
-		case "itemId":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("itemId"))
-			data, err := ec.unmarshalNString2string(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.ItemID = data
-		case "typeId":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("typeId"))
-			data, err := ec.unmarshalNInt2int16(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.TypeID = data
-		case "projectId":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("projectId"))
-			data, err := ec.unmarshalOID2ᚖstring(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.ProjectID = data
-		}
-	}
-	return it, nil
-}
-
-// UnmarshalCantemoImportInput unmarshals raw into the CantemoImportInput input type, using the
-// unmarshaler bound to ctx's request. Call it from a resolver to decode an input
-// object that was not passed as a field argument.
-//
-// ctx must come from a gqlgen request; outside one there is no unmarshaler to use
-// and the returned error says so.
-func UnmarshalCantemoImportInput(ctx context.Context, raw any) (cantemo.ImportInput, error) {
-	var out cantemo.ImportInput
-	err := graphql.UnmarshalNamedInputFromContext(ctx, "CantemoImportInput", raw, &out)
-	return out, err
-}
-
 func (ec *executionContext) unmarshalInputCreateProgramInput(ctx context.Context, obj any) (project.ProgramInput, error) {
 	var it project.ProgramInput
 	if obj == nil {
@@ -12313,6 +12257,62 @@ func UnmarshalVersionInput(ctx context.Context, raw any) (asset.VersionInput, er
 	return out, err
 }
 
+func (ec *executionContext) unmarshalInputVidispineImportInput(ctx context.Context, obj any) (vidispineimport.ImportInput, error) {
+	var it vidispineimport.ImportInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"itemId", "typeId", "projectId"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "itemId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("itemId"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ItemID = data
+		case "typeId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("typeId"))
+			data, err := ec.unmarshalNInt2int16(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.TypeID = data
+		case "projectId":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("projectId"))
+			data, err := ec.unmarshalOID2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.ProjectID = data
+		}
+	}
+	return it, nil
+}
+
+// UnmarshalVidispineImportInput unmarshals raw into the VidispineImportInput input type, using the
+// unmarshaler bound to ctx's request. Call it from a resolver to decode an input
+// object that was not passed as a field argument.
+//
+// ctx must come from a gqlgen request; outside one there is no unmarshaler to use
+// and the returned error says so.
+func UnmarshalVidispineImportInput(ctx context.Context, raw any) (vidispineimport.ImportInput, error) {
+	var out vidispineimport.ImportInput
+	err := graphql.UnmarshalNamedInputFromContext(ctx, "VidispineImportInput", raw, &out)
+	return out, err
+}
+
 // endregion **************************** input.gotpl *****************************
 
 // region    ************************** interface.gotpl ***************************
@@ -13069,20 +13069,6 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "importFromCantemo":
-			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._Mutation_importFromCantemo(ctx, field)
-			})
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "refreshFromCantemo":
-			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._Mutation_refreshFromCantemo(ctx, field)
-			})
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
 		case "createStorageLocation":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_createStorageLocation(ctx, field)
@@ -13198,6 +13184,20 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "deleteSubtitleTrack":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_deleteSubtitleTrack(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "importFromVidispine":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_importFromVidispine(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "refreshFromVidispine":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_refreshFromVidispine(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -14476,11 +14476,6 @@ func (ec *executionContext) marshalNBoolean2bool(ctx context.Context, sel ast.Se
 	return res
 }
 
-func (ec *executionContext) unmarshalNCantemoImportInput2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋcantemoᚐImportInput(ctx context.Context, v any) (cantemo.ImportInput, error) {
-	res, err := ec.unmarshalInputCantemoImportInput(ctx, v)
-	return res, graphql.ErrorOnPath(ctx, err)
-}
-
 func (ec *executionContext) unmarshalNCopyStatus2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐCopyStatus(ctx context.Context, v any) (sqlc.CopyStatus, error) {
 	tmp, err := graphql.UnmarshalString(v)
 	res := unmarshalNCopyStatus2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐCopyStatus[tmp]
@@ -15503,6 +15498,11 @@ var (
 		sqlc.VersionStatusFinal:    "FINAL",
 	}
 )
+
+func (ec *executionContext) unmarshalNVidispineImportInput2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋvidispineimportᚐImportInput(ctx context.Context, v any) (vidispineimport.ImportInput, error) {
+	res, err := ec.unmarshalInputVidispineImportInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
 
 func (ec *executionContext) marshalN__Directive2githubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚋintrospectionᚐDirective(ctx context.Context, sel ast.SelectionSet, v introspection.Directive) graphql.Marshaler {
 	return ec.___Directive(ctx, sel, &v)

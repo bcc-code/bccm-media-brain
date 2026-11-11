@@ -1,6 +1,6 @@
-// Package cantemo imports single items from Cantemo Portal (Vidispine) as assets and refreshes
-// the Cantemo metadata kept on them.
-package cantemo
+// Package vidispineimport imports single items from Vidispine as assets and refreshes
+// the Vidispine metadata kept on them.
+package vidispineimport
 
 import (
 	"context"
@@ -21,11 +21,11 @@ import (
 	"github.com/bcc-media/mediabrain/pkg/vidispine"
 )
 
-// MetadataKey is the key of asset.metadata that holds what came from Cantemo. Refresh replaces
+// MetadataKey is the key of asset.metadata that holds what came from Vidispine. Refresh replaces
 // this key and nothing else.
-const MetadataKey = "cantemo"
+const MetadataKey = "vidispine"
 
-const versionLabel = "Cantemo original"
+const versionLabel = "Vidispine original"
 
 var itemIDPattern = regexp.MustCompile(`^VX-[0-9]+$`)
 
@@ -37,7 +37,7 @@ type Source interface {
 }
 
 // NewSource returns a client for the Vidispine API at baseURL, or nil when baseURL is empty:
-// Cantemo is then not configured.
+// Vidispine is then not configured.
 func NewSource(baseURL, username, password string) (Source, error) {
 	if baseURL == "" {
 		return nil, nil
@@ -51,7 +51,7 @@ type Service struct {
 	src Source
 }
 
-// NewService takes a nil src when Cantemo is not configured; every operation then fails with
+// NewService takes a nil src when Vidispine is not configured; every operation then fails with
 // domain.ErrUnavailable.
 func NewService(q sqlc.Querier, tx db.TxRunner, src Source) *Service {
 	return &Service{q: q, tx: tx, src: src}
@@ -75,7 +75,7 @@ func (s *Service) ready(ctx context.Context) error {
 		return err
 	}
 	if s.src == nil {
-		return domain.Unavailable("Cantemo is not configured")
+		return domain.Unavailable("Vidispine is not configured")
 	}
 	return nil
 }
@@ -84,10 +84,12 @@ func (s *Service) ready(ctx context.Context) error {
 // internal hosts.
 func upstream(ctx context.Context, err error, itemID string) error {
 	if errors.Is(err, vidispine.ErrNotFound) {
-		return fmt.Errorf("%w: Cantemo has no item %s", domain.ErrNotFound, itemID)
+		// A wrong VIDISPINE_URL answers 404 for every item, so the requested URL is logged.
+		slog.WarnContext(ctx, "vidispine: not found", "item", itemID, "error", err)
+		return fmt.Errorf("%w: Vidispine has no item %s", domain.ErrNotFound, itemID)
 	}
-	slog.ErrorContext(ctx, "cantemo: request failed", "item", itemID, "error", err)
-	return domain.Unavailable("Cantemo did not answer")
+	slog.ErrorContext(ctx, "vidispine: request failed", "item", itemID, "error", err)
+	return domain.Unavailable("Vidispine did not answer")
 }
 
 func metadataOf(m *vidispine.MetadataResult, itemID string) json.RawMessage {
@@ -95,7 +97,7 @@ func metadataOf(m *vidispine.MetadataResult, itemID string) json.RawMessage {
 	return raw
 }
 
-// Import creates an asset from one Cantemo item: its metadata and, when the item has one, the
+// Import creates an asset from one Vidispine item: its metadata and, when the item has one, the
 // file of its original shape as a master rendition. An item can be imported once.
 func (s *Service) Import(ctx context.Context, in ImportInput) (sqlc.Asset, error) {
 	if err := s.ready(ctx); err != nil {
@@ -106,7 +108,7 @@ func (s *Service) Import(ctx context.Context, in ImportInput) (sqlc.Asset, error
 		return sqlc.Asset{}, domain.Invalid("itemId must look like VX-123")
 	}
 
-	// Everything is read from Cantemo before the transaction starts, so that no database
+	// Everything is read from Vidispine before the transaction starts, so that no database
 	// transaction stays open while waiting for another system.
 	meta, err := s.src.GetMetadata(ctx, itemID)
 	if err != nil {
@@ -124,8 +126,8 @@ func (s *Service) Import(ctx context.Context, in ImportInput) (sqlc.Asset, error
 	if orig != nil {
 		storage, err := s.src.GetStorageMethods(ctx, orig.storageID)
 		if err != nil {
-			slog.ErrorContext(ctx, "cantemo: storage request failed", "item", itemID, "storage", orig.storageID, "error", err)
-			return sqlc.Asset{}, domain.Unavailable("Cantemo did not answer")
+			slog.ErrorContext(ctx, "vidispine: storage request failed", "item", itemID, "storage", orig.storageID, "error", err)
+			return sqlc.Asset{}, domain.Unavailable("Vidispine did not answer")
 		}
 		if location, err = locationOf(orig.storageID, storage); err != nil {
 			return sqlc.Asset{}, err
@@ -182,7 +184,7 @@ func (s *Service) Import(ctx context.Context, in ImportInput) (sqlc.Asset, error
 	return a, err
 }
 
-// Refresh replaces the Cantemo metadata of an imported asset with Cantemo's current values.
+// Refresh replaces the Vidispine metadata of an imported asset with Vidispine's current values.
 // Title, description and everything else edited in MediaBrain stay as they are.
 func (s *Service) Refresh(ctx context.Context, assetID string) (sqlc.Asset, error) {
 	if err := s.ready(ctx); err != nil {
@@ -194,7 +196,7 @@ func (s *Service) Refresh(ctx context.Context, assetID string) (sqlc.Asset, erro
 	}
 	itemID := ItemID(a)
 	if itemID == "" {
-		return sqlc.Asset{}, domain.Invalid("the asset was not imported from Cantemo")
+		return sqlc.Asset{}, domain.Invalid("the asset was not imported from Vidispine")
 	}
 	meta, err := s.src.GetMetadata(ctx, itemID)
 	if err != nil {
@@ -204,7 +206,7 @@ func (s *Service) Refresh(ctx context.Context, assetID string) (sqlc.Asset, erro
 	return a, domain.FromPG(err)
 }
 
-// ItemID returns the Cantemo item an asset was imported from, or "".
+// ItemID returns the Vidispine item an asset was imported from, or "".
 func ItemID(a sqlc.Asset) string {
 	var m map[string]json.RawMessage
 	var c Metadata

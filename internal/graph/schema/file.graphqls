@@ -10,7 +10,7 @@ enum HashAlgo {
   BLAKE3
   SHA256
   MD5
-  "What Vidispine (Cantemo) records for its files."
+  "What Vidispine records for its files."
   SHA1
 }
 

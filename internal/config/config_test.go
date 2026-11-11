@@ -149,7 +149,7 @@ func writeFile(t *testing.T, path, content string) {
 	}
 }
 
-func TestCantemoSettings(t *testing.T) {
+func TestVidispineSettings(t *testing.T) {
 	base := map[string]string{"DATABASE_URL": "postgres://x"}
 	with := func(extra map[string]string) func(string) (string, bool) {
 		all := map[string]string{}
@@ -162,24 +162,24 @@ func TestCantemoSettings(t *testing.T) {
 	}
 
 	cfg, err := LoadFrom(with(nil))
-	if err != nil || cfg.CantemoURL != "" {
+	if err != nil || cfg.VidispineURL != "" {
 		t.Fatalf("unset: %+v, %v", cfg, err)
 	}
-	cfg, err = LoadFrom(with(map[string]string{"CANTEMO_URL": "https://c.example/API", "CANTEMO_USERNAME": "u", "CANTEMO_PASSWORD": "p"}))
-	if err != nil || cfg.CantemoURL != "https://c.example/API" || cfg.CantemoUsername != "u" || cfg.CantemoPassword != "p" {
+	cfg, err = LoadFrom(with(map[string]string{"VIDISPINE_URL": "https://c.example/API", "VIDISPINE_USERNAME": "u", "VIDISPINE_PASSWORD": "p"}))
+	if err != nil || cfg.VidispineURL != "https://c.example/API" || cfg.VidispineUsername != "u" || cfg.VidispinePassword != "p" {
 		t.Fatalf("set: %+v, %v", cfg, err)
 	}
 	for _, partial := range []map[string]string{
-		{"CANTEMO_URL": "https://c.example/API"},
-		{"CANTEMO_URL": "https://c.example/API", "CANTEMO_USERNAME": "u"},
-		{"CANTEMO_URL": "https://c.example/API", "CANTEMO_PASSWORD": "p"},
+		{"VIDISPINE_URL": "https://c.example/API"},
+		{"VIDISPINE_URL": "https://c.example/API", "VIDISPINE_USERNAME": "u"},
+		{"VIDISPINE_URL": "https://c.example/API", "VIDISPINE_PASSWORD": "p"},
 	} {
-		if _, err := LoadFrom(with(partial)); !errors.Is(err, ErrCantemoIncomplete) {
+		if _, err := LoadFrom(with(partial)); !errors.Is(err, ErrVidispineIncomplete) {
 			t.Errorf("%v: err = %v", partial, err)
 		}
 	}
 	// Credentials without a URL configure nothing.
-	if _, err := LoadFrom(with(map[string]string{"CANTEMO_USERNAME": "u"})); err != nil {
+	if _, err := LoadFrom(with(map[string]string{"VIDISPINE_USERNAME": "u"})); err != nil {
 		t.Fatal(err)
 	}
 }

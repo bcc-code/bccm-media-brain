@@ -9,14 +9,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/bcc-media/mediabrain/internal/cantemo"
 	"github.com/bcc-media/mediabrain/internal/domain"
+	"github.com/bcc-media/mediabrain/internal/vidispineimport"
 )
 
 type fakeBackend struct {
 	applyErr, resetErr, statsErr, usersErr error
-	cantemoErr                             error
-	gotImport                              cantemo.ImportInput
+	vidispineErr                           error
+	gotImport                              vidispineimport.ImportInput
 	gotName                                string
 	gotReq                                 ApplyRequest
 }
@@ -38,15 +38,15 @@ func (f *fakeBackend) CreateUser(_ context.Context, email string, admin bool) (U
 	return User{ID: "US-2", Email: &email, Admin: admin}, f.usersErr
 }
 
-func (f *fakeBackend) CantemoConfigured() bool { return true }
+func (f *fakeBackend) VidispineConfigured() bool { return true }
 
-func (f *fakeBackend) CantemoImport(_ context.Context, in cantemo.ImportInput) (CantemoAsset, error) {
+func (f *fakeBackend) VidispineImport(_ context.Context, in vidispineimport.ImportInput) (VidispineAsset, error) {
 	f.gotImport = in
-	return CantemoAsset{ID: "AS-1", LegacyIDs: []string{in.ItemID}}, f.cantemoErr
+	return VidispineAsset{ID: "AS-1", LegacyIDs: []string{in.ItemID}}, f.vidispineErr
 }
 
-func (f *fakeBackend) CantemoRefresh(_ context.Context, assetID string) (CantemoAsset, error) {
-	return CantemoAsset{ID: assetID}, f.cantemoErr
+func (f *fakeBackend) VidispineRefresh(_ context.Context, assetID string) (VidispineAsset, error) {
+	return VidispineAsset{ID: assetID}, f.vidispineErr
 }
 
 func call(h http.Handler, method, path, body string) *httptest.ResponseRecorder {
@@ -144,23 +144,23 @@ func TestUsers(t *testing.T) {
 	}
 }
 
-func TestCantemoEndpoints(t *testing.T) {
+func TestVidispineEndpoints(t *testing.T) {
 	b := &fakeBackend{}
 	h := Handler(b)
-	if w := call(h, http.MethodGet, "/api/cantemo", ""); w.Code != 200 || !strings.Contains(w.Body.String(), `"configured":true`) {
+	if w := call(h, http.MethodGet, "/api/vidispine", ""); w.Code != 200 || !strings.Contains(w.Body.String(), `"configured":true`) {
 		t.Fatalf("status = %d %s", w.Code, w.Body)
 	}
-	w := call(h, http.MethodPost, "/api/cantemo/import", `{"itemId":"VX-1","typeId":2,"projectId":"PJ-1"}`)
+	w := call(h, http.MethodPost, "/api/vidispine/import", `{"itemId":"VX-1","typeId":2,"projectId":"PJ-1"}`)
 	if w.Code != 200 || b.gotImport.ItemID != "VX-1" || b.gotImport.TypeID != 2 || b.gotImport.ProjectID == nil || *b.gotImport.ProjectID != "PJ-1" {
 		t.Fatalf("import = %d %s, input %+v", w.Code, w.Body, b.gotImport)
 	}
-	if call(h, http.MethodPost, "/api/cantemo/import", `{"itemId":"VX-1","typeId":1,"projectId":""}`); b.gotImport.ProjectID != nil {
+	if call(h, http.MethodPost, "/api/vidispine/import", `{"itemId":"VX-1","typeId":1,"projectId":""}`); b.gotImport.ProjectID != nil {
 		t.Fatalf("an empty project must mean no project, got %q", *b.gotImport.ProjectID)
 	}
-	if w := call(h, http.MethodPost, "/api/cantemo/refresh", `{"assetId":"AS-9"}`); w.Code != 200 || !strings.Contains(w.Body.String(), `"AS-9"`) {
+	if w := call(h, http.MethodPost, "/api/vidispine/refresh", `{"assetId":"AS-9"}`); w.Code != 200 || !strings.Contains(w.Body.String(), `"AS-9"`) {
 		t.Fatalf("refresh = %d %s", w.Code, w.Body)
 	}
-	for _, path := range []string{"/api/cantemo/import", "/api/cantemo/refresh"} {
+	for _, path := range []string{"/api/vidispine/import", "/api/vidispine/refresh"} {
 		if w := call(h, http.MethodPost, path, "{bad"); w.Code != 400 {
 			t.Errorf("%s bad json = %d", path, w.Code)
 		}
@@ -168,11 +168,11 @@ func TestCantemoEndpoints(t *testing.T) {
 			domain.ErrInvalidInput: 400, domain.ErrNotFound: 404, domain.ErrConflict: 409,
 			domain.ErrUnavailable: 503, errors.New("db"): 500,
 		} {
-			b.cantemoErr = err
+			b.vidispineErr = err
 			if w := call(h, http.MethodPost, path, "{}"); w.Code != code || !strings.Contains(w.Body.String(), "error") {
 				t.Errorf("%s with %v = %d, want %d", path, err, w.Code, code)
 			}
 		}
-		b.cantemoErr = nil
+		b.vidispineErr = nil
 	}
 }

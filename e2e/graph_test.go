@@ -19,12 +19,12 @@ import (
 
 	"github.com/bcc-media/mediabrain/internal/access"
 	"github.com/bcc-media/mediabrain/internal/asset"
-	cantemosvc "github.com/bcc-media/mediabrain/internal/cantemo"
 	"github.com/bcc-media/mediabrain/internal/db/sqlc"
 	"github.com/bcc-media/mediabrain/internal/file"
 	"github.com/bcc-media/mediabrain/internal/graph"
 	"github.com/bcc-media/mediabrain/internal/project"
 	"github.com/bcc-media/mediabrain/internal/subtitle"
+	"github.com/bcc-media/mediabrain/internal/vidispineimport"
 	"github.com/bcc-media/mediabrain/pkg/vidispine"
 )
 
@@ -89,10 +89,10 @@ func (x probedTx) InTx(ctx context.Context, fn func(q sqlc.Querier) error) error
 // probedServices builds the domain services over a probed database connection.
 func probedServices(p *probe) *graph.Resolver {
 	q, tx := sqlc.New(probedDB{pool, p}), probedTx{p}
-	src, _ := vidispine.New(cantemo.Config())
+	src, _ := vidispine.New(vsServer.Config())
 	return &graph.Resolver{
-		CantemoSvc: cantemosvc.NewService(q, tx, src),
-		AccessSvc:  access.NewService(q, tx), ProjectsSvc: project.NewService(q, tx), FilesSvc: file.NewService(q, tx),
+		VidispineSvc: vidispineimport.NewService(q, tx, src),
+		AccessSvc:    access.NewService(q, tx), ProjectsSvc: project.NewService(q, tx), FilesSvc: file.NewService(q, tx),
 		AssetsSvc: asset.NewService(q, tx), SubtitlesSvc: subtitle.NewService(q, tx),
 	}
 }
@@ -283,9 +283,9 @@ func TestDatabaseFailuresAreContained(t *testing.T) {
 	}
 	known := w.f.VideoFile()
 	w.admin.must(t, registerFile, map[string]any{"in": fileVars(known)}, nil)
-	var imp struct{ ImportFromCantemo struct{ ID string } }
-	w.admin.must(t, importFromCantemo, map[string]any{"in": map[string]any{"itemId": cantemoItem(w.f, newCantemoStorage()).ID, "typeId": 1}}, &imp)
-	imported := imp.ImportFromCantemo.ID
+	var imp struct{ ImportFromVidispine struct{ ID string } }
+	w.admin.must(t, importFromVidispine, map[string]any{"in": map[string]any{"itemId": vidispineItem(w.f, newVidispineStorage()).ID, "typeId": 1}}, &imp)
+	imported := imp.ImportFromVidispine.ID
 	asAdmin := []operation{
 		{"admin lists", `{ users { id } userGroups { id } files { id } storageLocations { id } }`, fixed(nil)},
 		{"create program", createProgram, func() map[string]any {
@@ -315,12 +315,12 @@ func TestDatabaseFailuresAreContained(t *testing.T) {
 		{"delete file", `mutation($id: ID!) { deleteFile(id: $id) }`, func() map[string]any { return map[string]any{"id": newFile(t, w.admin, w.f, "")} }},
 		{"set admin", `mutation($u: String!) { setUserAdmin(user: $u, admin: false) { id } }`, fixed(map[string]any{"u": other.email})},
 		{"create asset without project", createAsset, func() map[string]any { return map[string]any{"in": assetVars(w.f)} }},
-		{"import from cantemo", importFromCantemo, func() map[string]any {
+		{"import from vidispine", importFromVidispine, func() map[string]any {
 			// A new storage every time, so that creating its location is swept as well.
-			item := cantemoItem(w.f, newCantemoStorage())
+			item := vidispineItem(w.f, newVidispineStorage())
 			return map[string]any{"in": map[string]any{"itemId": item.ID, "typeId": 1, "projectId": w.projectA}}
 		}},
-		{"refresh from cantemo", refreshFromCantemo, id(imported)},
+		{"refresh from vidispine", refreshFromVidispine, id(imported)},
 	}
 
 	sweep := func(as access.Principal, ops []operation) {

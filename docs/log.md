@@ -2,6 +2,57 @@
 
 Newest first. Each entry: what changed, why, and what was left out on purpose.
 
+## 2026-11-11 — The import is named after Vidispine, not Cantemo
+
+- Everything that was called Cantemo is now called Vidispine: settings `VIDISPINE_URL`,
+  `VIDISPINE_USERNAME`, `VIDISPINE_PASSWORD`; mutations `importFromVidispine` and
+  `refreshFromVidispine`; `mediabrain vidispine import|refresh` and `make vidispine-import` /
+  `vidispine-refresh`; the metadata key `metadata.vidispine`; the version label "Vidispine
+  original"; the `vidispine` scenario and the debug UI card and routes; the package
+  `internal/vidispineimport`; [vidispine.md](vidispine.md).
+- Why: things are named after the API they talk to. The media lives in Cantemo Portal, but only
+  the Vidispine API that Portal exposes under `/API` is called; Portal's own API is not.
+- The service package is `vidispineimport` because `pkg/vidispine` is the client and two packages
+  with one name would need aliases wherever both are used.
+- Not migrated: assets imported before this keep `metadata.cantemo` and are not found by
+  refresh through it. Nothing real had been imported; re-seed dev data. The entries below keep
+  the names of their time.
+
+## 2026-11-11 — Decided: scrubbing previews are sprite sheets
+
+Nothing is built yet. This records the choice so the implementation does not reopen it.
+
+- **Decision:** the preview a user scrubs through is a set of sprite sheets: frames tiled into a
+  few JPEGs, with one coarse sheet covering the whole asset so the first hover works at once and
+  finer sheets loaded for the part being scrubbed.
+- **Detail adapts to length.** The coarse sheet is always 100 frames spread evenly over the
+  asset, never closer together than the source frames, so its interval is `duration / 100`: a
+  10 s clip gets a frame every 0.1 s, a clip under 100 frames gets every frame, a one-hour asset
+  one every 36 s. Finer sheets hold one frame per second and exist only when that is finer than
+  the coarse sheet, so for assets longer than 100 s. Each level stores its interval, and the UI
+  finds a tile from the timestamp and that interval, so the numbers can change without changing
+  the UI. Why: a fixed interval of one second would give a clip under 10 s fewer than 10 frames.
+- **Why sprites:** once a sheet is loaded, dragging needs no requests, so it stays instant on a slow
+  connection; an asset has a handful of objects instead of one per frame; and plain cached images
+  are cheap in a grid of many assets. Several people tried the demo, and sprites gave the best
+  experience.
+- **Compared in a throwaway demo** on a 14 min 48 s 1080p film, stills 240x102 at one per
+  second, with 200 ms added to every request:
+
+  | Option | Size | Objects | Why not |
+  |---|---|---|---|
+  | Sprite sheets (9 + 1 coarse) | 3.3 MB | 10 | chosen |
+  | Single images | 3.2 MB | 888 | one request per frame shown |
+  | SQLite file per asset | 3.9 MB | 1 | the browser cannot read it, so one request per frame again |
+  | Video, keyframe every 1 s, 12 fps | 9.8 MB | 1 | every pointer move is a range request and a decode |
+  | Video, keyframe every 10 s, 12 fps | 6.9 MB | 1 | as above, and a seek decodes up to 10 s |
+  | Video of keyframes only, 1 fps | 4.4 MB | 1 | larger than the same frames as sprites, no motion |
+
+  Generating took 12 to 14 s for every option; decoding the source dominates.
+- **Left open:** tile size, who runs ffmpeg and when, where the sheets are stored,
+  and the authenticated route that serves them. MediaBrain reads no media today, so all of these
+  are new. A preview video for hover-to-play is not ruled out as an addition.
+
 ## 2026-11-11 — Cantemo in the debug UI
 
 - `/debug/` has a Cantemo card to import one item and to refresh an imported asset, and shows
@@ -17,7 +68,7 @@ Newest first. Each entry: what changed, why, and what was left out on purpose.
 - `importFromCantemo` / `mediabrain cantemo import`: one Cantemo (Vidispine) item becomes an
   asset with its metadata and the file of its original shape. `refreshFromCantemo` /
   `cantemo refresh` replaces `metadata.cantemo`. Administrators only. Details in
-  [cantemo.md](cantemo.md).
+  [vidispine.md](vidispine.md).
 - `pkg/vidispine`: the Vidispine client, extracted from `bccm-flows` as a package other Go
   projects can import, with a fake server for tests.
 - `sha1` hashes, the `UNAVAILABLE` error code, settings `CANTEMO_URL`, `CANTEMO_USERNAME`,

@@ -1,5 +1,5 @@
 -- +goose Up
--- Vidispine (Cantemo) identifies files by SHA-1, so imported files carry that hash.
+-- Vidispine identifies files by SHA-1, so imported files carry that hash.
 ALTER TYPE hash_algo ADD VALUE 'sha1';
 
 -- +goose Down

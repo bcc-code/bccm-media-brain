@@ -1,6 +1,6 @@
 type: folder
 model: folder
-id: fl_Cnt3m0Imp7
+id: fl_Vdsp1nImp7
 createdAt: 2026-11-11T10:00:00
 updatedAt: 2026-11-11T10:00:00
 workspaceId: wk_tPlK1TUEUQ
@@ -15,7 +15,7 @@ headers:
   name: X-Debug-User
   value: ${[ user ]}
   id: Qw8rT2yUi4
-name: Cantemo
+name: Vidispine
 sortPriority: 6000.0
 settingSendCookies:
   enabled: false

@@ -304,30 +304,30 @@ func TestDebugAPI(t *testing.T) {
 		t.Fatalf("blank email = %d", code)
 	}
 
-	// Cantemo: import and refresh from the debug UI, as the system principal.
+	// Vidispine: import and refresh from the debug UI, as the system principal.
 	var status map[string]bool
-	if code := call("GET", "/debug/api/cantemo", "", &status); code != 200 || !status["configured"] {
-		t.Fatalf("cantemo status = %d %v", code, status)
+	if code := call("GET", "/debug/api/vidispine", "", &status); code != 200 || !status["configured"] {
+		t.Fatalf("vidispine status = %d %v", code, status)
 	}
-	item := cantemoItem(fake.New(11), newCantemoStorage())
-	var imported devdata.CantemoAsset
-	if code := call("POST", "/debug/api/cantemo/import", fmt.Sprintf(`{"itemId":%q,"typeId":1}`, item.ID), &imported); code != 200 ||
+	item := vidispineItem(fake.New(11), newVidispineStorage())
+	var imported devdata.VidispineAsset
+	if code := call("POST", "/debug/api/vidispine/import", fmt.Sprintf(`{"itemId":%q,"typeId":1}`, item.ID), &imported); code != 200 ||
 		len(imported.LegacyIDs) != 1 || imported.LegacyIDs[0] != item.ID || !strings.Contains(string(imported.Metadata), item.ID) {
-		t.Fatalf("cantemo import = %d %+v", code, imported)
+		t.Fatalf("vidispine import = %d %+v", code, imported)
 	}
-	if code := call("POST", "/debug/api/cantemo/import", fmt.Sprintf(`{"itemId":%q,"typeId":1}`, item.ID), nil); code != http.StatusConflict {
+	if code := call("POST", "/debug/api/vidispine/import", fmt.Sprintf(`{"itemId":%q,"typeId":1}`, item.ID), nil); code != http.StatusConflict {
 		t.Fatalf("second import = %d", code)
 	}
-	cantemo.SetField(item.ID, "title", "Changed in Cantemo")
-	var refreshed devdata.CantemoAsset
-	if code := call("POST", "/debug/api/cantemo/refresh", fmt.Sprintf(`{"assetId":%q}`, imported.ID), &refreshed); code != 200 ||
-		refreshed.Title != imported.Title || !strings.Contains(string(refreshed.Metadata), "Changed in Cantemo") {
-		t.Fatalf("cantemo refresh = %d %+v", code, refreshed)
+	vsServer.SetField(item.ID, "title", "Changed in Vidispine")
+	var refreshed devdata.VidispineAsset
+	if code := call("POST", "/debug/api/vidispine/refresh", fmt.Sprintf(`{"assetId":%q}`, imported.ID), &refreshed); code != 200 ||
+		refreshed.Title != imported.Title || !strings.Contains(string(refreshed.Metadata), "Changed in Vidispine") {
+		t.Fatalf("vidispine refresh = %d %+v", code, refreshed)
 	}
-	if code := call("POST", "/debug/api/cantemo/import", `{"itemId":"nope","typeId":1}`, nil); code != 400 {
+	if code := call("POST", "/debug/api/vidispine/import", `{"itemId":"nope","typeId":1}`, nil); code != 400 {
 		t.Fatalf("bad item id = %d", code)
 	}
-	if code := call("POST", "/debug/api/cantemo/refresh", `{"assetId":"AS-01ARZ3NDEKTSV4RRFFQ69G5FAV"}`, nil); code != 404 {
+	if code := call("POST", "/debug/api/vidispine/refresh", `{"assetId":"AS-01ARZ3NDEKTSV4RRFFQ69G5FAV"}`, nil); code != 404 {
 		t.Fatalf("refresh of unknown asset = %d", code)
 	}
 
