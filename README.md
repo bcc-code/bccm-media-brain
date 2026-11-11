@@ -26,6 +26,17 @@ make seed-list                                        # available scenarios
 make seed s=catalog args="-reset -seed 42 assets=20"  # generate data from the CLI
 ```
 
+## Deploy
+
+```sh
+cp deploy/.env.prod.example deploy/.env.prod   # fill in the password and AUTH_* settings
+docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env.prod up -d --build --wait
+```
+
+Runs Postgres, the migrations and two replicas of the server, with debug off. The auth proxy
+joins the `mediabrain` network and forwards to `http://mediabrain:8080`. See
+[docs/architecture.md](docs/architecture.md#running-several-instances).
+
 ## Development
 
 ```sh

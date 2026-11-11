@@ -2,6 +2,27 @@
 
 Newest first. Each entry: what changed, why, and what was left out on purpose.
 
+## 2026-11-11 — Migration lock, image and a production compose file
+
+- Migrations now run under a Postgres advisory lock (goose's session locker). Why: with
+  `AUTO_MIGRATE=true`, instances starting together could apply the same migration twice; eight
+  concurrent `MigrateUp` calls on an empty database failed about one run in five ("relation
+  already exists"). `TestConcurrentMigrateUp` covers it. The wait is polled every second rather
+  than goose's default five, so a second instance starts promptly.
+- `Dockerfile`: static binary on alpine, non-root. Alpine rather than distroless because the
+  compose healthcheck calls `wget` on `/healthz`.
+- `deploy/docker-compose.prod.yml` with `deploy/.env.prod.example`: Postgres, a one-shot
+  `migrate`, and replicas of the server with debug off and the `AUTH_*` settings required.
+  `make docker-build`, `make prod-config`.
+- An external database is named with `MEDIABRAIN_DATABASE_URL`, not `DATABASE_URL`: compose
+  reads the shell's environment, and a developer's shell usually has `DATABASE_URL` set to the
+  dev database.
+- No host port and no load balancer: `/query` only accepts the auth proxy, which is specific to
+  each deployment. It joins the compose network and uses Docker's DNS for the replicas.
+- Left out: a setting for the pool size (`pool_max_conns` in the URL does it), and electing one
+  instance to run the grant sweeper (running it everywhere is harmless).
+  See [architecture.md](architecture.md#running-several-instances).
+
 ## 2026-11-11 — The import is named after Vidispine, not Cantemo
 
 - Everything that was called Cantemo is now called Vidispine: settings `VIDISPINE_URL`,

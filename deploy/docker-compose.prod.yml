@@ -1,0 +1,95 @@
+# Production-style deployment: migrations as a one-shot step, then replicas of the server.
+# Settings come from the environment; see .env.prod.example.
+#
+#   docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env.prod up -d --wait
+#
+# No host port is published for mediabrain: /query only accepts the auth proxy, and replicas
+# cannot share a port. Attach the proxy to the `mediabrain` network and point it at
+# http://mediabrain:8080 (Docker's DNS spreads requests over the replicas).
+name: mediabrain-prod
+
+x-mediabrain: &mediabrain
+  image: mediabrain:${MEDIABRAIN_TAG:-latest}
+  build:
+    context: ..
+  networks: [mediabrain]
+
+x-database-url: &database-url
+  # Set MEDIABRAIN_DATABASE_URL to use a database outside this file (not DATABASE_URL: a
+  # developer's shell often exports that for the dev database). Add pool_max_conns=N to cap the
+  # connections of each replica: replicas x N must stay below Postgres's max_connections.
+  DATABASE_URL: ${MEDIABRAIN_DATABASE_URL:-postgres://mediabrain:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/mediabrain?sslmode=disable}
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: mediabrain
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: mediabrain
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks: [mediabrain]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mediabrain -d mediabrain"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  migrate:
+    <<: *mediabrain
+    command: ["migrate", "up"]
+    restart: "no"
+    environment:
+      <<: *database-url
+      LOG_FORMAT: json
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  mediabrain:
+    <<: *mediabrain
+    restart: unless-stopped
+    deploy:
+      replicas: ${MEDIABRAIN_REPLICAS:-2}
+    # The server gives requests 10s to finish on shutdown.
+    stop_grace_period: 15s
+    environment:
+      <<: *database-url
+      HTTP_ADDR: ":8080"
+      AUTO_MIGRATE: "false"
+      DEBUG: "false"
+      GRAPHQL_PLAYGROUND: "false"
+      LOG_FORMAT: json
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      AUTH_ISSUER: ${AUTH_ISSUER:?set AUTH_ISSUER}
+      AUTH_AUDIENCE: ${AUTH_AUDIENCE:?set AUTH_AUDIENCE}
+      AUTH_JWKS_URL: ${AUTH_JWKS_URL:?set AUTH_JWKS_URL}
+      # Defaults to this file's network, which is where the proxy is expected to be.
+      AUTH_TRUSTED_PROXIES: ${AUTH_TRUSTED_PROXIES:-172.30.80.0/24}
+      AUTH_HEADER: ${AUTH_HEADER:-}
+      AUTH_GROUPS_CLAIM: ${AUTH_GROUPS_CLAIM:-}
+      VIDISPINE_URL: ${VIDISPINE_URL:-}
+      VIDISPINE_USERNAME: ${VIDISPINE_USERNAME:-}
+      VIDISPINE_PASSWORD: ${VIDISPINE_PASSWORD:-}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+
+networks:
+  mediabrain:
+    name: mediabrain
+    ipam:
+      config:
+        # Fixed so AUTH_TRUSTED_PROXIES can name it.
+        - subnet: 172.30.80.0/24
+
+volumes:
+  pgdata:

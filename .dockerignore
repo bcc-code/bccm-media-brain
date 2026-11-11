@@ -1,0 +1,12 @@
+.git
+.env
+.claude
+bin
+coverage
+tmp
+samples
+docs
+yaak
+web/node_modules
+web/dist
+deploy

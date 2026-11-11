@@ -5,13 +5,15 @@ package e2e
 import (
 	"context"
 	"net/url"
+	"sync"
 	"testing"
 
 	"github.com/bcc-media/mediabrain/internal/db"
 )
 
-// TestMigrationsRoundTrip runs all migrations up, down and up again on a fresh database.
-func TestMigrationsRoundTrip(t *testing.T) {
+// migrationDB creates an empty database and returns its URL and a check for the schema.
+func migrationDB(t *testing.T, name string) (string, func() bool) {
+	t.Helper()
 	ctx := context.Background()
 
 	admin, err := db.Connect(ctx, dbURL)
@@ -19,18 +21,19 @@ func TestMigrationsRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer admin.Close()
-	if _, err := admin.Exec(ctx, `DROP DATABASE IF EXISTS migtest WITH (FORCE)`); err != nil {
+	if _, err := admin.Exec(ctx, `DROP DATABASE IF EXISTS `+name+` WITH (FORCE)`); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := admin.Exec(ctx, `CREATE DATABASE migtest`); err != nil {
+	if _, err := admin.Exec(ctx, `CREATE DATABASE `+name); err != nil {
 		t.Fatal(err)
 	}
 
 	u, _ := url.Parse(dbURL)
-	u.Path = "/migtest"
+	u.Path = "/" + name
 	testURL := u.String()
 
-	tableExists := func() bool {
+	return testURL, func() bool {
+		t.Helper()
 		pool, err := db.Connect(ctx, testURL)
 		if err != nil {
 			t.Fatal(err)
@@ -42,6 +45,12 @@ func TestMigrationsRoundTrip(t *testing.T) {
 		}
 		return ok
 	}
+}
+
+// TestMigrationsRoundTrip runs all migrations up, down and up again on a fresh database.
+func TestMigrationsRoundTrip(t *testing.T) {
+	ctx := context.Background()
+	testURL, tableExists := migrationDB(t, "migtest")
 
 	steps := []struct {
 		name string
@@ -60,5 +69,32 @@ func TestMigrationsRoundTrip(t *testing.T) {
 		if got := tableExists(); got != s.want {
 			t.Fatalf("%s: table exists = %v, want %v", s.name, got, s.want)
 		}
+	}
+}
+
+// TestConcurrentMigrateUp is several instances starting at once with AUTO_MIGRATE on.
+func TestConcurrentMigrateUp(t *testing.T) {
+	ctx := context.Background()
+	testURL, tableExists := migrationDB(t, "migrace")
+
+	const instances = 8
+	errs := make([]error, instances)
+	var wg sync.WaitGroup
+	for i := range instances {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			errs[i] = db.MigrateUp(ctx, testURL)
+		}()
+	}
+	wg.Wait()
+
+	for i, err := range errs {
+		if err != nil {
+			t.Errorf("instance %d: %v", i, err)
+		}
+	}
+	if !tableExists() {
+		t.Fatal("schema missing after concurrent migrate")
 	}
 }

@@ -10,6 +10,7 @@ import (
 
 	_ "github.com/jackc/pgx/v5/stdlib" // registers the "pgx" database/sql driver
 	"github.com/pressly/goose/v3"
+	"github.com/pressly/goose/v3/lock"
 )
 
 //go:embed migrations/*.sql
@@ -21,7 +22,11 @@ func provider(url string) (*goose.Provider, *sql.DB, error) {
 		return nil, nil, fmt.Errorf("db: open: %w", err)
 	}
 	sub, _ := fs.Sub(migrationsFS, "migrations") // cannot fail: static, valid path
-	p, err := goose.NewProvider(goose.DialectPostgres, sqlDB, sub)
+	// Instances that start together must not both apply a migration: whoever comes second
+	// waits on this advisory lock (retrying every second, for up to 5 minutes) and then finds
+	// nothing pending.
+	locker, _ := lock.NewPostgresSessionLocker(lock.WithLockTimeout(1, 300)) // cannot fail: valid options
+	p, err := goose.NewProvider(goose.DialectPostgres, sqlDB, sub, goose.WithSessionLocker(locker))
 	if err != nil {
 		_ = sqlDB.Close()
 		return nil, nil, fmt.Errorf("db: goose provider: %w", err)

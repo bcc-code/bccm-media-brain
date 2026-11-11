@@ -50,7 +50,8 @@ pkg/vidispine/          Vidispine REST client other Go projects may import; vidi
 e2e/                    tests against real Postgres (build tag `e2e`, testcontainers): API, permissions, scenarios
 docs/                   what has been built and why
 yaak/                   Yaak API-client workspace with requests for the standard operations
-deploy/                 docker-compose for local Postgres
+deploy/                 docker-compose for local Postgres; docker-compose.prod.yml for a deployment
+Dockerfile              image of the binary
 scripts/                dev bootstrap, codegen-on-change, coverage gate, git hooks
 web/                    future Vue app
 ```
@@ -91,6 +92,7 @@ Live reload caveats:
 | New migration | `make migrate-new name=add_something` |
 | Migration status / up / down | `make migrate-status` / `migrate-up` / `migrate-down` |
 | Regenerate code | `make generate` |
+| Image / check the production compose file | `make docker-build` / `make prod-config` (needs `deploy/.env.prod`) |
 | Unit tests | `make test` (no docker) |
 | E2E tests | `make test-e2e` (needs docker) |
 | **Pre-commit check** | **`make check`** (go vet + unit + e2e + ≥ 90% coverage gate) |

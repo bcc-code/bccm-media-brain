@@ -120,6 +120,14 @@ it; `http_test.go` has a fake), so a new debug action is a `Backend` method, a r
 the page, a handler test and a case in `TestDebugAPI` (`e2e/devdata_test.go`). `writeResult`
 maps domain errors to HTTP statuses.
 
+## Deployment
+
+`Dockerfile` builds the one binary (migrations and the debug UI are embedded, so nothing else is
+copied). `deploy/docker-compose.yml` is only the dev Postgres; `deploy/docker-compose.prod.yml`
+is the deployment. A new setting that production needs goes in its `environment` block and in
+`deploy/.env.prod.example`. Compose substitutes from the shell's environment, so its variables
+must not share a name with a dev setting that means something else (`MEDIABRAIN_DATABASE_URL`).
+
 ## Docs and Yaak
 
 - `docs/log.md`: newest first, `## YYYY-MM-DD — Title`, then what, why, and what was left out.

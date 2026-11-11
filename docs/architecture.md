@@ -74,6 +74,32 @@ needs its own rule (file copies, the project behind a link) the batch method app
 - There is deliberately **no in-memory fake of the database**. The permission rules are SQL; a
   fake would test a second implementation of them.
 
+## Running several instances
+
+Nothing is shared between instances except Postgres, so the server can run as any number of
+replicas behind the auth proxy. What each instance keeps to itself:
+
+- **The signed-in user of a token**, for one minute (`internal/auth/middleware.go`). The bound in
+  [security.md](security.md) holds per instance; a new token costs one sign-in per instance.
+- **The proxy's signing keys** (JWKS), fetched by each instance when it meets an unknown key.
+- **The sweeper for expired grants**, once a minute in every instance. The first one deletes the
+  expired grants; the others wait on its row locks and find nothing.
+- **A connection pool** of pgx's default size (the larger of 4 and the CPU count). Cap it with
+  `pool_max_conns` in `DATABASE_URL` so that replicas times the cap stays below Postgres's
+  `max_connections`.
+
+**Migrations take a Postgres advisory lock** (goose's session locker, `internal/db/migrate.go`),
+so instances that start together with `AUTO_MIGRATE=true` do not apply the same migration twice:
+the others retry every second for up to five minutes, then find nothing pending. The lock belongs
+to a database session, so migrations need a direct connection or a session-mode pooler, not
+PgBouncer in transaction mode. `e2e/migrations_test.go` (`TestConcurrentMigrateUp`) starts eight
+at once.
+
+[`deploy/docker-compose.prod.yml`](../deploy/docker-compose.prod.yml) is the intended shape of a
+deployment: `mediabrain migrate up` as a one-shot step, then replicas with `AUTO_MIGRATE=false`,
+`DEBUG=false` and the `AUTH_*` settings required, on a network with a fixed subnet that the auth
+proxy joins (that subnet is the default `AUTH_TRUSTED_PROXIES`). No host port is published.
+
 ## Known limits
 
 - Paging is `limit`/`offset`. Ids are time-ordered, so cursor paging can be added later.

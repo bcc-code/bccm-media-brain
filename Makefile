@@ -6,7 +6,7 @@ MIGRATIONS := internal/db/migrations
 MB         := go run ./cmd/mediabrain
 
 .PHONY: help dev db-up db-down db-reset migrate-up migrate-down migrate-status migrate-new \
-        seed seed-list reset-data admin-grant admin-revoke vidispine-import vidispine-refresh generate fmt run build vet test test-e2e cover check hooks clean
+        seed seed-list reset-data admin-grant admin-revoke vidispine-import vidispine-refresh generate fmt run build docker-build prod-config vet test test-e2e cover check hooks clean
 
 help: ## Show targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  %-16s %s\n",$$1,$$2}'
@@ -74,6 +74,12 @@ build: ## Build the server binary into bin/
 
 run: ## Run the server once, without live reload
 	$(MB) serve
+
+docker-build: ## Build the mediabrain image (tag=latest)
+	docker build -t mediabrain:$(or $(tag),latest) .
+
+prod-config: ## Validate and print the production compose file (needs deploy/.env.prod)
+	docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env.prod config
 
 vet: ## go vet (including e2e-tagged code)
 	go vet ./...
