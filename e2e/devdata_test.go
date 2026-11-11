@@ -357,6 +357,9 @@ func TestDebugAPI(t *testing.T) {
 	if code := call("POST", "/debug/api/users", `{"email":"new@example.test"}`, nil); code != 400 {
 		t.Fatalf("duplicate user = %d", code)
 	}
+	if code := call("POST", "/debug/api/users", `{"email":"NEW@example.test"}`, nil); code != 400 {
+		t.Fatalf("user with the same email in another case = %d", code)
+	}
 	if code := call("POST", "/debug/api/users", `{"email":" "}`, nil); code != 400 {
 		t.Fatalf("blank email = %d", code)
 	}
@@ -599,6 +602,71 @@ func TestCLIAgainstDB(t *testing.T) {
 	var out bytes.Buffer
 	if err := cli.Run(ctx, []string{"seed", "catalog", "assets=0"}, &out); err == nil {
 		t.Fatal("expected invalid params error")
+	}
+}
+
+// Migration 12 makes email unique whatever its case. Accounts that already share an address
+// must not stop it: the oldest keeps the address.
+func TestEmailCaseMigration(t *testing.T) {
+	ctx := context.Background()
+	url := freshDB(t, "email_case_migration")
+	if err := db.MigrateUp(ctx, url); err != nil {
+		t.Fatal(err)
+	}
+	p := pool2(t, url)
+	indexed := func() (has bool) {
+		if err := p.QueryRow(ctx, `SELECT to_regclass('app_user_email_lower_key') IS NOT NULL`).Scan(&has); err != nil {
+			t.Fatal(err)
+		}
+		return has
+	}
+	for step := 0; indexed(); step++ {
+		if step > 20 {
+			t.Fatal("migration 12 is still applied after 20 steps down")
+		}
+		if err := db.MigrateDown(ctx, url); err != nil {
+			t.Fatal(err)
+		}
+	}
+	_, err := p.Exec(ctx, `INSERT INTO app_user (external_id, email, created_at) VALUES
+		('first', 'Ann@example.test', now() - interval '2 days'),
+		('second', 'ann@example.test', now() - interval '1 day'),
+		('third', 'ANN@example.test', now()),
+		('other', 'bob@example.test', now()),
+		('none', NULL, now())`)
+	if err != nil {
+		t.Fatalf("before the migration, addresses differing in case are accepted: %v", err)
+	}
+	if err := db.MigrateUp(ctx, url); err != nil {
+		t.Fatal(err)
+	}
+	var got string
+	err = p.QueryRow(ctx, `SELECT string_agg(external_id || '=' || coalesce(email, '-'), ' ' ORDER BY created_at, external_id) FROM app_user`).Scan(&got)
+	if want := "first=Ann@example.test second=- none=- other=bob@example.test third=-"; err != nil || got != want {
+		t.Fatalf("after the migration: %q, want %q (%v)", got, want, err)
+	}
+	if _, err := p.Exec(ctx, `INSERT INTO app_user (external_id, email) VALUES ('fourth', 'aNN@example.test')`); !errors.Is(domain.FromPG(err), domain.ErrConflict) {
+		t.Fatalf("an address that differs only in case was accepted: %v", err)
+	}
+	// With five rows the planner would scan the table whatever the index; the setting is local
+	// to the transaction, so it reaches the statement that follows and nothing else.
+	var plan []string
+	err = pgx.BeginFunc(ctx, p, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, `SET LOCAL enable_seqscan = off`); err != nil {
+			return err
+		}
+		rows, err := tx.Query(ctx, `EXPLAIN SELECT * FROM app_user WHERE lower(email) = lower('ann@example.test')`)
+		if err != nil {
+			return err
+		}
+		plan, err = pgx.CollectRows(rows, pgx.RowTo[string])
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan := strings.Join(plan, "\n"); !strings.Contains(plan, "app_user_email_lower_key") {
+		t.Fatalf("the lookup by email does not use the index:\n%s", plan)
 	}
 }
 
