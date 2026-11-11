@@ -2,6 +2,25 @@
 
 Newest first. Each entry: what changed, why, and what was left out on purpose.
 
+## 2026-11-11 — Updates can name the revision they were based on
+
+- Program, project, asset, asset version, rendition and storage location have a `revision`
+  that every update of their own fields increments, and each `update...` mutation takes an
+  optional `expectedRevision`. A stale one is refused with `CONFLICT` and changes nothing. Why:
+  updates replace every field, so two people editing the same object overwrote each other
+  without either noticing (architecture review, finding 09). Subtitle edits already refused
+  stale revisions; this is the same rule for the rest.
+- The check is the UPDATE's own `WHERE revision = ...`, not a read followed by a write, so of
+  several edits sent at once on one revision exactly one is accepted.
+- `expectedRevision` is an argument, not an input field: the inputs are shared with `create...`
+  and bound to the services' input structs. It is optional, so existing clients keep working
+  with last-write-wins; an interactive client should always send it.
+- Left out: patch inputs that tell "left out" from "cleared". Full replacement stays, now
+  spelled out on every `update...` mutation (an omitted optional field is cleared, an omitted
+  status becomes `PLANNED` / `DRAFT`). Changing that is a redesign of the API's inputs that
+  has not been decided. Also left out: making `expectedRevision` required, and revisions on
+  files, copies, grants and users, which have no full-replacement update.
+
 ## 2026-11-11 — The audit log records what happened
 
 - Services now write `audit: change` after a successful write (`access.Audited`), with the

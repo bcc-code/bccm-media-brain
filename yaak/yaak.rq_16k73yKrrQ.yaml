@@ -9,19 +9,20 @@ authentication: {}
 authenticationType: null
 body:
   query: |
-    mutation($id: ID!, $in: UpdateRenditionInput!) {
-      updateRendition(id: $id, input: $in) { id kind language purpose overrides metadata }
+    mutation($id: ID!, $in: UpdateRenditionInput!, $rev: Int) {
+      updateRendition(id: $id, input: $in, expectedRevision: $rev) { id revision kind language purpose overrides metadata }
     }
   variables: |-
     {
       "id": "${[ rendition_id ]}",
+      "rev": null,
       "in": {
         "language": "nb",
         "purpose": "broadcast"
       }
     }
 bodyType: graphql
-description: ''
+description: Replaces all editable fields. Set "rev" to the revision you read to have the update refused with CONFLICT when someone else changed the object since; null overwrites.
 headers:
 - enabled: true
   name: Content-Type

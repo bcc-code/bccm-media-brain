@@ -98,7 +98,7 @@ func (q *Queries) CreateFileCopy(ctx context.Context, arg CreateFileCopyParams) 
 }
 
 const createStorageLocation = `-- name: CreateStorageLocation :one
-INSERT INTO storage_location (name, kind, base_uri, online) VALUES ($1, $2, $3, $4) RETURNING id, name, kind, base_uri, online, created_at
+INSERT INTO storage_location (name, kind, base_uri, online) VALUES ($1, $2, $3, $4) RETURNING id, name, kind, base_uri, online, created_at, revision
 `
 
 type CreateStorageLocationParams struct {
@@ -123,6 +123,7 @@ func (q *Queries) CreateStorageLocation(ctx context.Context, arg CreateStorageLo
 		&i.BaseUri,
 		&i.Online,
 		&i.CreatedAt,
+		&i.Revision,
 	)
 	return i, err
 }
@@ -288,7 +289,7 @@ func (q *Queries) GetFiles(ctx context.Context, ids []string) ([]File, error) {
 }
 
 const getStorageLocation = `-- name: GetStorageLocation :one
-SELECT id, name, kind, base_uri, online, created_at FROM storage_location WHERE id = $1
+SELECT id, name, kind, base_uri, online, created_at, revision FROM storage_location WHERE id = $1
 `
 
 func (q *Queries) GetStorageLocation(ctx context.Context, id string) (StorageLocation, error) {
@@ -301,12 +302,13 @@ func (q *Queries) GetStorageLocation(ctx context.Context, id string) (StorageLoc
 		&i.BaseUri,
 		&i.Online,
 		&i.CreatedAt,
+		&i.Revision,
 	)
 	return i, err
 }
 
 const getStorageLocationByName = `-- name: GetStorageLocationByName :one
-SELECT id, name, kind, base_uri, online, created_at FROM storage_location WHERE name = $1
+SELECT id, name, kind, base_uri, online, created_at, revision FROM storage_location WHERE name = $1
 `
 
 func (q *Queries) GetStorageLocationByName(ctx context.Context, name string) (StorageLocation, error) {
@@ -319,12 +321,13 @@ func (q *Queries) GetStorageLocationByName(ctx context.Context, name string) (St
 		&i.BaseUri,
 		&i.Online,
 		&i.CreatedAt,
+		&i.Revision,
 	)
 	return i, err
 }
 
 const getStorageLocations = `-- name: GetStorageLocations :many
-SELECT id, name, kind, base_uri, online, created_at FROM storage_location WHERE id = ANY($1::text[])
+SELECT id, name, kind, base_uri, online, created_at, revision FROM storage_location WHERE id = ANY($1::text[])
 `
 
 func (q *Queries) GetStorageLocations(ctx context.Context, ids []string) ([]StorageLocation, error) {
@@ -343,6 +346,7 @@ func (q *Queries) GetStorageLocations(ctx context.Context, ids []string) ([]Stor
 			&i.BaseUri,
 			&i.Online,
 			&i.CreatedAt,
+			&i.Revision,
 		); err != nil {
 			return nil, err
 		}
@@ -455,7 +459,7 @@ func (q *Queries) ListFiles(ctx context.Context, arg ListFilesParams) ([]File, e
 }
 
 const listStorageLocations = `-- name: ListStorageLocations :many
-SELECT id, name, kind, base_uri, online, created_at FROM storage_location ORDER BY name
+SELECT id, name, kind, base_uri, online, created_at, revision FROM storage_location ORDER BY name
 `
 
 func (q *Queries) ListStorageLocations(ctx context.Context) ([]StorageLocation, error) {
@@ -474,6 +478,7 @@ func (q *Queries) ListStorageLocations(ctx context.Context) ([]StorageLocation, 
 			&i.BaseUri,
 			&i.Online,
 			&i.CreatedAt,
+			&i.Revision,
 		); err != nil {
 			return nil, err
 		}
@@ -517,15 +522,19 @@ func (q *Queries) SetFileCopyStatus(ctx context.Context, arg SetFileCopyStatusPa
 }
 
 const updateStorageLocation = `-- name: UpdateStorageLocation :one
-UPDATE storage_location SET name = $2, kind = $3, base_uri = $4, online = $5 WHERE id = $1 RETURNING id, name, kind, base_uri, online, created_at
+UPDATE storage_location SET name = $2, kind = $3, base_uri = $4, online = $5, revision = revision + 1
+WHERE id = $1
+  AND ($6::integer IS NULL OR revision = $6)
+RETURNING id, name, kind, base_uri, online, created_at, revision
 `
 
 type UpdateStorageLocationParams struct {
-	ID      string       `json:"id"`
-	Name    string       `json:"name"`
-	Kind    LocationKind `json:"kind"`
-	BaseUri string       `json:"base_uri"`
-	Online  bool         `json:"online"`
+	ID               string       `json:"id"`
+	Name             string       `json:"name"`
+	Kind             LocationKind `json:"kind"`
+	BaseUri          string       `json:"base_uri"`
+	Online           bool         `json:"online"`
+	ExpectedRevision *int32       `json:"expected_revision"`
 }
 
 func (q *Queries) UpdateStorageLocation(ctx context.Context, arg UpdateStorageLocationParams) (StorageLocation, error) {
@@ -535,6 +544,7 @@ func (q *Queries) UpdateStorageLocation(ctx context.Context, arg UpdateStorageLo
 		arg.Kind,
 		arg.BaseUri,
 		arg.Online,
+		arg.ExpectedRevision,
 	)
 	var i StorageLocation
 	err := row.Scan(
@@ -544,6 +554,7 @@ func (q *Queries) UpdateStorageLocation(ctx context.Context, arg UpdateStorageLo
 		&i.BaseUri,
 		&i.Online,
 		&i.CreatedAt,
+		&i.Revision,
 	)
 	return i, err
 }

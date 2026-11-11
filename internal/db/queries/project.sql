@@ -5,7 +5,10 @@ INSERT INTO program (code, name, description, metadata) VALUES ($1, $2, $3, $4) 
 SELECT * FROM program WHERE id = $1;
 
 -- name: UpdateProgram :one
-UPDATE program SET name = $2, description = $3, metadata = $4 WHERE id = $1 RETURNING *;
+UPDATE program SET name = $2, description = $3, metadata = $4, revision = revision + 1
+WHERE id = $1
+  AND (sqlc.narg('expected_revision')::integer IS NULL OR revision = sqlc.narg('expected_revision'))
+RETURNING *;
 
 -- name: DeleteProgram :execrows
 DELETE FROM program WHERE id = $1;
@@ -29,8 +32,10 @@ VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *;
 SELECT * FROM project WHERE id = $1;
 
 -- name: UpdateProject :one
-UPDATE project SET name = $2, status = $3, starts_on = $4, ends_on = $5, metadata = $6
-WHERE id = $1 RETURNING *;
+UPDATE project SET name = $2, status = $3, starts_on = $4, ends_on = $5, metadata = $6, revision = revision + 1
+WHERE id = $1
+  AND (sqlc.narg('expected_revision')::integer IS NULL OR revision = sqlc.narg('expected_revision'))
+RETURNING *;
 
 -- name: DeleteProject :execrows
 DELETE FROM project WHERE id = $1;

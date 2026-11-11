@@ -12,7 +12,7 @@ import (
 )
 
 const createProgram = `-- name: CreateProgram :one
-INSERT INTO program (code, name, description, metadata) VALUES ($1, $2, $3, $4) RETURNING id, code, name, description, metadata, created_at, updated_at
+INSERT INTO program (code, name, description, metadata) VALUES ($1, $2, $3, $4) RETURNING id, code, name, description, metadata, created_at, updated_at, revision
 `
 
 type CreateProgramParams struct {
@@ -38,13 +38,14 @@ func (q *Queries) CreateProgram(ctx context.Context, arg CreateProgramParams) (P
 		&i.Metadata,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Revision,
 	)
 	return i, err
 }
 
 const createProject = `-- name: CreateProject :one
 INSERT INTO project (program_id, code, name, status, starts_on, ends_on, metadata)
-VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, program_id, code, name, status, starts_on, ends_on, metadata, created_at, updated_at
+VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, program_id, code, name, status, starts_on, ends_on, metadata, created_at, updated_at, revision
 `
 
 type CreateProjectParams struct {
@@ -79,6 +80,7 @@ func (q *Queries) CreateProject(ctx context.Context, arg CreateProjectParams) (P
 		&i.Metadata,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Revision,
 	)
 	return i, err
 }
@@ -108,7 +110,7 @@ func (q *Queries) DeleteProject(ctx context.Context, id string) (int64, error) {
 }
 
 const getProgram = `-- name: GetProgram :one
-SELECT id, code, name, description, metadata, created_at, updated_at FROM program WHERE id = $1
+SELECT id, code, name, description, metadata, created_at, updated_at, revision FROM program WHERE id = $1
 `
 
 func (q *Queries) GetProgram(ctx context.Context, id string) (Program, error) {
@@ -122,12 +124,13 @@ func (q *Queries) GetProgram(ctx context.Context, id string) (Program, error) {
 		&i.Metadata,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Revision,
 	)
 	return i, err
 }
 
 const getPrograms = `-- name: GetPrograms :many
-SELECT id, code, name, description, metadata, created_at, updated_at FROM program WHERE id = ANY($1::text[])
+SELECT id, code, name, description, metadata, created_at, updated_at, revision FROM program WHERE id = ANY($1::text[])
 `
 
 func (q *Queries) GetPrograms(ctx context.Context, ids []string) ([]Program, error) {
@@ -147,6 +150,7 @@ func (q *Queries) GetPrograms(ctx context.Context, ids []string) ([]Program, err
 			&i.Metadata,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Revision,
 		); err != nil {
 			return nil, err
 		}
@@ -159,7 +163,7 @@ func (q *Queries) GetPrograms(ctx context.Context, ids []string) ([]Program, err
 }
 
 const getProject = `-- name: GetProject :one
-SELECT id, program_id, code, name, status, starts_on, ends_on, metadata, created_at, updated_at FROM project WHERE id = $1
+SELECT id, program_id, code, name, status, starts_on, ends_on, metadata, created_at, updated_at, revision FROM project WHERE id = $1
 `
 
 func (q *Queries) GetProject(ctx context.Context, id string) (Project, error) {
@@ -176,12 +180,13 @@ func (q *Queries) GetProject(ctx context.Context, id string) (Project, error) {
 		&i.Metadata,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Revision,
 	)
 	return i, err
 }
 
 const listPrograms = `-- name: ListPrograms :many
-SELECT p.id, p.code, p.name, p.description, p.metadata, p.created_at, p.updated_at FROM program p
+SELECT p.id, p.code, p.name, p.description, p.metadata, p.created_at, p.updated_at, p.revision FROM program p
 WHERE $1::bool
    OR EXISTS (
         SELECT 1 FROM permission_grant g
@@ -221,6 +226,7 @@ func (q *Queries) ListPrograms(ctx context.Context, arg ListProgramsParams) ([]P
 			&i.Metadata,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Revision,
 		); err != nil {
 			return nil, err
 		}
@@ -233,7 +239,7 @@ func (q *Queries) ListPrograms(ctx context.Context, arg ListProgramsParams) ([]P
 }
 
 const listProjects = `-- name: ListProjects :many
-SELECT p.id, p.program_id, p.code, p.name, p.status, p.starts_on, p.ends_on, p.metadata, p.created_at, p.updated_at FROM project p
+SELECT p.id, p.program_id, p.code, p.name, p.status, p.starts_on, p.ends_on, p.metadata, p.created_at, p.updated_at, p.revision FROM project p
 WHERE ($1::text IS NULL OR p.program_id = $1)
   AND ($2::text IS NULL OR p.status::text = $2)
   AND ($3::bool OR EXISTS (
@@ -280,6 +286,7 @@ func (q *Queries) ListProjects(ctx context.Context, arg ListProjectsParams) ([]P
 			&i.Metadata,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Revision,
 		); err != nil {
 			return nil, err
 		}
@@ -292,7 +299,7 @@ func (q *Queries) ListProjects(ctx context.Context, arg ListProjectsParams) ([]P
 }
 
 const listVisibleProjects = `-- name: ListVisibleProjects :many
-SELECT p.id, p.program_id, p.code, p.name, p.status, p.starts_on, p.ends_on, p.metadata, p.created_at, p.updated_at FROM project p
+SELECT p.id, p.program_id, p.code, p.name, p.status, p.starts_on, p.ends_on, p.metadata, p.created_at, p.updated_at, p.revision FROM project p
 WHERE (p.id = ANY($1::text[]) OR p.program_id = ANY($2::text[]))
   AND ($3::bool OR EXISTS (
         SELECT 1 FROM permission_grant g
@@ -334,6 +341,7 @@ func (q *Queries) ListVisibleProjects(ctx context.Context, arg ListVisibleProjec
 			&i.Metadata,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Revision,
 		); err != nil {
 			return nil, err
 		}
@@ -346,14 +354,18 @@ func (q *Queries) ListVisibleProjects(ctx context.Context, arg ListVisibleProjec
 }
 
 const updateProgram = `-- name: UpdateProgram :one
-UPDATE program SET name = $2, description = $3, metadata = $4 WHERE id = $1 RETURNING id, code, name, description, metadata, created_at, updated_at
+UPDATE program SET name = $2, description = $3, metadata = $4, revision = revision + 1
+WHERE id = $1
+  AND ($5::integer IS NULL OR revision = $5)
+RETURNING id, code, name, description, metadata, created_at, updated_at, revision
 `
 
 type UpdateProgramParams struct {
-	ID          string          `json:"id"`
-	Name        string          `json:"name"`
-	Description *string         `json:"description"`
-	Metadata    json.RawMessage `json:"metadata"`
+	ID               string          `json:"id"`
+	Name             string          `json:"name"`
+	Description      *string         `json:"description"`
+	Metadata         json.RawMessage `json:"metadata"`
+	ExpectedRevision *int32          `json:"expected_revision"`
 }
 
 func (q *Queries) UpdateProgram(ctx context.Context, arg UpdateProgramParams) (Program, error) {
@@ -362,6 +374,7 @@ func (q *Queries) UpdateProgram(ctx context.Context, arg UpdateProgramParams) (P
 		arg.Name,
 		arg.Description,
 		arg.Metadata,
+		arg.ExpectedRevision,
 	)
 	var i Program
 	err := row.Scan(
@@ -372,22 +385,26 @@ func (q *Queries) UpdateProgram(ctx context.Context, arg UpdateProgramParams) (P
 		&i.Metadata,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Revision,
 	)
 	return i, err
 }
 
 const updateProject = `-- name: UpdateProject :one
-UPDATE project SET name = $2, status = $3, starts_on = $4, ends_on = $5, metadata = $6
-WHERE id = $1 RETURNING id, program_id, code, name, status, starts_on, ends_on, metadata, created_at, updated_at
+UPDATE project SET name = $2, status = $3, starts_on = $4, ends_on = $5, metadata = $6, revision = revision + 1
+WHERE id = $1
+  AND ($7::integer IS NULL OR revision = $7)
+RETURNING id, program_id, code, name, status, starts_on, ends_on, metadata, created_at, updated_at, revision
 `
 
 type UpdateProjectParams struct {
-	ID       string          `json:"id"`
-	Name     string          `json:"name"`
-	Status   ProjectStatus   `json:"status"`
-	StartsOn *time.Time      `json:"starts_on"`
-	EndsOn   *time.Time      `json:"ends_on"`
-	Metadata json.RawMessage `json:"metadata"`
+	ID               string          `json:"id"`
+	Name             string          `json:"name"`
+	Status           ProjectStatus   `json:"status"`
+	StartsOn         *time.Time      `json:"starts_on"`
+	EndsOn           *time.Time      `json:"ends_on"`
+	Metadata         json.RawMessage `json:"metadata"`
+	ExpectedRevision *int32          `json:"expected_revision"`
 }
 
 func (q *Queries) UpdateProject(ctx context.Context, arg UpdateProjectParams) (Project, error) {
@@ -398,6 +415,7 @@ func (q *Queries) UpdateProject(ctx context.Context, arg UpdateProjectParams) (P
 		arg.StartsOn,
 		arg.EndsOn,
 		arg.Metadata,
+		arg.ExpectedRevision,
 	)
 	var i Project
 	err := row.Scan(
@@ -411,6 +429,7 @@ func (q *Queries) UpdateProject(ctx context.Context, arg UpdateProjectParams) (P
 		&i.Metadata,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Revision,
 	)
 	return i, err
 }

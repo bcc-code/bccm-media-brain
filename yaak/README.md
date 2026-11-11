@@ -34,5 +34,7 @@ and choose this folder. Yaak keeps the files in sync, so changes you make show u
    `service_token` → Me, as the service account. `make seed s=access` also creates two accounts
    and prints their tokens.
 
+The update requests carry `"rev": null`; put the `revision` you read there to try a guarded update.
+
 Requests marked "(admin)" need a system administrator. Keep this folder in step with the schema
 when operations are added or changed.

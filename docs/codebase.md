@@ -51,7 +51,10 @@ A new service, or a new dependency of one, must be added to all of them:
   All must be JSON objects (`domain.JSONObject`). `SetAssetMetadataKey` replaces one key.
 - A file is identified by its hashes; `file.Register` is an idempotent upsert by hash and adds
   copies. A hash is required. Copy paths are relative, without `..`.
-- `updateAsset` and the other `update…` operations replace every editable field.
+- `updateAsset` and the other `update…` operations replace every editable field. Their UPDATE
+  statement also does `revision = revision + 1` and takes `expected_revision` (NULL: any); the
+  service turns "no row" into `CONFLICT` or `NOT_FOUND` with `domain.FromPGUpdate`. A new query
+  that writes an editable field of such a table must bump `revision` too (`SetAssetMetadataKey`).
 - Subtitle import always adds a revision; only SRT and WebVTT parse.
 - `language.alt_codes` holds 3-letter codes, but no query reads it yet.
 - The id prefix `ST` is `subtitle_track`; service tokens are `TK`.

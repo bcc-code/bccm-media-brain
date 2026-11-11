@@ -8,7 +8,13 @@ Conventions:
 
 - Lists take `limit` (default 50, max 500) and `offset`.
 - Lookups by id return `null` when the object does not exist or is not visible.
-- `update...` mutations **replace all editable fields**; a field left out is cleared.
+- `update...` mutations **replace all editable fields**; an optional field left out is cleared,
+  and a status left out becomes the default (`PLANNED` for a project, `DRAFT` for a version). So
+  a client sends back everything it read, changed or not.
+- Objects with an `update...` mutation have a `revision` that counts the edits of their own
+  fields. Pass the revision you read as `expectedRevision`: when someone else changed the object
+  since, the update is refused with `CONFLICT` and nothing changes. Without `expectedRevision`
+  the last write wins. Subtitle tracks have their own revisions (`editSubtitles`).
 - Errors carry `extensions.code` ([architecture.md](architecture.md#errors)).
 - Scalars: `Time` (RFC 3339), `Date` (`YYYY-MM-DD`), `JSON`, `Int64`.
 

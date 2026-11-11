@@ -8,7 +8,10 @@ SELECT * FROM storage_location WHERE id = $1;
 SELECT * FROM storage_location ORDER BY name;
 
 -- name: UpdateStorageLocation :one
-UPDATE storage_location SET name = $2, kind = $3, base_uri = $4, online = $5 WHERE id = $1 RETURNING *;
+UPDATE storage_location SET name = $2, kind = $3, base_uri = $4, online = $5, revision = revision + 1
+WHERE id = $1
+  AND (sqlc.narg('expected_revision')::integer IS NULL OR revision = sqlc.narg('expected_revision'))
+RETURNING *;
 
 -- name: DeleteStorageLocation :execrows
 DELETE FROM storage_location WHERE id = $1;

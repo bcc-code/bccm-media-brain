@@ -3,6 +3,7 @@ package domain
 import (
 	"errors"
 	"fmt"
+	"math"
 	"testing"
 
 	"github.com/jackc/pgx/v5"
@@ -86,5 +87,47 @@ func TestRequiredAndBlank(t *testing.T) {
 	}
 	if !errors.Is(Conflict("x %d", 1), ErrConflict) || !errors.Is(Invalid("x"), ErrInvalidInput) {
 		t.Fatal("constructors")
+	}
+}
+
+func TestExpectedRevision(t *testing.T) {
+	if r, err := ExpectedRevision(nil); r != nil || err != nil {
+		t.Fatalf("no expectation = %v, %v", r, err)
+	}
+	seven := 7
+	if r, err := ExpectedRevision(&seven); err != nil || r == nil || *r != 7 {
+		t.Fatalf("7 = %v, %v", r, err)
+	}
+	for _, bad := range []int{0, -3, math.MaxInt32 + 1} {
+		if _, err := ExpectedRevision(&bad); !errors.Is(err, ErrInvalidInput) {
+			t.Errorf("%d: err = %v", bad, err)
+		}
+	}
+}
+
+func TestFromPGUpdate(t *testing.T) {
+	boom := errors.New("boom")
+	expected := int32(3)
+	never := func() (int32, error) { t.Fatal("the row should not be read again"); return 0, nil }
+	at := func(rev int32, err error) func() (int32, error) {
+		return func() (int32, error) { return rev, err }
+	}
+	cases := map[string]struct {
+		err      error
+		expected *int32
+		current  func() (int32, error)
+		want     error
+	}{
+		"updated":                         {nil, &expected, never, nil},
+		"no expectation, no row":          {pgx.ErrNoRows, nil, never, ErrNotFound},
+		"another error":                   {boom, &expected, never, boom},
+		"changed by someone else":         {pgx.ErrNoRows, &expected, at(5, nil), ErrConflict},
+		"gone":                            {pgx.ErrNoRows, &expected, at(0, pgx.ErrNoRows), ErrNotFound},
+		"reading the row again fails too": {pgx.ErrNoRows, &expected, at(0, boom), boom},
+	}
+	for name, c := range cases {
+		if got := FromPGUpdate(c.err, c.expected, c.current); !errors.Is(got, c.want) || (c.want == nil && got != nil) {
+			t.Errorf("%s: got %v, want %v", name, got, c.want)
+		}
 	}
 }

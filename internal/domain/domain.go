@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -68,6 +69,33 @@ func fromPG(err error, deleting bool) error {
 		return Invalid("value rejected by the database")
 	}
 	return err
+}
+
+// ExpectedRevision validates the revision an update says it is based on. Nil means the caller
+// did not say, and the update overwrites whatever is there.
+func ExpectedRevision(expected *int) (*int32, error) {
+	if expected == nil {
+		return nil, nil
+	}
+	if *expected < 1 || *expected > math.MaxInt32 {
+		return nil, Invalid("expectedRevision must be a revision number")
+	}
+	r := int32(*expected)
+	return &r, nil
+}
+
+// FromPGUpdate is FromPG for an UPDATE that only matches the expected revision. Such an update
+// finds no row both when the row is gone and when someone else changed it first; current reads
+// the row's revision now to tell the two apart.
+func FromPGUpdate(err error, expected *int32, current func() (int32, error)) error {
+	if expected == nil || !errors.Is(err, pgx.ErrNoRows) {
+		return FromPG(err)
+	}
+	now, err := current()
+	if err != nil {
+		return FromPG(err)
+	}
+	return Conflict("changed since revision %d; it is now at revision %d", *expected, now)
 }
 
 // Page validates paging arguments; limit 0 means DefaultLimit.

@@ -61,6 +61,8 @@ type Language {
 "The logical item, for example one camera clip or one finished programme."
 type Asset {
   id: ID!
+  "Counts the edits of this object's own fields, starting at 1. Send it back as expectedRevision when updating."
+  revision: Int!
   typeId: Int!
   title: String!
   description: String
@@ -93,6 +95,8 @@ type AssetProjectLink {
 "One edit of an asset: rough cut, review 1, final."
 type AssetVersion {
   id: ID!
+  "Counts the edits of this object's own fields, starting at 1. Send it back as expectedRevision when updating."
+  revision: Int!
   assetId: ID!
   number: Int!
   label: String
@@ -105,6 +109,8 @@ type AssetVersion {
 "One concrete form of a version: master, encode, dub, subtitles."
 type Rendition {
   id: ID!
+  "Counts the edits of this object's own fields, starting at 1. Send it back as expectedRevision when updating."
+  revision: Int!
   versionId: ID!
   kind: RenditionKind!
   language: String
@@ -178,18 +184,35 @@ extend type Query {
 extend type Mutation {
   "Needs EDIT on the project. Only administrators may leave projectId out."
   createAsset(projectId: ID, input: AssetInput!): Asset!
-  "Replaces all editable fields."
-  updateAsset(id: ID!, input: AssetInput!): Asset!
+  """
+  Replaces all editable fields: an optional field left out of the input is cleared.
+  With expectedRevision the update is refused with CONFLICT when the object is no longer at
+  that revision, so an edit cannot silently overwrite someone else's. Without it the last
+  write wins; clients that edit interactively should always send it.
+  """
+  updateAsset(id: ID!, input: AssetInput!, expectedRevision: Int): Asset!
   "Removes the asset with its versions, renditions and subtitles. Files stay."
   deleteAsset(id: ID!): Boolean!
   "Needs EDIT on both the asset and the project."
   linkAssetToProject(assetId: ID!, projectId: ID!, role: LinkRole!): AssetProjectLink!
   unlinkAssetFromProject(assetId: ID!, projectId: ID!, role: LinkRole!): Boolean!
   createAssetVersion(assetId: ID!, input: VersionInput!): AssetVersion!
-  updateAssetVersion(id: ID!, input: VersionInput!): AssetVersion!
+  """
+  Replaces all editable fields: an optional field left out of the input is cleared, and a status left out becomes DRAFT.
+  With expectedRevision the update is refused with CONFLICT when the object is no longer at
+  that revision, so an edit cannot silently overwrite someone else's. Without it the last
+  write wins; clients that edit interactively should always send it.
+  """
+  updateAssetVersion(id: ID!, input: VersionInput!, expectedRevision: Int): AssetVersion!
   deleteAssetVersion(id: ID!): Boolean!
   createRendition(versionId: ID!, input: CreateRenditionInput!): Rendition!
-  updateRendition(id: ID!, input: UpdateRenditionInput!): Rendition!
+  """
+  Replaces all editable fields: an optional field left out of the input is cleared.
+  With expectedRevision the update is refused with CONFLICT when the object is no longer at
+  that revision, so an edit cannot silently overwrite someone else's. Without it the last
+  write wins; clients that edit interactively should always send it.
+  """
+  updateRendition(id: ID!, input: UpdateRenditionInput!, expectedRevision: Int): Rendition!
   deleteRendition(id: ID!): Boolean!
   "Needs EDIT on the rendition's asset and DOWNLOAD_ORIGINAL on the file: attaching shows where the file is stored to everyone who may download the asset."
   attachFile(renditionId: ID!, fileId: ID!, role: FileRole!, position: Int! = 0): RenditionFile!

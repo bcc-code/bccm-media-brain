@@ -22,6 +22,8 @@ enum CopyStatus {
 
 type StorageLocation {
   id: ID!
+  "Counts the edits of this object's own fields, starting at 1. Send it back as expectedRevision when updating."
+  revision: Int!
   name: String!
   kind: LocationKind!
   baseUri: String!
@@ -109,7 +111,13 @@ extend type Query {
 # All file and storage mutations are for administrators only.
 extend type Mutation {
   createStorageLocation(input: StorageLocationInput!): StorageLocation!
-  updateStorageLocation(id: ID!, input: StorageLocationInput!): StorageLocation!
+  """
+  Replaces all editable fields: an optional field left out of the input is cleared.
+  With expectedRevision the update is refused with CONFLICT when the object is no longer at
+  that revision, so an edit cannot silently overwrite someone else's. Without it the last
+  write wins; clients that edit interactively should always send it.
+  """
+  updateStorageLocation(id: ID!, input: StorageLocationInput!, expectedRevision: Int): StorageLocation!
   deleteStorageLocation(id: ID!): Boolean!
   "Returns the existing file when one of the hashes is already known, adding new hashes and copies to it."
   registerFile(input: RegisterFileInput!): File!

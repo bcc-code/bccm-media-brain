@@ -9,12 +9,13 @@ authentication: {}
 authenticationType: null
 body:
   query: |
-    mutation($id: ID!, $in: UpdateProgramInput!) {
-      updateProgram(id: $id, input: $in) { id name description metadata updatedAt }
+    mutation($id: ID!, $in: UpdateProgramInput!, $rev: Int) {
+      updateProgram(id: $id, input: $in, expectedRevision: $rev) { id revision name description metadata updatedAt }
     }
   variables: |-
     {
       "id": "${[ program_id ]}",
+      "rev": null,
       "in": {
         "name": "Joshua",
         "description": "Drama series, renewed",
@@ -24,7 +25,7 @@ body:
       }
     }
 bodyType: graphql
-description: Replaces all editable fields.
+description: Replaces all editable fields. Set "rev" to the revision you read to have the update refused with CONFLICT when someone else changed the object since; null overwrites.
 headers:
 - enabled: true
   name: Content-Type

@@ -7,6 +7,8 @@ enum ProjectStatus {
 
 type Program {
   id: ID!
+  "Counts the edits of this object's own fields, starting at 1. Send it back as expectedRevision when updating."
+  revision: Int!
   code: String!
   name: String!
   description: String
@@ -19,6 +21,8 @@ type Program {
 
 type Project {
   id: ID!
+  "Counts the edits of this object's own fields, starting at 1. Send it back as expectedRevision when updating."
+  revision: Int!
   programId: ID!
   code: String!
   name: String!
@@ -74,13 +78,23 @@ extend type Query {
 extend type Mutation {
   "Administrators only."
   createProgram(input: CreateProgramInput!): Program!
-  "Replaces all editable fields."
-  updateProgram(id: ID!, input: UpdateProgramInput!): Program!
+  """
+  Replaces all editable fields: an optional field left out of the input is cleared.
+  With expectedRevision the update is refused with CONFLICT when the object is no longer at
+  that revision, so an edit cannot silently overwrite someone else's. Without it the last
+  write wins; clients that edit interactively should always send it.
+  """
+  updateProgram(id: ID!, input: UpdateProgramInput!, expectedRevision: Int): Program!
   "Administrators only. Fails while the program has projects."
   deleteProgram(id: ID!): Boolean!
   "Needs EDIT on the program."
   createProject(input: CreateProjectInput!): Project!
-  "Replaces all editable fields."
-  updateProject(id: ID!, input: UpdateProjectInput!): Project!
+  """
+  Replaces all editable fields: an optional field left out of the input is cleared, and a status left out becomes PLANNED.
+  With expectedRevision the update is refused with CONFLICT when the object is no longer at
+  that revision, so an edit cannot silently overwrite someone else's. Without it the last
+  write wins; clients that edit interactively should always send it.
+  """
+  updateProject(id: ID!, input: UpdateProjectInput!, expectedRevision: Int): Project!
   deleteProject(id: ID!): Boolean!
 }

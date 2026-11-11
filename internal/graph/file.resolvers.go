@@ -40,8 +40,8 @@ func (r *mutationResolver) CreateStorageLocation(ctx context.Context, input file
 }
 
 // UpdateStorageLocation is the resolver for the updateStorageLocation field.
-func (r *mutationResolver) UpdateStorageLocation(ctx context.Context, id string, input file.LocationInput) (*sqlc.StorageLocation, error) {
-	return one(r.FilesSvc.UpdateLocation(ctx, id, input))
+func (r *mutationResolver) UpdateStorageLocation(ctx context.Context, id string, input file.LocationInput, expectedRevision *int) (*sqlc.StorageLocation, error) {
+	return one(r.FilesSvc.UpdateLocation(ctx, id, input, expectedRevision))
 }
 
 // DeleteStorageLocation is the resolver for the deleteStorageLocation field.

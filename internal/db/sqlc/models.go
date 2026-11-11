@@ -1542,6 +1542,7 @@ type Asset struct {
 	CreatedAt        time.Time       `json:"created_at"`
 	UpdatedAt        time.Time       `json:"updated_at"`
 	OriginalLanguage *string         `json:"original_language"`
+	Revision         int32           `json:"revision"`
 }
 
 type AssetAccess struct {
@@ -1617,6 +1618,7 @@ type AssetVersion struct {
 	Status    VersionStatus `json:"status"`
 	CreatedBy *string       `json:"created_by"`
 	CreatedAt time.Time     `json:"created_at"`
+	Revision  int32         `json:"revision"`
 }
 
 type Collection struct {
@@ -1736,6 +1738,7 @@ type Program struct {
 	Metadata    json.RawMessage `json:"metadata"`
 	CreatedAt   time.Time       `json:"created_at"`
 	UpdatedAt   time.Time       `json:"updated_at"`
+	Revision    int32           `json:"revision"`
 }
 
 type Project struct {
@@ -1749,6 +1752,7 @@ type Project struct {
 	Metadata  json.RawMessage `json:"metadata"`
 	CreatedAt time.Time       `json:"created_at"`
 	UpdatedAt time.Time       `json:"updated_at"`
+	Revision  int32           `json:"revision"`
 }
 
 type ProjectFolder struct {
@@ -1769,6 +1773,7 @@ type Rendition struct {
 	Overrides json.RawMessage `json:"overrides"`
 	Metadata  json.RawMessage `json:"metadata"`
 	CreatedAt time.Time       `json:"created_at"`
+	Revision  int32           `json:"revision"`
 }
 
 type RenditionFile struct {
@@ -1820,6 +1825,7 @@ type StorageLocation struct {
 	BaseUri   string       `json:"base_uri"`
 	Online    bool         `json:"online"`
 	CreatedAt time.Time    `json:"created_at"`
+	Revision  int32        `json:"revision"`
 }
 
 type SubtitleCue struct {
