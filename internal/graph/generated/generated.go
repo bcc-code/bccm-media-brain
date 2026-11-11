@@ -2373,6 +2373,7 @@ type Asset {
   "The caller's permission level on this asset."
   myLevel: PermissionLevel!
   versions: [AssetVersion!]!
+  "Links to projects the caller may see. The others are left out, so an asset does not reveal a project."
   projects: [AssetProjectLink!]!
 }
 
@@ -2382,7 +2383,7 @@ type AssetProjectLink {
   role: LinkRole!
   linkedBy: LinkOrigin!
   createdAt: Time!
-  "Null when the caller may not see the project."
+  "Null only if the project stopped being visible while the request ran."
   project: Project
 }
 

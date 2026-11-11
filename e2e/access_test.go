@@ -309,8 +309,8 @@ func TestPermissionLevels(t *testing.T) {
 			t.Fatalf("downloader sees %d copies, want 1", copies)
 		}
 		// A grant on an asset does not reveal the project it belongs to.
-		if v.Asset.Projects[0].Project != nil {
-			t.Fatalf("project leaked through asset: %+v", v.Asset.Projects[0].Project)
+		if len(v.Asset.Projects) != 0 {
+			t.Fatalf("project leaked through asset: %+v", v.Asset.Projects)
 		}
 		downloader.isNull(t, "project", w.projectA)
 		downloader.isNull(t, "program", w.prog.ID)
@@ -457,6 +457,55 @@ func TestAttachingAFileNeedsDownloadOriginal(t *testing.T) {
 	if got := copies(u); got != 1 {
 		t.Fatalf("downloader sees %d copies, want 1", got)
 	}
+}
+
+// The link carries the project's id, so it is hidden with the project: a null nested project
+// would not be enough.
+func TestAssetLinksToHiddenProjectsAreLeftOut(t *testing.T) {
+	w := newWorld(t, 27)
+	w.admin.must(t, `mutation($a: ID!, $p: ID!) { linkAssetToProject(assetId: $a, projectId: $p, role: REFERENCE) { role } }`,
+		map[string]any{"a": w.c1.asset, "p": w.projectB}, nil)
+	assetOnly, inB := signIn(t), signIn(t)
+	grant(t, w.admin, "ASSET", w.c1.asset, "ADMIN", to(assetOnly))
+	grant(t, w.admin, "ASSET", w.c1.asset, "VIEW", to(inB))
+	grant(t, w.admin, "PROJECT", w.projectB, "VIEW", to(inB))
+
+	links := func(u user) string {
+		var out struct {
+			Asset struct {
+				Projects []struct {
+					ProjectID string
+					Role      string
+					Project   *struct{ ID string }
+				}
+			}
+		}
+		u.must(t, `query($id: ID!) { asset(id: $id) { projects { projectId role createdAt project { id } } } }`, map[string]any{"id": w.c1.asset}, &out)
+		var got []string
+		for _, l := range out.Asset.Projects {
+			if l.Project == nil || l.Project.ID != l.ProjectID {
+				t.Errorf("link to %s without its project: %+v", l.ProjectID, l)
+			}
+			got = append(got, l.ProjectID+" "+l.Role)
+		}
+		sort.Strings(got)
+		return strings.Join(got, ",")
+	}
+	both := []string{w.projectA + " SOURCE", w.projectB + " REFERENCE"}
+	sort.Strings(both)
+	for name, c := range map[string]struct {
+		u    user
+		want string
+	}{
+		"asset grant only, even ADMIN": {assetOnly, ""},
+		"one of the projects":          {inB, w.projectB + " REFERENCE"},
+		"administrator":                {w.admin, strings.Join(both, ",")},
+	} {
+		if got := links(c.u); got != c.want {
+			t.Errorf("%s: links = %q, want %q", name, got, c.want)
+		}
+	}
+	assetOnly.isNull(t, "project", w.projectA)
 }
 
 func TestGrantInheritanceGroupsAndLinks(t *testing.T) {
