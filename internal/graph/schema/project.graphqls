@@ -13,8 +13,8 @@ type Program {
   metadata: JSON!
   createdAt: Time!
   updatedAt: Time!
-  "The projects the caller may see."
-  projects: [Project!]!
+  "The projects the caller may see, by code. At most 500 per page."
+  projects(limit: Int = 200, offset: Int = 0): [Project!]!
 }
 
 type Project {

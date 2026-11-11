@@ -72,7 +72,7 @@ type ComplexityRoot struct {
 		Type             func(childComplexity int) int
 		TypeID           func(childComplexity int) int
 		UpdatedAt        func(childComplexity int) int
-		Versions         func(childComplexity int) int
+		Versions         func(childComplexity int, limit *int, offset *int) int
 	}
 
 	AssetProjectLink struct {
@@ -208,7 +208,7 @@ type ComplexityRoot struct {
 		ID          func(childComplexity int) int
 		Metadata    func(childComplexity int) int
 		Name        func(childComplexity int) int
-		Projects    func(childComplexity int) int
+		Projects    func(childComplexity int, limit *int, offset *int) int
 		UpdatedAt   func(childComplexity int) int
 	}
 
@@ -343,7 +343,7 @@ type ComplexityRoot struct {
 type AssetResolver interface {
 	Type(ctx context.Context, obj *sqlc.Asset) (*sqlc.AssetType, error)
 	MyLevel(ctx context.Context, obj *sqlc.Asset) (sqlc.PermissionLevel, error)
-	Versions(ctx context.Context, obj *sqlc.Asset) ([]*sqlc.AssetVersion, error)
+	Versions(ctx context.Context, obj *sqlc.Asset, limit *int, offset *int) ([]*sqlc.AssetVersion, error)
 	Projects(ctx context.Context, obj *sqlc.Asset) ([]*sqlc.AssetProject, error)
 }
 type AssetProjectLinkResolver interface {
@@ -404,7 +404,7 @@ type MutationResolver interface {
 	RefreshFromVidispine(ctx context.Context, assetID string) (*sqlc.Asset, error)
 }
 type ProgramResolver interface {
-	Projects(ctx context.Context, obj *sqlc.Program) ([]*sqlc.Project, error)
+	Projects(ctx context.Context, obj *sqlc.Program, limit *int, offset *int) ([]*sqlc.Project, error)
 }
 type ProjectResolver interface {
 	Program(ctx context.Context, obj *sqlc.Project) (*sqlc.Program, error)
@@ -559,7 +559,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			break
 		}
 
-		return e.ComplexityRoot.Asset.Versions(childComplexity), true
+		args, err := ec.field_Asset_versions_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Asset.Versions(childComplexity, args["limit"].(*int), args["offset"].(*int)), true
 
 	case "AssetProjectLink.assetId":
 		if e.ComplexityRoot.AssetProjectLink.AssetID == nil {
@@ -1383,7 +1388,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			break
 		}
 
-		return e.ComplexityRoot.Program.Projects(childComplexity), true
+		args, err := ec.field_Program_projects_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Program.Projects(childComplexity, args["limit"].(*int), args["offset"].(*int)), true
 	case "Program.updatedAt":
 		if e.ComplexityRoot.Program.UpdatedAt == nil {
 			break
@@ -2372,7 +2382,8 @@ type Asset {
   type: AssetType!
   "The caller's permission level on this asset."
   myLevel: PermissionLevel!
-  versions: [AssetVersion!]!
+  "By number, oldest first. At most 500 per page."
+  versions(limit: Int = 50, offset: Int = 0): [AssetVersion!]!
   "Links to projects the caller may see. The others are left out, so an asset does not reveal a project."
   projects: [AssetProjectLink!]!
 }
@@ -2630,8 +2641,8 @@ type Program {
   metadata: JSON!
   createdAt: Time!
   updatedAt: Time!
-  "The projects the caller may see."
-  projects: [Project!]!
+  "The projects the caller may see, by code. At most 500 per page."
+  projects(limit: Int = 200, offset: Int = 0): [Project!]!
 }
 
 type Project {
@@ -3361,6 +3372,28 @@ func (ec *executionContext) childFields___Type(ctx context.Context, field graphq
 
 // region    ***************************** args.gotpl *****************************
 
+func (ec *executionContext) field_Asset_versions_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "limit",
+		func(ctx context.Context, v any) (*int, error) {
+			return ec.unmarshalOInt2ᚖint(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["limit"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "offset",
+		func(ctx context.Context, v any) (*int, error) {
+			return ec.unmarshalOInt2ᚖint(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["offset"] = arg1
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_addFileCopy_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -4088,6 +4121,28 @@ func (ec *executionContext) field_Mutation_updateStorageLocation_args(ctx contex
 		return nil, err
 	}
 	args["input"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Program_projects_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "limit",
+		func(ctx context.Context, v any) (*int, error) {
+			return ec.unmarshalOInt2ᚖint(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["limit"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "offset",
+		func(ctx context.Context, v any) (*int, error) {
+			return ec.unmarshalOInt2ᚖint(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["offset"] = arg1
 	return args, nil
 }
 
@@ -4887,7 +4942,8 @@ func (ec *executionContext) _Asset_versions(ctx context.Context, field graphql.C
 			return ec.fieldContext_Asset_versions(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return ec.Resolvers.Asset().Versions(ctx, obj)
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Asset().Versions(ctx, obj, fc.Args["limit"].(*int), fc.Args["offset"].(*int))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*sqlc.AssetVersion) graphql.Marshaler {
@@ -4897,7 +4953,7 @@ func (ec *executionContext) _Asset_versions(ctx context.Context, field graphql.C
 		true,
 	)
 }
-func (ec *executionContext) fieldContext_Asset_versions(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Asset_versions(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Asset",
 		Field:      field,
@@ -4906,6 +4962,17 @@ func (ec *executionContext) fieldContext_Asset_versions(_ context.Context, field
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_AssetVersion(ctx, field)
 		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Asset_versions_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
 	}
 	return fc, nil
 }
@@ -8193,7 +8260,8 @@ func (ec *executionContext) _Program_projects(ctx context.Context, field graphql
 			return ec.fieldContext_Program_projects(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return ec.Resolvers.Program().Projects(ctx, obj)
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Program().Projects(ctx, obj, fc.Args["limit"].(*int), fc.Args["offset"].(*int))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v []*sqlc.Project) graphql.Marshaler {
@@ -8203,7 +8271,7 @@ func (ec *executionContext) _Program_projects(ctx context.Context, field graphql
 		true,
 	)
 }
-func (ec *executionContext) fieldContext_Program_projects(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Program_projects(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Program",
 		Field:      field,
@@ -8212,6 +8280,17 @@ func (ec *executionContext) fieldContext_Program_projects(_ context.Context, fie
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_Project(ctx, field)
 		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Program_projects_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
 	}
 	return fc, nil
 }

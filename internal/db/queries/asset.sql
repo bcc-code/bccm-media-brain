@@ -86,7 +86,14 @@ DELETE FROM rendition_file WHERE rendition_id = $1 AND file_id = $2 AND role = $
 SELECT * FROM asset_project WHERE asset_id = ANY(@asset_ids::text[]) ORDER BY asset_id, created_at, project_id, role;
 
 -- name: ListAssetVersions :many
-SELECT * FROM asset_version WHERE asset_id = ANY(@asset_ids::text[]) ORDER BY asset_id, number;
+-- One page per asset: limit and offset count within each asset.
+WITH numbered AS (
+    SELECT av.id, row_number() OVER (PARTITION BY av.asset_id ORDER BY av.number) AS rn
+    FROM asset_version av WHERE av.asset_id = ANY(@asset_ids::text[])
+)
+SELECT v.* FROM asset_version v JOIN numbered ON numbered.id = v.id
+WHERE numbered.rn > sqlc.arg('offset')::int AND numbered.rn <= sqlc.arg('offset')::int + sqlc.arg('limit')::int
+ORDER BY v.asset_id, v.number;
 
 -- name: ListRenditions :many
 SELECT * FROM rendition WHERE version_id = ANY(@version_ids::text[]) ORDER BY version_id, id;

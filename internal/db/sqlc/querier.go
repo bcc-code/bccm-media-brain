@@ -77,7 +77,8 @@ type Querier interface {
 	ListAssetProjects(ctx context.Context, assetIds []string) ([]AssetProject, error)
 	ListAssetTracks(ctx context.Context, assetID string) ([]SubtitleTrack, error)
 	ListAssetTypes(ctx context.Context) ([]AssetType, error)
-	ListAssetVersions(ctx context.Context, assetIds []string) ([]AssetVersion, error)
+	// One page per asset: limit and offset count within each asset.
+	ListAssetVersions(ctx context.Context, arg ListAssetVersionsParams) ([]AssetVersion, error)
 	ListAssets(ctx context.Context, arg ListAssetsParams) ([]Asset, error)
 	ListFileCopies(ctx context.Context, fileIds []string) ([]FileCopy, error)
 	ListFileHashes(ctx context.Context, fileIds []string) ([]FileHash, error)
@@ -97,6 +98,7 @@ type Querier interface {
 	ListUserGroupIDs(ctx context.Context, userID string) ([]string, error)
 	ListUserGroups(ctx context.Context) ([]UserGroup, error)
 	ListUsers(ctx context.Context, arg ListUsersParams) ([]AppUser, error)
+	// per_program and skip page the visible projects within each program, by code.
 	ListVisibleProjects(ctx context.Context, arg ListVisibleProjectsParams) ([]Project, error)
 	// Serialises imports of the same legacy id until the transaction ends.
 	LockLegacyID(ctx context.Context, legacyID string) error

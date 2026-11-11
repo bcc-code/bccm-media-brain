@@ -16,9 +16,6 @@ import (
 	"github.com/bcc-media/mediabrain/internal/graph/generated"
 )
 
-// ComplexityLimit caps how many fields one operation may select.
-const ComplexityLimit = 2000
-
 var errorCodes = []struct {
 	err  error
 	code string
@@ -29,11 +26,12 @@ var errorCodes = []struct {
 	{domain.ErrForbidden, "FORBIDDEN"},
 	{domain.ErrUnauthenticated, "UNAUTHENTICATED"},
 	{domain.ErrUnavailable, "UNAVAILABLE"},
+	{domain.ErrTimeout, "TIMEOUT"},
 }
 
 // NewServer builds the GraphQL handler. Introspection is for development only.
 func NewServer(r *Resolver, introspection bool) *handler.Server {
-	srv := handler.New(generated.NewExecutableSchema(generated.Config{Resolvers: r}))
+	srv := handler.New(generated.NewExecutableSchema(generated.Config{Resolvers: r, Complexity: complexity()}))
 	srv.AddTransport(transport.POST{})
 	srv.Use(extension.FixedComplexityLimit(ComplexityLimit))
 	if introspection {

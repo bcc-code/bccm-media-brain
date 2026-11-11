@@ -40,6 +40,7 @@ Services return the values in `internal/domain`. The GraphQL layer turns them in
 | `FORBIDDEN` | The caller can see the object but may not do this |
 | `UNAUTHENTICATED` | No valid token (also HTTP 401 before GraphQL runs) |
 | `UNAVAILABLE` | A system MediaBrain depends on (Vidispine) is not configured or did not answer. The cause is logged, never sent |
+| `TIMEOUT` | The request ran for 30 seconds and was stopped; a mutation changed nothing. Ask for less |
 | `INTERNAL` | Anything unexpected. The cause is logged, never sent |
 
 Lookups by id (`asset(id:)`, `file(id:)`, ...) return `null` instead of `NOT_FOUND`.

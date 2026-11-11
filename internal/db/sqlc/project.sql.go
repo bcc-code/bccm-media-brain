@@ -292,25 +292,35 @@ func (q *Queries) ListProjects(ctx context.Context, arg ListProjectsParams) ([]P
 }
 
 const listVisibleProjects = `-- name: ListVisibleProjects :many
-SELECT p.id, p.program_id, p.code, p.name, p.status, p.starts_on, p.ends_on, p.metadata, p.created_at, p.updated_at FROM project p
-WHERE (p.id = ANY($1::text[]) OR p.program_id = ANY($2::text[]))
-  AND ($3::bool OR EXISTS (
-        SELECT 1 FROM permission_grant g
-        WHERE ((g.scope = 'project' AND g.scope_id = p.id) OR (g.scope = 'program' AND g.scope_id = p.program_id))
-          AND (g.user_id = ANY($4::text[]) OR g.group_id = ANY($4::text[]))
-          AND (g.expires_at IS NULL OR g.expires_at > now())))
+WITH visible AS (
+    SELECT c.id, row_number() OVER (PARTITION BY c.program_id ORDER BY c.code) AS rn
+    FROM project c
+    WHERE (c.id = ANY($3::text[]) OR c.program_id = ANY($4::text[]))
+      AND ($5::bool OR EXISTS (
+            SELECT 1 FROM permission_grant g
+            WHERE ((g.scope = 'project' AND g.scope_id = c.id) OR (g.scope = 'program' AND g.scope_id = c.program_id))
+              AND (g.user_id = ANY($6::text[]) OR g.group_id = ANY($6::text[]))
+              AND (g.expires_at IS NULL OR g.expires_at > now())))
+)
+SELECT p.id, p.program_id, p.code, p.name, p.status, p.starts_on, p.ends_on, p.metadata, p.created_at, p.updated_at FROM project p JOIN visible ON visible.id = p.id
+WHERE visible.rn > $1::int AND visible.rn <= $1::int + $2::int
 ORDER BY p.code
 `
 
 type ListVisibleProjectsParams struct {
+	Skip       int32    `json:"skip"`
+	PerProgram int32    `json:"per_program"`
 	Ids        []string `json:"ids"`
 	ProgramIds []string `json:"program_ids"`
 	IsAdmin    bool     `json:"is_admin"`
 	Principals []string `json:"principals"`
 }
 
+// per_program and skip page the visible projects within each program, by code.
 func (q *Queries) ListVisibleProjects(ctx context.Context, arg ListVisibleProjectsParams) ([]Project, error) {
 	rows, err := q.db.Query(ctx, listVisibleProjects,
+		arg.Skip,
+		arg.PerProgram,
 		arg.Ids,
 		arg.ProgramIds,
 		arg.IsAdmin,

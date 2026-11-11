@@ -50,11 +50,17 @@ ORDER BY p.code LIMIT sqlc.arg('limit') OFFSET sqlc.arg('offset');
 SELECT * FROM program WHERE id = ANY(@ids::text[]);
 
 -- name: ListVisibleProjects :many
-SELECT p.* FROM project p
-WHERE (p.id = ANY(@ids::text[]) OR p.program_id = ANY(@program_ids::text[]))
-  AND (@is_admin::bool OR EXISTS (
-        SELECT 1 FROM permission_grant g
-        WHERE ((g.scope = 'project' AND g.scope_id = p.id) OR (g.scope = 'program' AND g.scope_id = p.program_id))
-          AND (g.user_id = ANY(@principals::text[]) OR g.group_id = ANY(@principals::text[]))
-          AND (g.expires_at IS NULL OR g.expires_at > now())))
+-- per_program and skip page the visible projects within each program, by code.
+WITH visible AS (
+    SELECT c.id, row_number() OVER (PARTITION BY c.program_id ORDER BY c.code) AS rn
+    FROM project c
+    WHERE (c.id = ANY(@ids::text[]) OR c.program_id = ANY(@program_ids::text[]))
+      AND (@is_admin::bool OR EXISTS (
+            SELECT 1 FROM permission_grant g
+            WHERE ((g.scope = 'project' AND g.scope_id = c.id) OR (g.scope = 'program' AND g.scope_id = c.program_id))
+              AND (g.user_id = ANY(@principals::text[]) OR g.group_id = ANY(@principals::text[]))
+              AND (g.expires_at IS NULL OR g.expires_at > now())))
+)
+SELECT p.* FROM project p JOIN visible ON visible.id = p.id
+WHERE visible.rn > sqlc.arg('skip')::int AND visible.rn <= sqlc.arg('skip')::int + sqlc.arg('per_program')::int
 ORDER BY p.code;

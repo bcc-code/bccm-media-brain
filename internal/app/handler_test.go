@@ -97,9 +97,10 @@ func TestQueryEndpoint(t *testing.T) {
 	if rec := query(h, huge, true); strings.Contains(rec.Body.String(), `"pong"`) {
 		t.Fatalf("oversized body was accepted: %d", rec.Code)
 	}
-	deep := "{" + strings.Repeat(" a: ping", graph.ComplexityLimit+1) + " }"
+	// 500 assets x 500 versions x 10 assumed renditions is far over graph.ComplexityLimit.
+	deep := `{ assets(limit: 500) { versions(limit: 500) { renditions { id } } } }`
 	if rec := query(h, `{"query":"`+deep+`"}`, true); !strings.Contains(rec.Body.String(), "complexity") {
-		t.Fatalf("complexity limit = %s", rec.Body.String()[:200])
+		t.Fatalf("complexity limit = %s", rec.Body)
 	}
 
 	opts.Playground = true

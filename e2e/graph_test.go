@@ -118,12 +118,15 @@ func exec(t *testing.T, as access.Principal, failAt int64, query string, vars ma
 	return r, p.calls.Load()
 }
 
-const deepQuery = `query($t: String) { assets(filter: {title: $t}, limit: 500) {
+// deepQuery touches every nested field. Its lists are short to keep its cost well under
+// graph.ComplexityLimit: what costs most is 15 assets x 10 assumed renditions x 2 exports at 500.
+const deepQuery = `query($t: String) { assets(filter: {title: $t}, limit: 15) {
 	id myLevel type { name }
-	projects { role project { id program { code projects { id } } } }
-	versions { number renditions { kind
+	projects { role project { id program { code projects(limit: 5) { id } all: projects { id } } } }
+	later: versions(limit: 2, offset: 1) { number }
+	versions(limit: 1) { number renditions { kind
 		files { role file { id hashes { algo value } copies { path location { name } } } }
-		subtitleTracks { revision cues { text } srt: export(format: SRT) }
+		subtitleTracks { revision cues(limit: 10) { text } srt: export(format: SRT) }
 		history: subtitleTracks(history: true) { revision cues(limit: 1) { text } } } }
 } }`
 

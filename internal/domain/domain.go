@@ -20,6 +20,9 @@ var (
 	ErrUnauthenticated = errors.New("unauthenticated")
 	// ErrUnavailable means a system MediaBrain depends on is not configured or did not answer.
 	ErrUnavailable = errors.New("unavailable")
+	// ErrTimeout means the request ran past its deadline and was stopped. Unlike ErrUnavailable,
+	// trying the same request again will not help: it has to ask for less.
+	ErrTimeout = errors.New("the request took too long")
 )
 
 const (

@@ -24,8 +24,8 @@ func (r *assetResolver) MyLevel(ctx context.Context, obj *sqlc.Asset) (sqlc.Perm
 }
 
 // Versions is the resolver for the versions field.
-func (r *assetResolver) Versions(ctx context.Context, obj *sqlc.Asset) ([]*sqlc.AssetVersion, error) {
-	return many(r.load(ctx).versions.Load(ctx, obj.ID))
+func (r *assetResolver) Versions(ctx context.Context, obj *sqlc.Asset, limit *int, offset *int) ([]*sqlc.AssetVersion, error) {
+	return many(r.load(ctx).versionsFor(page{deref(limit), deref(offset)}).Load(ctx, obj.ID))
 }
 
 // Projects is the resolver for the projects field.

@@ -14,26 +14,27 @@ type page struct{ limit, offset int }
 // loaders batch the child lookups of one request. Every nested field goes through one of
 // them, so resolving a list never runs a query per item.
 type loaders struct {
-	types           *loader.Loader[int16, sqlc.AssetType]
-	levels          *loader.Loader[string, sqlc.PermissionLevel]
-	versions        *loader.Loader[string, []sqlc.AssetVersion]
-	links           *loader.Loader[string, []sqlc.AssetProject]
-	renditions      *loader.Loader[string, []sqlc.Rendition]
-	renditionFiles  *loader.Loader[string, []sqlc.RenditionFile]
-	files           *loader.Loader[string, sqlc.File]
-	hashes          *loader.Loader[string, []sqlc.FileHash]
-	copies          *loader.Loader[string, []sqlc.FileCopy]
-	locations       *loader.Loader[string, sqlc.StorageLocation]
-	programs        *loader.Loader[string, sqlc.Program]
-	projects        *loader.Loader[string, sqlc.Project]
-	programProjects *loader.Loader[string, []sqlc.Project]
+	types          *loader.Loader[int16, sqlc.AssetType]
+	levels         *loader.Loader[string, sqlc.PermissionLevel]
+	links          *loader.Loader[string, []sqlc.AssetProject]
+	renditions     *loader.Loader[string, []sqlc.Rendition]
+	renditionFiles *loader.Loader[string, []sqlc.RenditionFile]
+	files          *loader.Loader[string, sqlc.File]
+	hashes         *loader.Loader[string, []sqlc.FileHash]
+	copies         *loader.Loader[string, []sqlc.FileCopy]
+	locations      *loader.Loader[string, sqlc.StorageLocation]
+	programs       *loader.Loader[string, sqlc.Program]
+	projects       *loader.Loader[string, sqlc.Project]
 
 	// Loaders for fields with arguments, one per distinct argument value.
-	mu      sync.Mutex
-	subs    *subtitle.Service
-	tracks  map[bool]*loader.Loader[string, []sqlc.SubtitleTrack]
-	cues    map[page]*loader.Loader[string, []sqlc.ListSubtitleCuesRow]
-	exports map[subtitle.Format]*loader.Loader[string, string]
+	mu              sync.Mutex
+	r               *Resolver
+	subs            *subtitle.Service
+	versions        map[page]*loader.Loader[string, []sqlc.AssetVersion]
+	programProjects map[page]*loader.Loader[string, []sqlc.Project]
+	tracks          map[bool]*loader.Loader[string, []sqlc.SubtitleTrack]
+	cues            map[page]*loader.Loader[string, []sqlc.ListSubtitleCuesRow]
+	exports         map[subtitle.Format]*loader.Loader[string, string]
 }
 
 func newLoaders(r *Resolver) *loaders {
@@ -46,23 +47,24 @@ func newLoaders(r *Resolver) *loaders {
 			}
 			return out, err
 		}),
-		levels:          loader.New(r.AssetsSvc.LevelsFor),
-		versions:        loader.New(r.AssetsSvc.VersionsFor),
-		links:           loader.New(r.AssetsSvc.LinksFor),
-		renditions:      loader.New(r.AssetsSvc.RenditionsFor),
-		renditionFiles:  loader.New(r.AssetsSvc.FilesFor),
-		files:           loader.New(r.FilesSvc.ByID),
-		hashes:          loader.New(r.FilesSvc.HashesFor),
-		copies:          loader.New(r.FilesSvc.CopiesFor),
-		locations:       loader.New(r.FilesSvc.LocationsByID),
-		programs:        loader.New(r.ProjectsSvc.ProgramsByID),
-		projects:        loader.New(r.ProjectsSvc.ProjectsByID),
-		programProjects: loader.New(r.ProjectsSvc.ProjectsFor),
+		levels:         loader.New(r.AssetsSvc.LevelsFor),
+		links:          loader.New(r.AssetsSvc.LinksFor),
+		renditions:     loader.New(r.AssetsSvc.RenditionsFor),
+		renditionFiles: loader.New(r.AssetsSvc.FilesFor),
+		files:          loader.New(r.FilesSvc.ByID),
+		hashes:         loader.New(r.FilesSvc.HashesFor),
+		copies:         loader.New(r.FilesSvc.CopiesFor),
+		locations:      loader.New(r.FilesSvc.LocationsByID),
+		programs:       loader.New(r.ProjectsSvc.ProgramsByID),
+		projects:       loader.New(r.ProjectsSvc.ProjectsByID),
 
-		subs:    r.SubtitlesSvc,
-		tracks:  map[bool]*loader.Loader[string, []sqlc.SubtitleTrack]{},
-		cues:    map[page]*loader.Loader[string, []sqlc.ListSubtitleCuesRow]{},
-		exports: map[subtitle.Format]*loader.Loader[string, string]{},
+		r:               r,
+		subs:            r.SubtitlesSvc,
+		versions:        map[page]*loader.Loader[string, []sqlc.AssetVersion]{},
+		programProjects: map[page]*loader.Loader[string, []sqlc.Project]{},
+		tracks:          map[bool]*loader.Loader[string, []sqlc.SubtitleTrack]{},
+		cues:            map[page]*loader.Loader[string, []sqlc.ListSubtitleCuesRow]{},
+		exports:         map[subtitle.Format]*loader.Loader[string, string]{},
 	}
 }
 
@@ -73,6 +75,18 @@ func keyed[A comparable, V any](l *loaders, m map[A]*loader.Loader[string, V], a
 		m[arg] = loader.New(fetch)
 	}
 	return m[arg]
+}
+
+func (l *loaders) versionsFor(p page) *loader.Loader[string, []sqlc.AssetVersion] {
+	return keyed(l, l.versions, p, func(ctx context.Context, ids []string) (map[string][]sqlc.AssetVersion, error) {
+		return l.r.AssetsSvc.VersionsFor(ctx, ids, p.limit, p.offset)
+	})
+}
+
+func (l *loaders) programProjectsFor(p page) *loader.Loader[string, []sqlc.Project] {
+	return keyed(l, l.programProjects, p, func(ctx context.Context, ids []string) (map[string][]sqlc.Project, error) {
+		return l.r.ProjectsSvc.ProjectsFor(ctx, ids, p.limit, p.offset)
+	})
 }
 
 func (l *loaders) tracksFor(history bool) *loader.Loader[string, []sqlc.SubtitleTrack] {

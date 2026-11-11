@@ -86,7 +86,14 @@ write results to `out` and return `usageErr(...)` for bad command lines. Flags u
 - Error codes are the table in `internal/graph/server.go` (`errorCodes`). A new domain error
   needs a line there, or it surfaces as `INTERNAL`. The message of a known error reaches the
   client, so it must not carry internal detail: log that instead.
-- Nested fields load through `internal/graph/loaders.go`.
+- Nested fields load through `internal/graph/loaders.go`. A nested list with arguments gets one
+  loader per distinct argument value (`keyed`; `versionsFor`, `cuesFor`), over a query that
+  takes the window per parent with `row_number()` (`ListAssetVersions`).
+- **Every list of objects needs a line in `complexity()`** (`internal/graph/complexity.go`):
+  `paged(...)` when it has a `limit`, `assumed(n)` when it does not. `TestEveryListHasACost`
+  fails otherwise. `deepQuery` (e2e) must stay under `ComplexityLimit`, so give new nested
+  lists in it a small `limit`.
+- A statement stopped by the request's deadline becomes `domain.ErrTimeout` in `mask`.
 
 ## Other systems
 

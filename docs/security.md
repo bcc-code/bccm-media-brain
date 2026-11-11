@@ -173,8 +173,18 @@ to every caller. Dev-data scenarios and the CLI run as an explicit system princi
 ## Hardening
 
 - Schema introspection and the playground are off unless `GRAPHQL_PLAYGROUND=true`.
-- One operation may select at most 2000 fields; request bodies are limited to 8 MB (a subtitle
-  file to 5 MB); the server has header, read and idle timeouts.
+- **Query cost.** One operation may cost at most 1 000 000, where a list counts its selection
+  once per item it may return (`internal/graph/complexity.go`; the sums the limit was chosen
+  from are in `complexity_test.go`). The number is roughly how many values the answer could
+  hold if every list were full, so nesting lists multiplies instead of adding. A refused
+  operation runs no statement.
+- **Request deadline.** A `/query` request has 30 seconds (`app.QueryTimeout`), sign-in
+  included. The deadline is on the request's context, which every statement runs on: the one in
+  progress is cancelled, a transaction rolls back, and the client gets `TIMEOUT`. One warning is
+  logged per stopped request. The answer may be written for 15 seconds more.
+- **Lists.** Every list that grows without bound is paged, nested ones included
+  ([api.md](api.md)). Request bodies are limited to 8 MB (a subtitle file to 5 MB); the server
+  has header, read and idle timeouts.
 - Unexpected errors reach the client only as `INTERNAL` / "internal error"; the cause is logged.
 - Audit log (`slog`):
   - `audit: change` for every change that was made, written by the service after the write

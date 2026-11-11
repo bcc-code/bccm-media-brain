@@ -381,8 +381,13 @@ func (s *Service) LevelsFor(ctx context.Context, assetIDs []string) (map[string]
 	return access.AssetLevels(ctx, s.q, assetIDs)
 }
 
-func (s *Service) VersionsFor(ctx context.Context, assetIDs []string) (map[string][]sqlc.AssetVersion, error) {
-	rows, err := s.q.ListAssetVersions(ctx, assetIDs)
+// VersionsFor returns one page of versions per asset, by number.
+func (s *Service) VersionsFor(ctx context.Context, assetIDs []string, limit, offset int) (map[string][]sqlc.AssetVersion, error) {
+	l, o, err := domain.Page(limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := s.q.ListAssetVersions(ctx, sqlc.ListAssetVersionsParams{AssetIds: assetIDs, Limit: l, Offset: o})
 	out := map[string][]sqlc.AssetVersion{}
 	for _, r := range rows {
 		out[r.AssetID] = append(out[r.AssetID], r)
@@ -406,7 +411,7 @@ func (s *Service) LinksFor(ctx context.Context, assetIDs []string) (map[string][
 		projectIDs = append(projectIDs, r.ProjectID)
 	}
 	visible, err := s.q.ListVisibleProjects(ctx, sqlc.ListVisibleProjectsParams{
-		Ids: projectIDs, ProgramIds: []string{}, IsAdmin: p.Admin, Principals: p.IDs(),
+		Ids: projectIDs, ProgramIds: []string{}, IsAdmin: p.Admin, Principals: p.IDs(), PerProgram: int32(len(projectIDs)),
 	})
 	if err != nil {
 		return nil, err

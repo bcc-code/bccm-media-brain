@@ -6,7 +6,19 @@
 
 Conventions:
 
-- Lists take `limit` (default 50, max 500) and `offset`.
+- Lists take `limit` (default 50, max 500) and `offset`. So do the nested lists that grow:
+  `Asset.versions` (by number, default 50) and `Program.projects` (by code, default 200); the
+  page is taken within each asset or program. The other nested lists (renditions of a version,
+  files of a rendition, hashes and copies of a file) are short and come whole.
+- One operation may cost at most 1 000 000 (`COMPLEXITY_LIMIT_EXCEEDED` otherwise). A field
+  costs 1 and a list 1 plus its selection once per item it may return: its `limit`, or for a
+  list without one an assumed size (10 renditions, 5 files, 3 copies, ...; the table is in
+  `internal/graph/complexity.go`). The cost assumes every list is full, so it is far above what
+  comes back: one asset with everything down to its cues costs about 544 000, a page of 100
+  assets with versions, renditions and files about 860 000. When a query is refused, give the
+  nested lists a smaller `limit`: `assets(limit: 500) { versions(limit: 5) { ... } }`.
+- A request may run for 30 seconds. Then it is stopped, nothing it did is kept, and the answer
+  is `TIMEOUT`.
 - Lookups by id return `null` when the object does not exist or is not visible.
 - `update...` mutations **replace all editable fields**; a field left out is cleared.
 - Errors carry `extensions.code` ([architecture.md](architecture.md#errors)).

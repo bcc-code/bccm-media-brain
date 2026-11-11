@@ -44,8 +44,8 @@ func (r *mutationResolver) DeleteProject(ctx context.Context, id string) (bool, 
 }
 
 // Projects is the resolver for the projects field.
-func (r *programResolver) Projects(ctx context.Context, obj *sqlc.Program) ([]*sqlc.Project, error) {
-	return many(r.load(ctx).programProjects.Load(ctx, obj.ID))
+func (r *programResolver) Projects(ctx context.Context, obj *sqlc.Program, limit *int, offset *int) ([]*sqlc.Project, error) {
+	return many(r.load(ctx).programProjectsFor(page{deref(limit), deref(offset)}).Load(ctx, obj.ID))
 }
 
 // Program is the resolver for the program field.

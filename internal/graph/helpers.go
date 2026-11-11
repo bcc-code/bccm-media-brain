@@ -1,6 +1,7 @@
 package graph
 
 import (
+	"context"
 	"errors"
 
 	"github.com/bcc-media/mediabrain/internal/domain"
@@ -15,6 +16,11 @@ func (internalError) Error() string { return "internal error" }
 func mask(err error) error {
 	if err == nil {
 		return nil
+	}
+	// The request's deadline passed while a statement ran. The driver reports that as its own
+	// error; the client should learn that the request was too slow, not that something broke.
+	if errors.Is(err, context.DeadlineExceeded) {
+		return domain.ErrTimeout
 	}
 	for _, c := range errorCodes {
 		if errors.Is(err, c.err) {

@@ -2,6 +2,30 @@
 
 Newest first. Each entry: what changed, why, and what was left out on purpose.
 
+## 2026-11-11 — Queries have a cost, a deadline and paged nested lists
+
+- **Cost.** The limit of 2000 selected fields counted a list as one field, so
+  `assets(limit: 500)` with unpaged nested lists passed it while asking for hundreds of
+  thousands of rows (architecture review, finding 08). A list now costs its selection once per
+  item it may return, and the limit is 1 000 000: enough for one asset with everything down to
+  its cues (543 560) or 100 assets with versions, renditions and files (860 201), not for 500
+  assets with those three levels (4 301 001). Lists without a `limit` count with an assumed
+  size. The cost assumes full lists (50 versions per asset by default), which real data is far
+  from; a limit of 250 000 was tried first and refused the single-asset query above.
+- **Deadline.** A `/query` request is stopped after 30 seconds through its context, and answers
+  `TIMEOUT`. A new code rather than `UNAVAILABLE`: that one says another system did not answer
+  and trying again may help; here the same request will be too slow again. The HTTP read
+  timeout never stopped a statement that was already running.
+- **Paging.** `Asset.versions` and `Program.projects` take `limit` and `offset`, per parent,
+  still one statement per batch. Without arguments they return 50 versions and 200 projects:
+  a client written before the arguments existed keeps getting everything unless an asset has
+  more than 50 versions or a program more than 200 projects.
+- Left out: paging renditions, files, hashes and copies (short by nature; they count with an
+  assumed size, so the cost of a query over them is an estimate, not a bound), a limit on the
+  size of the answer in bytes, per-user rate limits, and a load test at production scale: the
+  numbers come from arithmetic, not from measurement. A query with very many aliased fields is
+  still parsed and validated before its cost is known; the 8 MB body limit is what bounds that.
+
 ## 2026-11-11 — The audit log records what happened
 
 - Services now write `audit: change` after a successful write (`access.Audited`), with the

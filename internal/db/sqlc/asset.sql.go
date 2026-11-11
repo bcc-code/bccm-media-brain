@@ -428,11 +428,24 @@ func (q *Queries) ListAssetTypes(ctx context.Context) ([]AssetType, error) {
 }
 
 const listAssetVersions = `-- name: ListAssetVersions :many
-SELECT id, asset_id, number, label, status, created_by, created_at FROM asset_version WHERE asset_id = ANY($1::text[]) ORDER BY asset_id, number
+WITH numbered AS (
+    SELECT av.id, row_number() OVER (PARTITION BY av.asset_id ORDER BY av.number) AS rn
+    FROM asset_version av WHERE av.asset_id = ANY($3::text[])
+)
+SELECT v.id, v.asset_id, v.number, v.label, v.status, v.created_by, v.created_at FROM asset_version v JOIN numbered ON numbered.id = v.id
+WHERE numbered.rn > $1::int AND numbered.rn <= $1::int + $2::int
+ORDER BY v.asset_id, v.number
 `
 
-func (q *Queries) ListAssetVersions(ctx context.Context, assetIds []string) ([]AssetVersion, error) {
-	rows, err := q.db.Query(ctx, listAssetVersions, assetIds)
+type ListAssetVersionsParams struct {
+	Offset   int32    `json:"offset"`
+	Limit    int32    `json:"limit"`
+	AssetIds []string `json:"asset_ids"`
+}
+
+// One page per asset: limit and offset count within each asset.
+func (q *Queries) ListAssetVersions(ctx context.Context, arg ListAssetVersionsParams) ([]AssetVersion, error) {
+	rows, err := q.db.Query(ctx, listAssetVersions, arg.Offset, arg.Limit, arg.AssetIds)
 	if err != nil {
 		return nil, err
 	}

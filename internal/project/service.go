@@ -253,19 +253,20 @@ func (s *Service) ProgramsByID(ctx context.Context, ids []string) (map[string]sq
 	return out, err
 }
 
-func (s *Service) visibleProjects(ctx context.Context, ids, programIDs []string) ([]sqlc.Project, error) {
+// visibleProjects pages within each program: skip and perProgram count per program.
+func (s *Service) visibleProjects(ctx context.Context, ids, programIDs []string, perProgram, skip int32) ([]sqlc.Project, error) {
 	p, err := access.From(ctx)
 	if err != nil {
 		return nil, err
 	}
 	return s.q.ListVisibleProjects(ctx, sqlc.ListVisibleProjectsParams{
-		Ids: ids, ProgramIds: programIDs, IsAdmin: p.Admin, Principals: p.IDs(),
+		Ids: ids, ProgramIds: programIDs, IsAdmin: p.Admin, Principals: p.IDs(), PerProgram: perProgram, Skip: skip,
 	})
 }
 
 // ProjectsByID returns the projects the caller may see; the others are absent.
 func (s *Service) ProjectsByID(ctx context.Context, ids []string) (map[string]sqlc.Project, error) {
-	rows, err := s.visibleProjects(ctx, ids, []string{})
+	rows, err := s.visibleProjects(ctx, ids, []string{}, int32(len(ids)), 0)
 	out := make(map[string]sqlc.Project, len(rows))
 	for _, r := range rows {
 		out[r.ID] = r
@@ -273,9 +274,21 @@ func (s *Service) ProjectsByID(ctx context.Context, ids []string) (map[string]sq
 	return out, err
 }
 
-// ProjectsFor returns, per program, the projects the caller may see.
-func (s *Service) ProjectsFor(ctx context.Context, programIDs []string) (map[string][]sqlc.Project, error) {
-	rows, err := s.visibleProjects(ctx, []string{}, programIDs)
+// ProjectsPerProgram is how many projects a program lists when the request gives no limit.
+// Higher than domain.DefaultLimit: a program gathers projects for years, and a client written
+// before the field had a limit should not lose some of them without noticing.
+const ProjectsPerProgram = 200
+
+// ProjectsFor returns, per program, one page of the projects the caller may see, by code.
+func (s *Service) ProjectsFor(ctx context.Context, programIDs []string, limit, offset int) (map[string][]sqlc.Project, error) {
+	if limit == 0 {
+		limit = ProjectsPerProgram
+	}
+	l, o, err := domain.Page(limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := s.visibleProjects(ctx, []string{}, programIDs, l, o)
 	out := map[string][]sqlc.Project{}
 	for _, r := range rows {
 		out[r.ProgramID] = append(out[r.ProgramID], r)

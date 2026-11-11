@@ -75,7 +75,8 @@ type Asset {
   type: AssetType!
   "The caller's permission level on this asset."
   myLevel: PermissionLevel!
-  versions: [AssetVersion!]!
+  "By number, oldest first. At most 500 per page."
+  versions(limit: Int = 50, offset: Int = 0): [AssetVersion!]!
   "Links to projects the caller may see. The others are left out, so an asset does not reveal a project."
   projects: [AssetProjectLink!]!
 }
