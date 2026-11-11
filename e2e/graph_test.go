@@ -286,6 +286,7 @@ func TestDatabaseFailuresAreContained(t *testing.T) {
 	var imp struct{ ImportFromVidispine struct{ ID string } }
 	w.admin.must(t, importFromVidispine, map[string]any{"in": map[string]any{"itemId": vidispineItem(w.f, newVidispineStorage()).ID, "typeId": 1}}, &imp)
 	imported := imp.ImportFromVidispine.ID
+	machine := signInService(t, false)
 	asAdmin := []operation{
 		{"admin lists", `{ users { id } userGroups { id } files { id } storageLocations { id } }`, fixed(nil)},
 		{"create program", createProgram, func() map[string]any {
@@ -321,6 +322,13 @@ func TestDatabaseFailuresAreContained(t *testing.T) {
 			return map[string]any{"in": map[string]any{"itemId": item.ID, "typeId": 1, "projectId": w.projectA}}
 		}},
 		{"refresh from vidispine", refreshFromVidispine, id(imported)},
+		{"service lists", `query($s: String!) { serviceAccounts { id } serviceTokens(serviceAccount: $s) { id } }`, fixed(map[string]any{"s": machine.sub})},
+		{"create service account", createServiceAccount, func() map[string]any { return map[string]any{"in": map[string]any{"name": "sweep-" + unique()}} }},
+		{"service account active", setServiceActive, fixed(map[string]any{"s": machine.sub, "a": true})},
+		{"create service token", createServiceToken, fixed(map[string]any{"in": map[string]any{"serviceAccount": machine.id, "name": "sweep"}})},
+		{"revoke service token", revokeServiceToken, func() map[string]any {
+			return map[string]any{"id": newServiceToken(t, w.admin, machine.sub).ServiceToken.ID}
+		}},
 	}
 
 	sweep := func(as access.Principal, ops []operation) {
@@ -370,6 +378,10 @@ func TestDatabaseFailuresAreContained(t *testing.T) {
 			return err
 		},
 		"sweep": func(svc *access.Service) error { _, err := svc.Sweep(context.Background()); return err },
+		"service sign in": func(svc *access.Service) error {
+			_, _, err := svc.ServiceSignIn(context.Background(), machine.token)
+			return err
+		},
 		"create group": func(svc *access.Service) error {
 			_, err := svc.CreateGroup(access.With(context.Background(), access.System()), "group "+unique(), []string{other.id})
 			return err

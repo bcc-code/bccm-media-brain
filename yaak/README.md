@@ -16,6 +16,7 @@ and choose this folder. Yaak keeps the files in sync, so changes you make show u
 | `token` | Only for a deployed server, and only if its auth proxy accepts a bearer token from API clients: point `base_url` at the proxy and enable the bearer authentication on the folders. Not needed for `make dev` |
 | `program_id`, `project_id`, `location_id`, `file_id`, `copy_id`, `asset_id`, `version_id`, `rendition_id`, `track_id`, `grant_id` | Ids used by the requests. Paste them in from the response of the matching "Create ..." request |
 | `vidispine_item_id` | The Vidispine item to import, e.g. `VX-123` |
+| `service_account`, `service_token`, `service_token_id` | A machine client: its name, the token from "Create service token" and that token's id |
 
 ## Typical run on an empty database
 
@@ -29,6 +30,9 @@ and choose this folder. Yaak keeps the files in sync, so changes you make show u
 7. *Vidispine*: with `VIDISPINE_URL`, `VIDISPINE_USERNAME` and `VIDISPINE_PASSWORD` set on the server, put an
    item id into `vidispine_item_id` → Import from Vidispine → Refresh from Vidispine. Without a Vidispine,
    `make seed s=vidispine` creates assets that look imported.
+8. *Service accounts*: Create service account → Create service token, paste the token into
+   `service_token` → Me, as the service account. `make seed s=access` also creates two accounts
+   and prints their tokens.
 
 Requests marked "(admin)" need a system administrator. Keep this folder in step with the schema
 when operations are added or changed.

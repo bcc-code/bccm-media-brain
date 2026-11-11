@@ -1411,6 +1411,57 @@ func (e TrackOrigin) Valid() bool {
 	return false
 }
 
+type UserKind string
+
+const (
+	UserKindPerson  UserKind = "person"
+	UserKindService UserKind = "service"
+)
+
+func (e *UserKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = UserKind(s)
+	case string:
+		*e = UserKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for UserKind: %T", src)
+	}
+	return nil
+}
+
+type NullUserKind struct {
+	UserKind UserKind `json:"user_kind"`
+	Valid    bool     `json:"valid"` // Valid is true if UserKind is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullUserKind) Scan(value interface{}) error {
+	if value == nil {
+		ns.UserKind, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.UserKind.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullUserKind) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.UserKind), nil
+}
+
+func (e UserKind) Valid() bool {
+	switch e {
+	case UserKindPerson,
+		UserKindService:
+		return true
+	}
+	return false
+}
+
 type VersionStatus string
 
 const (
@@ -1475,6 +1526,7 @@ type AppUser struct {
 	Active     bool      `json:"active"`
 	CreatedAt  time.Time `json:"created_at"`
 	IsAdmin    bool      `json:"is_admin"`
+	Kind       UserKind  `json:"kind"`
 }
 
 type Asset struct {
@@ -1746,6 +1798,18 @@ type SavedSearch struct {
 	// The SearchInput as sent, camelCase keys. Validated by the app; ids in it may point to deleted rows.
 	Filter    json.RawMessage `json:"filter"`
 	UpdatedAt time.Time       `json:"updated_at"`
+}
+
+type ServiceToken struct {
+	ID         string     `json:"id"`
+	UserID     string     `json:"user_id"`
+	Name       string     `json:"name"`
+	TokenHash  []byte     `json:"token_hash"`
+	CreatedBy  *string    `json:"created_by"`
+	CreatedAt  time.Time  `json:"created_at"`
+	ExpiresAt  time.Time  `json:"expires_at"`
+	LastUsedAt *time.Time `json:"last_used_at"`
+	RevokedAt  *time.Time `json:"revoked_at"`
 }
 
 type StorageLocation struct {

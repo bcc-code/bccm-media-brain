@@ -17,6 +17,9 @@ type Principal struct {
 	UserID   string
 	GroupIDs []string
 	Admin    bool
+	// Service marks a machine client. TokenID is the service token it signed in with.
+	Service bool
+	TokenID string
 }
 
 // System is the principal of the CLI and dev-data scenarios. It has no user id.
@@ -91,6 +94,19 @@ func RequireAdmin(ctx context.Context) error {
 		return err
 	}
 	if !p.Admin {
+		return domain.ErrForbidden
+	}
+	return nil
+}
+
+// RequirePersonAdmin is RequireAdmin without machine clients. It guards what would let a leaked
+// service token outlive its revocation: creating credentials and making administrators.
+func RequirePersonAdmin(ctx context.Context) error {
+	p, err := From(ctx)
+	if err != nil {
+		return err
+	}
+	if !p.Admin || p.Service {
 		return domain.ErrForbidden
 	}
 	return nil

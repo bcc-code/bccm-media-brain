@@ -196,10 +196,10 @@ async function loadUsers() {
     const current = actingAs();
     const me = users.find(u => u.id === current);
     document.getElementById('acting').textContent = me
-      ? `GraphQL requests from this browser run as ${me.email || me.id}.`
+      ? `GraphQL requests from this browser run as ${me.email || me.name || me.id}.`
       : 'No user chosen: GraphQL requests from this browser are refused.';
     t.replaceChildren(...(users.length ? users.map(u => el('tr', { className: u.id === current ? 'current' : '' },
-      el('td', { title: u.id }, u.email || u.id, ...(u.admin ? [el('span', { className: 'always' }, 'admin')] : []), ...(u.active ? [] : [el('span', { className: 'always' }, 'inactive')])),
+      el('td', { title: u.id }, u.email || u.name || u.id, ...(u.service ? [el('span', { className: 'always' }, 'service')] : []), ...(u.admin ? [el('span', { className: 'always' }, 'admin')] : []), ...(u.active ? [] : [el('span', { className: 'always' }, 'inactive')])),
       el('td', { className: 'n' }, u.id === current
         ? el('button', { className: 'ghost', onclick: () => actAs('') }, 'Stop')
         : el('button', { className: 'ghost', onclick: () => actAs(u.id) }, 'Act as'))))

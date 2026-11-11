@@ -2,6 +2,33 @@
 
 Newest first. Each entry: what changed, why, and what was left out on purpose.
 
+## 2026-11-11 — Machine clients: service accounts and service tokens
+
+- Another system can now call the API as itself. An administrator creates a **service account**
+  (`createServiceAccount`, or `mediabrain service create`) and a **token** for it
+  (`createServiceToken`, `mediabrain service token`); the system sends
+  `Authorization: Bearer mbs_...`. Details in [security.md](security.md#machine-clients).
+- *A service account is an `app_user` of kind `service`*, not a table of its own. Grants, groups,
+  `created_by` and every permission query work for it without a change, and there is one kind of
+  principal to reason about.
+- *MediaBrain issues the tokens*, rather than accepting client-credentials tokens from the
+  identity provider. It needs nothing from the identity provider, and expiry, revocation and
+  "last used" are in one place. `ServiceSignIn` sits behind `auth.Users`, so identity-provider
+  tokens can be mapped to the same accounts later.
+- *Only the SHA-256 of a token is stored.* A token is 256 random bits, so a slow password hash
+  would protect nothing and cost every uncached request.
+- *Machine requests still come through the auth proxy*, which has to pass them on; MediaBrain
+  checks the token. `AUTH_SERVICE_HEADER` (default `Authorization`) is for proxies that keep
+  `Authorization` for themselves.
+- *A service account cannot manage credentials or administrators*, even as an administrator
+  (`access.RequirePersonAdmin`), so a leaked token cannot make itself permanent. `setUserAdmin`
+  now follows the same rule.
+- Dev data: the `access` scenario creates the accounts `ingest` (administrator) and `reader`
+  (view on project 1) and prints a token for each; the debug UI marks service accounts.
+- Left out: roles narrower than administrator for machines (an ingest tool is an administrator
+  because registering files is), scopes per token, rate limits per token, identity-provider
+  tokens, and anything outbound (webhooks, events).
+
 ## 2026-11-11 — The user cache ends with the token
 
 - A cached user is now forgotten when its token stops being accepted (`exp` plus the verifier's

@@ -13,8 +13,15 @@ enum GrantScope {
   ASSET
 }
 
+enum UserKind {
+  PERSON
+  "A machine client. It signs in with a service token."
+  SERVICE
+}
+
 type User {
   id: ID!
+  kind: UserKind!
   externalId: String!
   email: String
   name: String
@@ -56,8 +63,48 @@ input GrantInput {
   expiresAt: Time
 }
 
+input ServiceAccountInput {
+  "Unique. Also how the account is named on the command line."
+  name: String!
+  "System administrator. Needed for administrator-only operations such as registering files."
+  admin: Boolean! = false
+}
+
+"A credential of a service account. The token itself is only in the answer of createServiceToken."
+type ServiceToken {
+  id: ID!
+  "The service account."
+  userId: ID!
+  name: String!
+  createdBy: ID
+  createdAt: Time!
+  expiresAt: Time!
+  "Updated at most once a minute."
+  lastUsedAt: Time
+  revokedAt: Time
+}
+
+input ServiceTokenInput {
+  "Id or name of the service account."
+  serviceAccount: String!
+  "What the token is for, e.g. \"ingest, production\"."
+  name: String!
+  "A year from now when not given."
+  expiresAt: Time
+}
+
+type NewServiceToken {
+  "Sent as `Authorization: Bearer <token>`. It cannot be read again."
+  token: String!
+  serviceToken: ServiceToken!
+}
+
 extend type Query {
   me: User!
+  "Administrators only, not service accounts."
+  serviceAccounts: [User!]!
+  "Administrators only, not service accounts. serviceAccount is an id or name."
+  serviceTokens(serviceAccount: String!): [ServiceToken!]!
   "Administrators only."
   users(limit: Int = 50, offset: Int = 0): [User!]!
   "Administrators only."
@@ -70,6 +117,14 @@ extend type Mutation {
   "Needs ADMIN on the object."
   grantAccess(input: GrantInput!): Grant!
   revokeAccess(id: ID!): Boolean!
-  "Administrators only. user is a user id or email."
+  "Administrators only, not service accounts. user is a user id or email."
   setUserAdmin(user: String!, admin: Boolean!): User!
+  "Administrators only, not service accounts."
+  createServiceAccount(input: ServiceAccountInput!): User!
+  "Administrators only, not service accounts. An inactive account's tokens are refused."
+  setServiceAccountActive(serviceAccount: String!, active: Boolean!): User!
+  "Administrators only, not service accounts."
+  createServiceToken(input: ServiceTokenInput!): NewServiceToken!
+  "Administrators only, not service accounts. Takes up to a minute to apply."
+  revokeServiceToken(id: ID!): ServiceToken!
 }

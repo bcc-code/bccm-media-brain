@@ -6,7 +6,7 @@ MIGRATIONS := internal/db/migrations
 MB         := go run ./cmd/mediabrain
 
 .PHONY: help dev db-up db-down db-reset migrate-up migrate-down migrate-status migrate-new \
-        seed seed-list reset-data admin-grant admin-revoke vidispine-import vidispine-refresh generate fmt run build docker-build prod-config vet test test-e2e cover check hooks clean
+        seed seed-list reset-data admin-grant admin-revoke service-create service-token service-revoke service-list vidispine-import vidispine-refresh generate fmt run build docker-build prod-config vet test test-e2e cover check hooks clean
 
 help: ## Show targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  %-16s %s\n",$$1,$$2}'
@@ -53,6 +53,21 @@ admin-grant: ## Make a signed-in user a system administrator: make admin-grant u
 admin-revoke: ## Remove system administrator rights: make admin-revoke u=me@example.com
 	@test -n "$(u)" || (echo "usage: make admin-revoke u=<email or user id>" && exit 1)
 	$(MB) admin revoke $(u)
+
+service-create: ## Add a service account (machine client): make service-create n=ingest [args="-admin"]
+	@test -n "$(n)" || (echo 'usage: make service-create n=<name> [args="-admin"]' && exit 1)
+	$(MB) service create $(args) $(n)
+
+service-token: ## Create a token for a service account: make service-token n=ingest [args="-name prod -expires 90d"]
+	@test -n "$(n)" || (echo 'usage: make service-token n=<name> [args="-name label -expires 90d"]' && exit 1)
+	$(MB) service token $(args) $(n)
+
+service-revoke: ## Revoke a service token: make service-revoke t=TK-...
+	@test -n "$(t)" || (echo "usage: make service-revoke t=<token id>" && exit 1)
+	$(MB) service revoke $(t)
+
+service-list: ## List service accounts and their tokens
+	$(MB) service list
 
 vidispine-import: ## Import one Vidispine item: make vidispine-import id=VX-123 [args="-type 2 -project PJ-..."]
 	@test -n "$(id)" || (echo 'usage: make vidispine-import id=<VX-id> [args="-type N -project PJ-..."]' && exit 1)

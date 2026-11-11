@@ -2,7 +2,9 @@ package access
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
+	"io"
 	"strings"
 	"time"
 
@@ -11,13 +13,23 @@ import (
 	"github.com/bcc-media/mediabrain/internal/domain"
 )
 
-// Service manages users, groups and grants.
+// Service manages users, groups, grants, service accounts and their tokens.
 type Service struct {
 	q  sqlc.Querier
 	tx db.TxRunner
+	// rand is where service tokens come from.
+	rand io.Reader
 }
 
-func NewService(q sqlc.Querier, tx db.TxRunner) *Service { return &Service{q: q, tx: tx} }
+func NewService(q sqlc.Querier, tx db.TxRunner) *Service {
+	return &Service{q: q, tx: tx, rand: rand.Reader}
+}
+
+// WithRand makes service tokens come from r, so dev data is the same for the same seed.
+func (s *Service) WithRand(r io.Reader) *Service {
+	s.rand = r
+	return s
+}
 
 // Identity is what the auth proxy's token says about the caller.
 type Identity struct {
@@ -51,7 +63,8 @@ func (s *Service) SignIn(ctx context.Context, id Identity) (Principal, error) {
 		if err != nil {
 			return err
 		}
-		if !u.Active {
+		// A subject that happens to equal a service account's external id must not become it.
+		if !u.Active || u.Kind == sqlc.UserKindService {
 			return domain.ErrForbidden
 		}
 		keep := []string{}
@@ -111,7 +124,7 @@ func principalOf(ctx context.Context, q sqlc.Querier, u sqlc.AppUser) (Principal
 	if err != nil {
 		return Principal{}, err
 	}
-	return Principal{UserID: u.ID, GroupIDs: groups, Admin: u.IsAdmin}, nil
+	return Principal{UserID: u.ID, GroupIDs: groups, Admin: u.IsAdmin, Service: u.Kind == sqlc.UserKindService}, nil
 }
 
 func (s *Service) findUser(ctx context.Context, q sqlc.Querier, ref string) (sqlc.AppUser, error) {
@@ -154,7 +167,7 @@ func (s *Service) Groups(ctx context.Context) ([]sqlc.UserGroup, error) {
 
 // SetAdmin makes the user (id or email) a system administrator, or removes that.
 func (s *Service) SetAdmin(ctx context.Context, ref string, admin bool) (sqlc.AppUser, error) {
-	if err := RequireAdmin(ctx); err != nil {
+	if err := RequirePersonAdmin(ctx); err != nil {
 		return sqlc.AppUser{}, err
 	}
 	u, err := s.findUser(ctx, s.q, ref)

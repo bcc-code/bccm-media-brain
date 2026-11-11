@@ -1,0 +1,43 @@
+type: http_request
+model: http_request
+id: rq_SvcAcct003
+createdAt: 2026-11-11T15:00:00
+updatedAt: 2026-11-11T15:00:00
+workspaceId: wk_tPlK1TUEUQ
+folderId: fl_SvcAcct007
+authentication:
+  token: ${[ service_token ]}
+authenticationType: bearer
+body:
+  query: |
+    { me { id kind name isAdmin } }
+bodyType: graphql
+description: Sends service_token as a bearer token, the way a machine client does. It wins over the X-Debug-User header of the folder.
+headers:
+- enabled: true
+  name: Content-Type
+  value: application/json
+  id: SvcHdr0003
+method: POST
+name: Me, as the service account
+sortPriority: 3000.0
+url: ${[ base_url ]}/query
+urlParameters: []
+settingSendCookies:
+  enabled: false
+  value: true
+settingStoreCookies:
+  enabled: false
+  value: true
+settingValidateCertificates:
+  enabled: false
+  value: true
+settingFollowRedirects:
+  enabled: false
+  value: true
+settingRequestTimeout:
+  enabled: false
+  value: 0
+settingHttpVersion:
+  enabled: false
+  value: auto

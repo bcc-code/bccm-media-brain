@@ -128,3 +128,34 @@ JOIN asset_version v ON v.id = r.version_id
 JOIN asset_access aa ON aa.asset_id = v.asset_id
 WHERE rf.file_id = ANY(@file_ids::text[]) AND aa.principal_id = ANY(@principals::text[])
 GROUP BY rf.file_id;
+
+-- name: CreateServiceAccount :one
+INSERT INTO app_user (external_id, name, is_admin, kind)
+VALUES (@external_id, @name::text, @is_admin, 'service')
+RETURNING *;
+
+-- name: ListServiceAccounts :many
+SELECT * FROM app_user WHERE kind = 'service' ORDER BY name;
+
+-- name: SetServiceAccountActive :one
+UPDATE app_user SET active = @active WHERE id = @id AND kind = 'service' RETURNING *;
+
+-- name: CreateServiceToken :one
+INSERT INTO service_token (user_id, name, token_hash, created_by, expires_at)
+VALUES (@user_id, @name, @token_hash, sqlc.narg('created_by'), @expires_at)
+RETURNING *;
+
+-- name: UseServiceToken :one
+-- The one statement that accepts a token: every reason to refuse it gives no row.
+UPDATE service_token t SET last_used_at = now()
+FROM app_user u
+WHERE t.token_hash = @token_hash AND t.revoked_at IS NULL AND t.expires_at > now()
+  AND u.id = t.user_id AND u.kind = 'service' AND u.active
+RETURNING t.id AS token_id, t.expires_at, u.id AS user_id, u.is_admin;
+
+-- name: ListServiceTokens :many
+-- Ids made within the same millisecond do not sort by creation, so created_at leads.
+SELECT * FROM service_token WHERE user_id = $1 ORDER BY created_at, id;
+
+-- name: RevokeServiceToken :one
+UPDATE service_token SET revoked_at = coalesce(revoked_at, now()) WHERE id = $1 RETURNING *;

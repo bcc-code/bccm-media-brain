@@ -39,6 +39,26 @@ models:
   User:
     model:
       - github.com/bcc-media/mediabrain/internal/db/sqlc.AppUser
+  UserKind:
+    model:
+      - github.com/bcc-media/mediabrain/internal/db/sqlc.UserKind
+    enum_values:
+      PERSON:
+        value: github.com/bcc-media/mediabrain/internal/db/sqlc.UserKindPerson
+      SERVICE:
+        value: github.com/bcc-media/mediabrain/internal/db/sqlc.UserKindService
+  ServiceAccountInput:
+    model:
+      - github.com/bcc-media/mediabrain/internal/access.ServiceAccountInput
+  ServiceToken:
+    model:
+      - github.com/bcc-media/mediabrain/internal/db/sqlc.ServiceToken
+  ServiceTokenInput:
+    model:
+      - github.com/bcc-media/mediabrain/internal/access.ServiceTokenInput
+  NewServiceToken:
+    model:
+      - github.com/bcc-media/mediabrain/internal/access.NewServiceToken
   UserGroup:
     model:
       - github.com/bcc-media/mediabrain/internal/db/sqlc.UserGroup

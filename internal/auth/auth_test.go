@@ -95,8 +95,24 @@ func TestVerifyJWKSUnavailable(t *testing.T) {
 }
 
 type fakeUsers struct {
-	signIns int
-	err     error
+	signIns        int
+	serviceSignIns int
+	// serviceExpires is when service tokens expire. Zero: an hour from now.
+	serviceExpires time.Time
+	err            error
+}
+
+// ServiceSignIn accepts every token but "mbs_revoked".
+func (f *fakeUsers) ServiceSignIn(_ context.Context, token string) (access.Principal, time.Time, error) {
+	f.serviceSignIns++
+	if token == "mbs_revoked" {
+		return access.Principal{}, time.Time{}, domain.ErrUnauthenticated
+	}
+	expires := f.serviceExpires
+	if expires.IsZero() {
+		expires = time.Now().Add(time.Hour)
+	}
+	return access.Principal{UserID: "US-svc:" + token, Service: true}, expires, f.err
 }
 
 func (f *fakeUsers) SignIn(_ context.Context, id access.Identity) (access.Principal, error) {
@@ -227,6 +243,65 @@ func TestMiddlewareDebug(t *testing.T) {
 	opts.Debug = false
 	if status, _ := serve(opts, request{}); status != 401 {
 		t.Errorf("the default user must do nothing outside debug mode: %d", status)
+	}
+}
+
+func TestMiddlewareServiceTokens(t *testing.T) {
+	iss := authtest.NewIssuer()
+	defer iss.Close()
+	proxies, _ := ParseProxies("10.0.0.0/8")
+	users := &fakeUsers{}
+	// The proxy puts its JWT in X-Auth-Token and leaves Authorization to the client.
+	opts := Options{Header: "X-Auth-Token", ServiceHeader: "Authorization", TrustedProxies: proxies, Verifier: verifier(iss), Users: users}
+	call := server(opts)
+	const proxy, svc = "10.1.2.3:555", "US-svc:mbs_abc"
+
+	for _, c := range []struct {
+		name   string
+		req    request
+		status int
+		user   string
+	}{
+		{"service header", request{remote: proxy, headers: map[string]string{"Authorization": "Bearer mbs_abc"}}, 200, svc},
+		{"without bearer", request{remote: proxy, headers: map[string]string{"Authorization": "mbs_abc"}}, 200, svc},
+		{"token header", request{remote: proxy, headers: map[string]string{"X-Auth-Token": "mbs_abc"}}, 200, svc},
+		{"wins over a jwt", request{remote: proxy, headers: map[string]string{"Authorization": "Bearer mbs_abc", "X-Auth-Token": iss.Token("alice", nil)}}, 200, svc},
+		{"jwt still works", request{remote: proxy, headers: map[string]string{"X-Auth-Token": iss.Token("alice", nil)}}, 200, "US-alice"},
+		{"jwt in the service header", request{remote: proxy, headers: map[string]string{"Authorization": iss.Token("alice", nil)}}, 401, ""},
+		{"untrusted peer", request{remote: "203.0.113.9:555", headers: map[string]string{"Authorization": "Bearer mbs_abc"}}, 403, ""},
+		{"refused token", request{remote: proxy, headers: map[string]string{"Authorization": "Bearer mbs_revoked"}}, 401, ""},
+		{"refused again", request{remote: proxy, headers: map[string]string{"Authorization": "Bearer mbs_revoked"}}, 401, ""},
+	} {
+		if status, user := call(c.req); status != c.status || user != c.user {
+			t.Errorf("%s: status %d user %q, want %d %q", c.name, status, user, c.status, c.user)
+		}
+	}
+	// Four accepted requests with one token are one sign-in; a refusal is never cached.
+	if users.serviceSignIns != 3 {
+		t.Errorf("service sign-ins = %d, want 3", users.serviceSignIns)
+	}
+
+	users.err = errors.New("db down")
+	if status, _ := call(request{remote: proxy, headers: map[string]string{"Authorization": "mbs_other"}}); status != 500 {
+		t.Errorf("sign-in failure: status %d", status)
+	}
+
+	// Without a service header only the token header is read.
+	opts.ServiceHeader = ""
+	if status, _ := serve(opts, request{remote: proxy, headers: map[string]string{"Authorization": "mbs_abc"}}); status != 401 {
+		t.Errorf("no service header: status %d", status)
+	}
+}
+
+func TestMiddlewareServiceTokensInDebug(t *testing.T) {
+	// Development: no verifier, no proxy, and a default user that must not shadow the token.
+	opts := Options{Header: "Authorization", ServiceHeader: "Authorization", Users: &fakeUsers{}, Debug: true, DebugUser: "dev@example.test"}
+	status, user := serve(opts, request{remote: "203.0.113.9:1", headers: map[string]string{"Authorization": "Bearer mbs_abc"}})
+	if status != 200 || user != "US-svc:mbs_abc" {
+		t.Errorf("service token in debug mode: %d %q", status, user)
+	}
+	if status, _ := serve(opts, request{headers: map[string]string{"Authorization": "Bearer mbs_revoked"}}); status != 401 {
+		t.Errorf("a refused token must not fall back to the debug user: %d", status)
 	}
 }
 

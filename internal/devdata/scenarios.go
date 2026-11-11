@@ -45,7 +45,9 @@ var registry = []Scenario{
 		Name: "access",
 		Description: "One program with two projects and a persona per permission case: admin@, editor@ (edit on the program), " +
 			"viewer@ (view on project 1), downloader@ (download on one asset), member@ (via a group, view on project 2), " +
-			"expired@ (grant ran out), inactive@ and nobody@ — all @example.test. Pick one under Users to act as them.",
+			"expired@ (grant ran out), inactive@ and nobody@ — all @example.test. Pick one under Users to act as them. " +
+			"Also two service accounts with a token each, shown in the result: ingest (administrator; it has an " +
+			"expired and a revoked token too) and reader (view on project 1).",
 		AlwaysReset: true,
 		Run:         runAccess,
 	},
@@ -328,7 +330,48 @@ func runAccess(ctx context.Context, env Env, _ Values) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("created %d personas, 1 program, 2 projects, 6 assets, %d grants", len(users), len(grants)+1), nil
+	tokens, err := serviceAccounts(ctx, env, s.access.WithRand(f), projects[0])
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("created %d personas, 1 program, 2 projects, 6 assets, %d grants and 2 service accounts. Service tokens (Authorization: Bearer ...): %s",
+		len(users), len(grants)+2, tokens), nil
+}
+
+// serviceAccounts creates the machine clients of the access scenario and returns their tokens.
+func serviceAccounts(ctx context.Context, env Env, svc *access.Service, visible sqlc.Project) (string, error) {
+	ingest, err := svc.CreateServiceAccount(ctx, access.ServiceAccountInput{Name: "ingest", Admin: true})
+	if err != nil {
+		return "", err
+	}
+	reader, err := svc.CreateServiceAccount(ctx, access.ServiceAccountInput{Name: "reader"})
+	if err != nil {
+		return "", err
+	}
+	_, err = svc.Grant(ctx, access.GrantInput{UserID: &reader.ID, Scope: sqlc.GrantScopeProject, ScopeID: visible.ID, Level: access.View})
+	if err != nil {
+		return "", err
+	}
+	var out []string
+	for _, u := range []sqlc.AppUser{ingest, reader} {
+		t, err := svc.CreateServiceToken(ctx, access.ServiceTokenInput{ServiceAccount: u.ID, Name: "dev data"})
+		if err != nil {
+			return "", err
+		}
+		out = append(out, *u.Name+" "+t.Token)
+	}
+	leaked, err := svc.CreateServiceToken(ctx, access.ServiceTokenInput{ServiceAccount: ingest.ID, Name: "leaked"})
+	if err != nil {
+		return "", err
+	}
+	if _, err := svc.RevokeServiceToken(ctx, leaked.ServiceToken.ID); err != nil {
+		return "", err
+	}
+	// The service refuses tokens that are already expired, so this one is written directly.
+	_, err = env.Q.CreateServiceToken(ctx, sqlc.CreateServiceTokenParams{
+		UserID: ingest.ID, Name: "last year's", TokenHash: []byte("expired, never matches a token"), ExpiresAt: time.Now().Add(-time.Hour),
+	})
+	return strings.Join(out, ", "), err
 }
 
 func runSubtitleRevisions(ctx context.Context, env Env, v Values) (string, error) {

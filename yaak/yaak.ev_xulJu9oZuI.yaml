@@ -66,5 +66,17 @@ variables:
   name: vidispine_item_id
   value: VX-1
   id: Ct7mItemId
+- enabled: true
+  name: service_account
+  value: ingest
+  id: SvcAcctNam
+- enabled: true
+  name: service_token
+  value: ''
+  id: SvcAcctTok
+- enabled: true
+  name: service_token_id
+  value: ''
+  id: SvcAcctTid
 color: null
 sortPriority: 0.0

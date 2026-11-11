@@ -1,0 +1,49 @@
+type: http_request
+model: http_request
+id: rq_SvcAcct006
+createdAt: 2026-11-11T15:00:00
+updatedAt: 2026-11-11T15:00:00
+workspaceId: wk_tPlK1TUEUQ
+folderId: fl_SvcAcct007
+authentication: {}
+authenticationType: null
+body:
+  query: |
+    mutation($s: String!, $a: Boolean!) {
+      setServiceAccountActive(serviceAccount: $s, active: $a) { id active }
+    }
+  variables: |-
+    {
+      "s": "${[ service_account ]}",
+      "a": false
+    }
+bodyType: graphql
+description: Switching an account off refuses all its tokens without revoking them.
+headers:
+- enabled: true
+  name: Content-Type
+  value: application/json
+  id: SvcHdr0006
+method: POST
+name: Set service account active (admin)
+sortPriority: 6000.0
+url: ${[ base_url ]}/query
+urlParameters: []
+settingSendCookies:
+  enabled: false
+  value: true
+settingStoreCookies:
+  enabled: false
+  value: true
+settingValidateCertificates:
+  enabled: false
+  value: true
+settingFollowRedirects:
+  enabled: false
+  value: true
+settingRequestTimeout:
+  enabled: false
+  value: 0
+settingHttpVersion:
+  enabled: false
+  value: auto

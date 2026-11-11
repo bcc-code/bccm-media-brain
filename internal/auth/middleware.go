@@ -32,12 +32,16 @@ type Verifier interface {
 
 type Users interface {
 	SignIn(ctx context.Context, id access.Identity) (access.Principal, error)
+	// ServiceSignIn also returns when the token expires.
+	ServiceSignIn(ctx context.Context, token string) (access.Principal, time.Time, error)
 	Impersonate(ctx context.Context, ref string) (access.Principal, error)
 	DebugAdmin(ctx context.Context, email string) (access.Principal, error)
 }
 
 type Options struct {
-	Header         string
+	Header string
+	// ServiceHeader is where machine clients send their service token. Empty: only Header.
+	ServiceHeader  string
 	TrustedProxies []netip.Prefix
 	Verifier       Verifier // nil: only the debug bypass can authenticate
 	Users          Users
@@ -106,6 +110,16 @@ func (m *middleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (m *middleware) authenticate(r *http.Request) (access.Principal, int, error) {
+	// Before the debug bypass, so a token can be tried in development with DEBUG_USER set.
+	if token := m.serviceToken(r); token != "" {
+		if !m.Debug && !m.trusted(r.RemoteAddr) {
+			return access.Principal{}, http.StatusForbidden, errors.New("peer is not a trusted proxy")
+		}
+		return m.cached(token, func() (access.Principal, time.Time, int, error) {
+			p, expires, err := m.Users.ServiceSignIn(r.Context(), token)
+			return p, expires, statusOf(err), err
+		})
+	}
 	if m.Debug {
 		ref := r.Header.Get(DebugUserHeader)
 		if c, err := r.Cookie(DebugUserCookie); ref == "" && err == nil {
@@ -126,13 +140,46 @@ func (m *middleware) authenticate(r *http.Request) (access.Principal, int, error
 	if !m.trusted(r.RemoteAddr) {
 		return access.Principal{}, http.StatusForbidden, errors.New("peer is not a trusted proxy")
 	}
-	token := strings.TrimSpace(r.Header.Get(m.Header))
-	if len(token) > 7 && strings.EqualFold(token[:7], "bearer ") {
-		token = strings.TrimSpace(token[7:])
-	}
+	token := bearer(r.Header.Get(m.Header))
 	if token == "" {
 		return access.Principal{}, http.StatusUnauthorized, errors.New("no token")
 	}
+	return m.cached(token, func() (access.Principal, time.Time, int, error) {
+		id, err := m.Verifier.Verify(r.Context(), token)
+		if err != nil {
+			return access.Principal{}, time.Time{}, http.StatusUnauthorized, err
+		}
+		p, err := m.Users.SignIn(r.Context(), id)
+		return p, id.Expires, statusOf(err), err
+	})
+}
+
+func bearer(header string) string {
+	token := strings.TrimSpace(header)
+	if len(token) > 7 && strings.EqualFold(token[:7], "bearer ") {
+		token = strings.TrimSpace(token[7:])
+	}
+	return token
+}
+
+// serviceToken returns the service token a machine client sent, or "". A proxy that puts its
+// own JWT in another header leaves ServiceHeader to the client, so both are looked at.
+func (m *middleware) serviceToken(r *http.Request) string {
+	for _, h := range []string{m.ServiceHeader, m.Header} {
+		if h == "" {
+			continue
+		}
+		if token := bearer(r.Header.Get(h)); access.IsServiceToken(token) {
+			return token
+		}
+	}
+	return ""
+}
+
+// cached remembers the principal of a token for principalTTL, so a busy client costs one
+// sign-in per minute, and a change to the user or a revoked token takes that long to apply.
+// signIn also says when the token expires.
+func (m *middleware) cached(token string, signIn func() (access.Principal, time.Time, int, error)) (access.Principal, int, error) {
 	key := sha256.Sum256([]byte(token))
 	now := m.now()
 	m.mu.Lock()
@@ -141,13 +188,9 @@ func (m *middleware) authenticate(r *http.Request) (access.Principal, int, error
 	if ok && now.Before(hit.until) {
 		return hit.principal, 0, nil
 	}
-	id, err := m.Verifier.Verify(r.Context(), token)
+	p, expires, status, err := signIn()
 	if err != nil {
-		return access.Principal{}, http.StatusUnauthorized, err
-	}
-	p, err := m.Users.SignIn(r.Context(), id)
-	if err != nil {
-		return access.Principal{}, statusOf(err), err
+		return access.Principal{}, status, err
 	}
 	m.mu.Lock()
 	for k, c := range m.cache {
@@ -158,8 +201,8 @@ func (m *middleware) authenticate(r *http.Request) (access.Principal, int, error
 	// A cache hit skips verification, so the entry must not outlive the token: without the
 	// bound, a token verified just before it expires would work for another principalTTL.
 	until := now.Add(principalTTL)
-	if id.Expires.Before(until) {
-		until = id.Expires
+	if expires.Before(until) {
+		until = expires
 	}
 	if now.Before(until) {
 		m.cache[key] = cached{principal: p, until: until}

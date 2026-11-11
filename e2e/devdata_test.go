@@ -172,8 +172,14 @@ func TestStoreScenarios(t *testing.T) {
 		}
 	}
 	users, err := s.Users(ctx)
-	if err != nil || len(users) != 8 {
-		t.Fatalf("users = %d, %v", len(users), err)
+	services := 0
+	for _, u := range users {
+		if u.Service {
+			services++
+		}
+	}
+	if err != nil || len(users) != 10 || services != 2 {
+		t.Fatalf("users = %d (%d service accounts), %v", len(users), services, err)
 	}
 	if u, err := s.CreateUser(ctx, "extra@example.test", true); err != nil || !u.Admin || !u.Active {
 		t.Fatalf("create user = %+v, %v", u, err)
@@ -291,13 +297,13 @@ func TestDebugAPI(t *testing.T) {
 			t.Fatalf("reference table %s was emptied by reset", s.Table)
 		}
 	}
-	if counts["asset"] != 6 || counts["app_user"] != 8 {
+	if counts["asset"] != 6 || counts["app_user"] != 10 || counts["service_token"] != 4 {
 		t.Fatalf("stats = %v", counts)
 	}
 
 	// Acting as a persona through the debug cookie shows exactly what that persona may see.
 	var users []devdata.User
-	if code := call("GET", "/debug/api/users", "", &users); code != 200 || len(users) != 8 {
+	if code := call("GET", "/debug/api/users", "", &users); code != 200 || len(users) != 10 {
 		t.Fatalf("users = %d %v", code, users)
 	}
 	seen := func(cookie string) (int, int) {
@@ -317,14 +323,19 @@ func TestDebugAPI(t *testing.T) {
 		_ = json.NewDecoder(res.Body).Decode(&r)
 		return res.StatusCode, len(r.Data.Assets)
 	}
-	want := map[string]int{"admin@example.test": 6, "editor@example.test": 6, "viewer@example.test": 3, "nobody@example.test": 0}
+	// Service accounts have no email: they go by name.
+	want := map[string]int{"admin@example.test": 6, "editor@example.test": 6, "viewer@example.test": 3, "nobody@example.test": 0, "ingest": 6, "reader": 3}
 	for _, u := range users {
-		if n, ok := want[*u.Email]; ok {
+		who := *u.Name
+		if u.Email != nil {
+			who = *u.Email
+		}
+		if n, ok := want[who]; ok {
 			if code, got := seen(u.ID); code != 200 || got != n {
-				t.Errorf("%s: status %d, sees %d assets, want %d", *u.Email, code, got, n)
+				t.Errorf("%s: status %d, sees %d assets, want %d", who, code, got, n)
 			}
 		}
-		if *u.Email == "inactive@example.test" {
+		if who == "inactive@example.test" {
 			if code, _ := seen(u.ID); code != http.StatusForbidden {
 				t.Errorf("inactive persona: status %d", code)
 			}

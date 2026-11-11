@@ -27,6 +27,7 @@ type Config struct {
 
 	// Sign-in is done by a proxy in front of MediaBrain that forwards a signed JWT.
 	AuthHeader         string // AUTH_HEADER (default "Authorization"): header carrying the JWT
+	AuthServiceHeader  string // AUTH_SERVICE_HEADER (default "Authorization"): header carrying a machine client's service token
 	AuthTrustedProxies string // AUTH_TRUSTED_PROXIES: comma-separated IPs/CIDRs allowed to call /query
 	AuthIssuer         string // AUTH_ISSUER: expected "iss"
 	AuthAudience       string // AUTH_AUDIENCE: expected "aud"
@@ -100,7 +101,7 @@ func Load() (Config, error) {
 
 // LoadFrom reads configuration using the given lookup function.
 func LoadFrom(lookup func(string) (string, bool)) (Config, error) {
-	cfg := Config{HTTPAddr: ":8080", AutoMigrate: true, LogFormat: "text", AuthHeader: "Authorization", AuthGroupsClaim: "groups"}
+	cfg := Config{HTTPAddr: ":8080", AutoMigrate: true, LogFormat: "text", AuthHeader: "Authorization", AuthServiceHeader: "Authorization", AuthGroupsClaim: "groups"}
 
 	url, ok := lookup("DATABASE_URL")
 	if !ok || url == "" {
@@ -134,7 +135,7 @@ func LoadFrom(lookup func(string) (string, bool)) (Config, error) {
 	}
 	for key, dst := range map[string]*string{
 		"DEBUG_USER":  &cfg.DebugUser,
-		"AUTH_HEADER": &cfg.AuthHeader, "AUTH_TRUSTED_PROXIES": &cfg.AuthTrustedProxies,
+		"AUTH_HEADER": &cfg.AuthHeader, "AUTH_SERVICE_HEADER": &cfg.AuthServiceHeader, "AUTH_TRUSTED_PROXIES": &cfg.AuthTrustedProxies,
 		"AUTH_ISSUER": &cfg.AuthIssuer, "AUTH_AUDIENCE": &cfg.AuthAudience,
 		"AUTH_JWKS_URL": &cfg.AuthJWKSURL, "AUTH_GROUPS_CLAIM": &cfg.AuthGroupsClaim,
 		"VIDISPINE_URL": &cfg.VidispineURL, "VIDISPINE_USERNAME": &cfg.VidispineUsername, "VIDISPINE_PASSWORD": &cfg.VidispinePassword,

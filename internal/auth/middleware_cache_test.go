@@ -64,6 +64,21 @@ func TestCachedUserIsLookedUpAgainAfterTheTTL(t *testing.T) {
 	}
 }
 
+func TestCachedServiceAccountDoesNotOutliveTheToken(t *testing.T) {
+	c, users, call, _ := cachingServer(t)
+	users.serviceExpires = c.now().Add(10 * time.Second)
+	for _, step := range []struct {
+		advance time.Duration
+		signIns int
+	}{{0, 1}, {9 * time.Second, 1}, {2 * time.Second, 2}} {
+		c.advance(step.advance)
+		if status := call("Bearer mbs_abc"); status != 200 || users.serviceSignIns != step.signIns {
+			t.Fatalf("after %v: status %d, %d sign-ins, want %d (the token is checked again once it expired)",
+				step.advance, status, users.serviceSignIns, step.signIns)
+		}
+	}
+}
+
 type noExpiry struct{}
 
 func (noExpiry) Verify(context.Context, string) (access.Identity, error) {
