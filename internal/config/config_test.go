@@ -25,7 +25,7 @@ func TestLoadFrom(t *testing.T) {
 		{
 			name: "defaults",
 			env:  map[string]string{"DATABASE_URL": "postgres://x"},
-			want: Config{DatabaseURL: "postgres://x", HTTPAddr: ":8080", AutoMigrate: true, LogFormat: "text", AuthHeader: "Authorization", AuthGroupsClaim: "groups"},
+			want: Config{DatabaseURL: "postgres://x", HTTPAddr: ":8080", AutoMigrate: true, LogFormat: "text", AuthHeader: "Authorization", AuthServiceHeader: "Authorization", AuthGroupsClaim: "groups"},
 		},
 		{
 			name: "overrides",
@@ -33,12 +33,12 @@ func TestLoadFrom(t *testing.T) {
 				"DATABASE_URL": "postgres://x", "HTTP_ADDR": ":9000",
 				"AUTO_MIGRATE": "false", "GRAPHQL_PLAYGROUND": "1", "DEBUG": "true", "DEBUG_USER": "dev@example.test", "DEBUG_ALLOW_REMOTE": "true",
 				"LOG_FORMAT": "json", "LOG_LEVEL": "debug",
-				"AUTH_HEADER": "X-Token", "AUTH_TRUSTED_PROXIES": "10.0.0.0/8", "AUTH_ISSUER": "https://idp",
+				"AUTH_HEADER": "X-Token", "AUTH_SERVICE_HEADER": "X-Service-Token", "AUTH_TRUSTED_PROXIES": "10.0.0.0/8", "AUTH_ISSUER": "https://idp",
 				"AUTH_AUDIENCE": "mb", "AUTH_JWKS_URL": "https://idp/keys", "AUTH_GROUPS_CLAIM": "roles",
 			},
 			want: Config{
 				DatabaseURL: "postgres://x", HTTPAddr: ":9000", Debug: true, DebugUser: "dev@example.test", DebugAllowRemote: true, Playground: true, LogFormat: "json", LogLevel: slog.LevelDebug,
-				AuthHeader: "X-Token", AuthTrustedProxies: "10.0.0.0/8", AuthIssuer: "https://idp",
+				AuthHeader: "X-Token", AuthServiceHeader: "X-Service-Token", AuthTrustedProxies: "10.0.0.0/8", AuthIssuer: "https://idp",
 				AuthAudience: "mb", AuthJWKSURL: "https://idp/keys", AuthGroupsClaim: "roles",
 			},
 		},

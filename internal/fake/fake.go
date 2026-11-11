@@ -49,6 +49,19 @@ func (x *Faker) User() access.UserInput {
 	}
 }
 
+func (x *Faker) ServiceAccount() access.ServiceAccountInput {
+	return access.ServiceAccountInput{Name: strings.ToLower(x.f.Noun() + "-" + x.f.LetterN(4))}
+}
+
+// Read fills p from the seed, so a Faker can be the source of service tokens in dev data
+// (access.Service.WithRand) and the same seed gives the same tokens.
+func (x *Faker) Read(p []byte) (int, error) {
+	for i := range p {
+		p[i] = byte(x.f.Number(0, 255))
+	}
+	return len(p), nil
+}
+
 func (x *Faker) Program() project.ProgramInput {
 	desc := x.sentence()
 	return project.ProgramInput{

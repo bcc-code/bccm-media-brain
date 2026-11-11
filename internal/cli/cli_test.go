@@ -51,6 +51,17 @@ func TestUsageErrors(t *testing.T) {
 		{"admin"},
 		{"admin", "grant"},
 		{"admin", "promote", "a@example.test"},
+		{"service"},
+		{"service", "delete", "ingest"},
+		{"service", "create"},
+		{"service", "create", "-bogus", "ingest"},
+		{"service", "create", "a", "b"},
+		{"service", "token"},
+		{"service", "token", "-expires", "soon", "ingest"},
+		{"service", "token", "-expires", "0d", "ingest"},
+		{"service", "token", "-expires", "-1h", "ingest"},
+		{"service", "revoke"},
+		{"service", "list", "ingest"},
 		{"vidispine"},
 		{"vidispine", "sync", "VX-1"},
 		{"vidispine", "import"},
@@ -85,6 +96,7 @@ func TestDBErrors(t *testing.T) {
 		{"migrate", "up"}, {"migrate", "down"}, {"migrate", "status"}, {"migrate", "reset"},
 		{"reset-data"}, {"seed", "catalog", "assets=1"}, {"serve"}, {"admin", "grant", "a@example.test"},
 		{"vidispine", "import", "VX-1"}, {"vidispine", "refresh", "AS-1"},
+		{"service", "create", "ingest"}, {"service", "token", "-expires", "12h", "ingest"}, {"service", "list"},
 	} {
 		if err := Run(context.Background(), args, &bytes.Buffer{}); err == nil || errors.Is(err, ErrUsage) {
 			t.Errorf("%v: err = %v, want connection error", args, err)

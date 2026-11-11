@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/bcc-media/mediabrain/internal/access"
 	"github.com/bcc-media/mediabrain/internal/auth"
@@ -49,6 +50,10 @@ type anyUser struct{}
 
 func (anyUser) SignIn(context.Context, access.Identity) (access.Principal, error) {
 	return access.Principal{}, errors.New("unused")
+}
+
+func (anyUser) ServiceSignIn(context.Context, string) (access.Principal, time.Time, error) {
+	return access.Principal{}, time.Time{}, errors.New("unused")
 }
 
 func (anyUser) Impersonate(_ context.Context, ref string) (access.Principal, error) {

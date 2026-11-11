@@ -111,6 +111,12 @@ type User struct {
 	Name   *string `json:"name"`
 	Admin  bool    `json:"admin"`
 	Active bool    `json:"active"`
+	// Service marks a machine client.
+	Service bool `json:"service"`
+}
+
+func userRow(u sqlc.AppUser) User {
+	return User{ID: u.ID, Email: u.Email, Name: u.Name, Admin: u.IsAdmin, Active: u.Active, Service: u.Kind == sqlc.UserKindService}
 }
 
 func (s *Store) accessService() *access.Service {
@@ -125,7 +131,7 @@ func (s *Store) Users(ctx context.Context) ([]User, error) {
 	}
 	out := make([]User, len(rows))
 	for i, u := range rows {
-		out[i] = User{ID: u.ID, Email: u.Email, Name: u.Name, Admin: u.IsAdmin, Active: u.Active}
+		out[i] = userRow(u)
 	}
 	return out, nil
 }
@@ -139,7 +145,7 @@ func (s *Store) CreateUser(ctx context.Context, email string, admin bool) (User,
 	u, err := s.accessService().CreateUser(access.With(ctx, access.System()), access.UserInput{
 		ExternalID: "debug|" + email, Email: email, Name: email, Admin: admin,
 	})
-	return User{ID: u.ID, Email: u.Email, Name: u.Name, Admin: u.IsAdmin, Active: u.Active}, err
+	return userRow(u), err
 }
 
 // VidispineAsset is what the debug UI shows after an import or a refresh.

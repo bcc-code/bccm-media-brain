@@ -1,0 +1,54 @@
+type: http_request
+model: http_request
+id: rq_SvcAcct002
+createdAt: 2026-11-11T15:00:00
+updatedAt: 2026-11-11T15:00:00
+workspaceId: wk_tPlK1TUEUQ
+folderId: fl_SvcAcct007
+authentication: {}
+authenticationType: null
+body:
+  query: |
+    mutation($in: ServiceTokenInput!) {
+      createServiceToken(input: $in) {
+        token
+        serviceToken { id name expiresAt }
+      }
+    }
+  variables: |-
+    {
+      "in": {
+        "serviceAccount": "${[ service_account ]}",
+        "name": "yaak"
+      }
+    }
+bodyType: graphql
+description: The token is only in this answer. Put it into service_token and the id into service_token_id. expiresAt defaults to a year from now.
+headers:
+- enabled: true
+  name: Content-Type
+  value: application/json
+  id: SvcHdr0002
+method: POST
+name: Create service token (admin)
+sortPriority: 2000.0
+url: ${[ base_url ]}/query
+urlParameters: []
+settingSendCookies:
+  enabled: false
+  value: true
+settingStoreCookies:
+  enabled: false
+  value: true
+settingValidateCertificates:
+  enabled: false
+  value: true
+settingFollowRedirects:
+  enabled: false
+  value: true
+settingRequestTimeout:
+  enabled: false
+  value: 0
+settingHttpVersion:
+  enabled: false
+  value: auto

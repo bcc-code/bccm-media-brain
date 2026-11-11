@@ -22,6 +22,8 @@ type Querier interface {
 	CreateProgram(ctx context.Context, arg CreateProgramParams) (Program, error)
 	CreateProject(ctx context.Context, arg CreateProjectParams) (Project, error)
 	CreateRendition(ctx context.Context, arg CreateRenditionParams) (Rendition, error)
+	CreateServiceAccount(ctx context.Context, arg CreateServiceAccountParams) (AppUser, error)
+	CreateServiceToken(ctx context.Context, arg CreateServiceTokenParams) (ServiceToken, error)
 	CreateStorageLocation(ctx context.Context, arg CreateStorageLocationParams) (StorageLocation, error)
 	CreateSubtitleTrack(ctx context.Context, arg CreateSubtitleTrackParams) (SubtitleTrack, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (AppUser, error)
@@ -82,6 +84,9 @@ type Querier interface {
 	ListRenditionFiles(ctx context.Context, renditionIds []string) ([]RenditionFile, error)
 	ListRenditionTracks(ctx context.Context, renditionIds []string) ([]SubtitleTrack, error)
 	ListRenditions(ctx context.Context, versionIds []string) ([]Rendition, error)
+	ListServiceAccounts(ctx context.Context) ([]AppUser, error)
+	// Ids made within the same millisecond do not sort by creation, so created_at leads.
+	ListServiceTokens(ctx context.Context, userID string) ([]ServiceToken, error)
 	ListStorageLocations(ctx context.Context) ([]StorageLocation, error)
 	ListSubtitleCues(ctx context.Context, arg ListSubtitleCuesParams) ([]ListSubtitleCuesRow, error)
 	ListUserGroupIDs(ctx context.Context, userID string) ([]string, error)
@@ -92,9 +97,11 @@ type Querier interface {
 	LockLegacyID(ctx context.Context, legacyID string) error
 	ProgramSeenViaProject(ctx context.Context, arg ProgramSeenViaProjectParams) (bool, error)
 	RemoveSSOMemberships(ctx context.Context, arg RemoveSSOMembershipsParams) error
+	RevokeServiceToken(ctx context.Context, id string) (ServiceToken, error)
 	ScopeLevel(ctx context.Context, arg ScopeLevelParams) (PermissionLevel, error)
 	SetAssetMetadataKey(ctx context.Context, arg SetAssetMetadataKeyParams) (Asset, error)
 	SetFileCopyStatus(ctx context.Context, arg SetFileCopyStatusParams) (FileCopy, error)
+	SetServiceAccountActive(ctx context.Context, arg SetServiceAccountActiveParams) (AppUser, error)
 	SetUserAdmin(ctx context.Context, arg SetUserAdminParams) (AppUser, error)
 	UnlinkAssetProject(ctx context.Context, arg UnlinkAssetProjectParams) (int64, error)
 	UpdateAsset(ctx context.Context, arg UpdateAssetParams) (Asset, error)
@@ -105,6 +112,8 @@ type Querier interface {
 	UpdateStorageLocation(ctx context.Context, arg UpdateStorageLocationParams) (StorageLocation, error)
 	UpsertSSOGroup(ctx context.Context, arg UpsertSSOGroupParams) (UserGroup, error)
 	UpsertUser(ctx context.Context, arg UpsertUserParams) (AppUser, error)
+	// The one statement that accepts a token: every reason to refuse it gives no row.
+	UseServiceToken(ctx context.Context, tokenHash []byte) (UseServiceTokenRow, error)
 }
 
 var _ Querier = (*Queries)(nil)

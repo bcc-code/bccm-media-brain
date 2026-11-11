@@ -48,16 +48,21 @@ func NewServer(r *Resolver, introspection bool) *handler.Server {
 	return srv
 }
 
-func userID(ctx context.Context) string {
+// caller is who an audit line is about. A machine client is named with the token it used, so
+// a line can be traced to one credential.
+func caller(ctx context.Context) []any {
 	p, _ := access.From(ctx)
-	return p.UserID
+	if p.TokenID != "" {
+		return []any{"user", p.UserID, "token", p.TokenID}
+	}
+	return []any{"user", p.UserID}
 }
 
 func auditMutations(ctx context.Context, next graphql.RootResolver) graphql.Marshaler {
 	// On a root field, the enclosing field context names the operation type.
 	rc, fc := graphql.GetRootFieldContext(ctx), graphql.GetFieldContext(ctx)
 	if rc != nil && fc != nil && fc.Object == "Mutation" {
-		attrs := []any{"user", userID(ctx), "mutation", rc.Field.Name}
+		attrs := append(caller(ctx), "mutation", rc.Field.Name)
 		for name, v := range rc.Field.ArgumentMap(graphql.GetOperationContext(ctx).Variables) {
 			if id, ok := v.(string); ok && (name == "id" || strings.HasSuffix(name, "Id")) {
 				attrs = append(attrs, name, id)
@@ -74,7 +79,7 @@ func presentError(ctx context.Context, err error) *gqlerror.Error {
 	for _, c := range errorCodes {
 		if errors.Is(err, c.err) {
 			if c.code == "FORBIDDEN" {
-				slog.WarnContext(ctx, "audit: denied", "user", userID(ctx), "path", out.Path.String())
+				slog.WarnContext(ctx, "audit: denied", append(caller(ctx), "path", out.Path.String())...)
 			}
 			out.Extensions = map[string]any{"code": c.code}
 			return out

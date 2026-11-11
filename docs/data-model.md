@@ -10,6 +10,14 @@ program 1--n project n--m asset 1--n asset_version 1--n rendition n--m file 1--n
                                                           1--n subtitle_track 1--n subtitle_cue
 ```
 
+## Users and service accounts
+
+`app_user.kind` is `person` or `service`. A service account is a machine client: the same row as
+a user, so grants, groups and `created_by` columns need nothing extra. Its `external_id` is
+`service|<name>` and it has no email. `service_token` (`TK-...`) holds its credentials: the
+SHA-256 of each token (never the token), a name, who created it, when it expires, when it was
+last used and when it was revoked. See [security.md](security.md#machine-clients).
+
 ## Programs and projects
 
 A **program** is a series or production (`JOSH`); a **project** is one unit of work in it

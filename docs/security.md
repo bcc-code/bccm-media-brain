@@ -36,6 +36,39 @@ Details worth knowing:
 - This bounds the *key*. A token that was already verified is still served from the user cache
   above for up to one minute after its key is withdrawn.
 
+### Machine clients
+
+Another system (an ingest tool, a transcoder) signs in as a **service account** with a
+**service token** that MediaBrain issues itself, so nothing depends on what the identity provider
+can do for machines.
+
+- A service account is a user of kind `service`: it has grants, can be in groups and shows up as
+  `createdBy` like anyone else, and every permission rule below applies to it unchanged. It has
+  no email and cannot sign in through the identity provider: a JWT whose subject equals a service
+  account's external id (`service|<name>`) is refused.
+- A token is `mbs_` followed by 256 random bits. It is shown once, when it is created; the
+  database keeps its SHA-256. It expires (a year by default) and can be revoked. An account can
+  hold several, so a token is replaced by creating the next one, switching over and revoking
+  the old one.
+- The client sends `Authorization: Bearer mbs_...`. **Requests still come through the proxy**
+  (`AUTH_TRUSTED_PROXIES` applies), which must let a request to `/query` with such a header
+  through without a browser session and pass the header on unchanged. The proxy is only the
+  network path here; MediaBrain is what checks the token. When the proxy keeps `Authorization`
+  for itself, name another header in `AUTH_SERVICE_HEADER`.
+- Unknown, revoked and expired tokens and tokens of a switched-off account get the same HTTP 401.
+- An accepted token is cached for one minute like a user's (and never past its expiry), so
+  revoking a token or switching its account off (`setServiceAccountActive`) can take that long. `lastUsedAt` is written at most
+  once a minute for the same reason.
+- **Administrators that are people** manage service accounts and tokens (`createServiceAccount`,
+  `createServiceToken`, `revokeServiceToken`, ...) and make administrators. A service account
+  cannot, even when it is an administrator: a leaked token must not be able to mint the next
+  one or promote someone. The CLI can too (`mediabrain service ...`), which is how the first
+  token is made without a browser.
+- An ingest tool has to be an administrator today, because registering files is
+  administrator-only. That is more than it needs; see "Not covered yet".
+- The audit log names the token (`token=TK-...`) next to the account on every mutation and
+  refusal by a machine client.
+
 ### Debug bypass (development only)
 
 With `DEBUG=true` a request may name the user to act as, without a token:
@@ -48,6 +81,9 @@ With `DEBUG_USER=<email>` set (it is in `.env.example`), a request that names no
 user, who is created as an administrator when missing. That is what makes `make dev` usable
 straight away: the playground and API clients such as the Yaak workspace work on an empty or
 freshly reset database. Any other user must exist (run a scenario or add one in the debug UI).
+
+A service token is honoured before any of this, and in debug mode from any address, so machine
+clients can be tried under `make dev`.
 
 `DEBUG` also exposes the data-wiping debug API. It must never be on in production.
 
@@ -85,7 +121,7 @@ who manage programs (create/delete), storage locations and files, and who import
 
 - First administrator: `mediabrain admin grant <email>` (`make admin-grant u=...`). The user must
   have signed in once; promoting an address nobody has proven they own would be a takeover path.
-- Further ones: `setUserAdmin` (administrators only).
+- Further ones: `setUserAdmin` (administrators only, and not service accounts).
 
 ## Permissions
 
@@ -143,7 +179,9 @@ to every caller. Dev-data scenarios and the CLI run as an explicit system princi
 `e2e/access_test.go` runs every operation as users with no grant, each level, group and inherited
 grants, and expired or revoked grants. `e2e/auth_test.go` and `internal/auth` cover tokens
 (missing, malformed, expired, wrong issuer or audience, foreign key, tampered, `alg: none`),
-untrusted proxies, inactive users and the debug bypass. `e2e/graph_test.go` fails every database
+untrusted proxies, inactive users and the debug bypass. `e2e/service_test.go` covers service
+accounts: every way a token is refused, grants applying to them, and that an administrator
+service account cannot manage credentials. `e2e/graph_test.go` fails every database
 statement of every operation in turn and requires a clean `INTERNAL` error each time.
 
 ## Vidispine
@@ -157,8 +195,10 @@ against `VX-<digits>` before they go into a request path.
 
 ## Not covered yet
 
-- Machine clients (an ingest service) need a user with a token from the proxy; there are no
-  service tokens.
+- Roles for machine clients that are narrower than administrator (for example "may register
+  files"), and scopes per token.
+- Tokens from the identity provider for machines (OAuth2 client credentials).
+- Telling other systems about changes (webhooks, events). Machine access is inbound only.
 - Grants on asset groups, collections, saved searches and notes (the tables allow them).
 - Managing local groups through the API (dev data creates them; SSO groups sync automatically).
 - Rate limiting and CORS (no browser client on another origin yet).
