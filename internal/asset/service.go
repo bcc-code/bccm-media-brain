@@ -328,8 +328,8 @@ func (s *Service) DeleteRendition(ctx context.Context, id string) error {
 	return domain.FromPGDelete(err)
 }
 
-// AttachFile adds a file to a rendition. The caller must already be able to see the file,
-// otherwise attaching would be a way to gain access to it.
+// AttachFile adds a file to a rendition. Besides Edit on the rendition, the caller needs
+// Download on the file: see access.RequireFileReuse.
 func (s *Service) AttachFile(ctx context.Context, renditionID, fileID string, role sqlc.FileRole, position int32) (sqlc.RenditionFile, error) {
 	if _, err := s.rendition(ctx, renditionID, access.Edit); err != nil {
 		return sqlc.RenditionFile{}, err
@@ -337,12 +337,8 @@ func (s *Service) AttachFile(ctx context.Context, renditionID, fileID string, ro
 	if !role.Valid() {
 		return sqlc.RenditionFile{}, domain.Invalid("unknown role")
 	}
-	have, err := access.FileLevel(ctx, s.q, fileID)
-	if err != nil {
+	if err := access.RequireFileReuse(ctx, s.q, fileID); err != nil {
 		return sqlc.RenditionFile{}, err
-	}
-	if have == access.None {
-		return sqlc.RenditionFile{}, domain.Invalid("file does not exist")
 	}
 	rf, err := s.q.AttachFile(ctx, sqlc.AttachFileParams{RenditionID: renditionID, FileID: fileID, Role: role, Position: position})
 	return rf, domain.FromPG(err)

@@ -61,12 +61,9 @@ func (s *Service) Import(ctx context.Context, in ImportInput) (sqlc.SubtitleTrac
 			return err
 		}
 		if in.SourceFileID != nil {
-			have, err := access.FileLevel(ctx, q, *in.SourceFileID)
-			if err != nil {
+			// The source file gets attached to the subtitle rendition below.
+			if err := access.RequireFileReuse(ctx, q, *in.SourceFileID); err != nil {
 				return err
-			}
-			if have == access.None {
-				return domain.Invalid("source file does not exist")
 			}
 		}
 		r, err := q.FindSubtitleRendition(ctx, sqlc.FindSubtitleRenditionParams{VersionID: v.ID, Language: language})

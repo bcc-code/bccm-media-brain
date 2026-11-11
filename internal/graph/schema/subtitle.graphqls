@@ -51,7 +51,7 @@ input ImportSubtitlesInput {
   format: SubtitleFormat!
   "The subtitle file's text, at most 5 MB."
   content: String!
-  "The registered file the text came from, if any."
+  "The registered file the text came from, if any. It is attached to the subtitle rendition, so the caller needs DOWNLOAD_ORIGINAL on it."
   sourceFileId: ID
 }
 

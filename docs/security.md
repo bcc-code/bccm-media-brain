@@ -89,8 +89,12 @@ Rules:
 - **New assets.** Non-administrators create an asset inside a project they can edit, so every
   asset has someone with access from the start.
 - **Files** have no grants of their own. A file is visible through an asset the caller can view.
-  A file can only be attached to a rendition by someone who can already see it; otherwise
-  attaching would be a way to read any file.
+  Its level is the highest the caller has on any asset that uses it, so attaching a file to
+  another asset widens who can see where it is stored. Attaching (`attachFile`, and
+  `importSubtitles` with a `sourceFileId`) therefore needs `DOWNLOAD_ORIGINAL` on the file as
+  well as `EDIT` on the destination: one can only pass on what one has. A file the caller
+  cannot see at all is `INVALID_INPUT`, like any unknown id; one they can only view is
+  `FORBIDDEN`.
 - **Sharing** (`grantAccess`) takes a user id, a user's email (they must have signed in once) or
   a group id. Listing users and groups is for administrators.
 
