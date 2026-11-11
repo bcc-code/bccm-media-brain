@@ -2,6 +2,24 @@
 
 Newest first. Each entry: what changed, why, and what was left out on purpose.
 
+## 2026-11-11 — Asset access expires by the clock, not by the sweeper
+
+- `asset_access` now has one row per principal, asset and level with `expires_at`, and every
+  read of it (`AssetLevels`, `FileLevels`, `ListAssets`) checks that against `now()`. Why: the
+  table held only the highest level, so expired access lasted until the sweeper rebuilt it: a
+  minute when it worked, indefinitely when it kept failing, and from start until the first
+  sweep (architecture review, finding 05).
+- One row per level, not one row with the highest level and its expiry: when an EDIT grant
+  runs out, a VIEW grant that does not must count again without a rebuild. A level's
+  `expires_at` is the latest end among the grants giving it, NULL if any of them is permanent.
+- Migration 10 rebuilds the table in SQL; `TestAssetAccessExpiryMigration` checks that it gives
+  what the service's refresh gives, and that Down collapses it again.
+- The sweeper stays as cleanup and now also runs once at start.
+- Left out: a view that hides expired rows, so that a new query could not forget the check.
+  The debug UI's reset and stats read every table in `public`, and a view there needs care.
+  The rule is written next to the queries and in `security.md` instead. Also left out:
+  monitoring of the sweeper, which no longer guards anything.
+
 ## 2026-11-11 — Machine clients: service accounts and service tokens
 
 - Another system can now call the API as itself. An administrator creates a **service account**

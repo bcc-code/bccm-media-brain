@@ -1549,6 +1549,7 @@ type AssetAccess struct {
 	AssetID     string          `json:"asset_id"`
 	Level       PermissionLevel `json:"level"`
 	RefreshedAt time.Time       `json:"refreshed_at"`
+	ExpiresAt   *time.Time      `json:"expires_at"`
 }
 
 type AssetCredit struct {

@@ -27,7 +27,8 @@ WHERE (sqlc.narg('type_id')::smallint IS NULL OR a.type_id = sqlc.narg('type_id'
   AND (sqlc.narg('title')::text IS NULL OR position(lower(sqlc.narg('title')) in lower(a.title)) > 0)
   AND (sqlc.narg('legacy_id')::text IS NULL OR a.legacy_ids @> ARRAY[sqlc.narg('legacy_id')::text])
   AND (@is_admin::bool OR EXISTS (
-        SELECT 1 FROM asset_access aa WHERE aa.asset_id = a.id AND aa.principal_id = ANY(@principals::text[])))
+        SELECT 1 FROM asset_access aa WHERE aa.asset_id = a.id AND aa.principal_id = ANY(@principals::text[])
+          AND (aa.expires_at IS NULL OR aa.expires_at > now())))
 ORDER BY a.id DESC LIMIT sqlc.arg('limit') OFFSET sqlc.arg('offset');
 
 -- name: LinkAssetProject :one

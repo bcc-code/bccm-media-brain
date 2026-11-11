@@ -467,7 +467,8 @@ WHERE ($1::smallint IS NULL OR a.type_id = $1)
   AND ($3::text IS NULL OR position(lower($3) in lower(a.title)) > 0)
   AND ($4::text IS NULL OR a.legacy_ids @> ARRAY[$4::text])
   AND ($5::bool OR EXISTS (
-        SELECT 1 FROM asset_access aa WHERE aa.asset_id = a.id AND aa.principal_id = ANY($6::text[])))
+        SELECT 1 FROM asset_access aa WHERE aa.asset_id = a.id AND aa.principal_id = ANY($6::text[])
+          AND (aa.expires_at IS NULL OR aa.expires_at > now())))
 ORDER BY a.id DESC LIMIT $8 OFFSET $7
 `
 

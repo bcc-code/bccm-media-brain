@@ -140,10 +140,14 @@ Rules:
 - **Inheritance.** A grant on a program applies to its projects; a grant on a project applies to
   the assets linked to it. The highest of all applicable grants (own and via groups) counts.
 - **`asset_access`** is the derived table every asset read and list checks. It is rebuilt in the
-  same transaction whenever a grant, a project link or a project changes.
-- **Expiry.** Grants can have `expiresAt`. Project and program checks compare it to the clock
-  directly. For assets, a sweeper in the server removes expired grants and their access once a
-  minute, so asset access can outlive its grant by up to a minute.
+  same transaction whenever a grant, a project link or a project changes. It has one row per
+  principal, asset and level, with the time that level ends (`expires_at`, NULL for never).
+- **Expiry.** Grants can have `expiresAt`. Every check compares it to the database clock:
+  project and program checks on the grant, asset and file checks on `asset_access.expires_at`.
+  Access ends at that moment, and a lower grant that has not expired counts again. A sweeper in
+  the server deletes expired grants and their rows at start and once a minute; it only tidies
+  up, so a failing sweeper does not prolong access. A new query that reads `asset_access` must
+  check `expires_at` itself.
 - **No existence leaks.** Without at least `VIEW`, every read and every mutation behaves exactly
   as if the object did not exist (`null` or `NOT_FOUND`). With `VIEW` but too low a level the
   answer is `FORBIDDEN`.

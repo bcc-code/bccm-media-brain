@@ -28,7 +28,8 @@ import (
 
 const (
 	shutdownTimeout = 10 * time.Second
-	// sweepInterval bounds how long an expired grant keeps giving access to assets.
+	// sweepInterval is how often expired grants and their asset_access rows are deleted. It
+	// only tidies up: every permission check compares expiry to the clock itself.
 	sweepInterval = time.Minute
 )
 
@@ -148,15 +149,15 @@ func (a *App) sweep(ctx context.Context) {
 	t := time.NewTicker(sweepInterval)
 	defer t.Stop()
 	for {
+		if n, err := a.access.Sweep(ctx); err != nil {
+			slog.ErrorContext(ctx, "access: sweep expired grants", "error", err.Error())
+		} else if n > 0 {
+			slog.InfoContext(ctx, "access: removed expired grants", "count", n)
+		}
 		select {
 		case <-ctx.Done():
 			return
 		case <-t.C:
-			if n, err := a.access.Sweep(ctx); err != nil {
-				slog.ErrorContext(ctx, "access: sweep expired grants", "error", err.Error())
-			} else if n > 0 {
-				slog.InfoContext(ctx, "access: removed expired grants", "count", n)
-			}
 		}
 	}
 }

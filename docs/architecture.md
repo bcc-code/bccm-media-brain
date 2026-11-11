@@ -84,8 +84,9 @@ replicas behind the auth proxy. What each instance keeps to itself:
   [security.md](security.md) holds per instance; a new token costs one sign-in per instance.
 - **The proxy's signing keys** (JWKS), fetched by each instance when it meets an unknown key
   and again once its copy is 5 minutes old.
-- **The sweeper for expired grants**, once a minute in every instance. The first one deletes the
-  expired grants; the others wait on its row locks and find nothing.
+- **The sweeper for expired grants**, at start and once a minute in every instance. The first one
+  deletes the expired grants; the others wait on its row locks and find nothing. It is cleanup
+  only: permission checks compare expiry to the clock themselves.
 - **A connection pool** of pgx's default size (the larger of 4 and the CPU count). Cap it with
   `pool_max_conns` in `DATABASE_URL` so that replicas times the cap stays below Postgres's
   `max_connections`.

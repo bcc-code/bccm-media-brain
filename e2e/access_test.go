@@ -613,17 +613,52 @@ func TestGrantValidationAndExpiry(t *testing.T) {
 	u.sees(t, "asset", w.c3.asset)
 	u.sees(t, "project", w.projectB)
 
-	time.Sleep(time.Until(soon) + 200*time.Millisecond)
-	u.isNull(t, "project", w.projectB) // project grants are checked against the clock directly
-
-	// The sweeper (run every minute by the server) removes expired grants and the asset
-	// access they gave.
-	svc := access.NewService(sqlc.New(pool), db.PoolTx(pool))
-	if n, err := svc.Sweep(context.Background()); err != nil || n < 2 {
-		t.Fatalf("sweep removed %d grants: %v", n, err)
+	// A second user keeps a lower level that does not expire next to a higher one that does.
+	mixed := signIn(t)
+	grant(t, w.admin, "ASSET", w.c1.asset, "VIEW", to(mixed))
+	w.admin.must(t, grantAccess, map[string]any{"in": map[string]any{
+		"scope": "PROGRAM", "scopeId": w.prog.ID, "level": "DOWNLOAD_ORIGINAL", "userId": mixed.id, "expiresAt": soon}}, nil)
+	level := func() string {
+		var out struct{ Asset struct{ MyLevel string } }
+		mixed.must(t, `query($id: ID!) { asset(id: $id) { myLevel } }`, map[string]any{"id": w.c1.asset}, &out)
+		return out.Asset.MyLevel
 	}
+	copies := func() int {
+		var out struct {
+			File struct{ Copies []struct{ Path string } }
+		}
+		mixed.must(t, `query($id: ID!) { file(id: $id) { copies { path } } }`, map[string]any{"id": w.c1.file}, &out)
+		return len(out.File.Copies)
+	}
+	if got := level(); got != "DOWNLOAD_ORIGINAL" || copies() != 1 || w.visible(t, mixed) != "c1,c2,c3" {
+		t.Fatalf("before expiry: level %s, %d copies, sees %s", got, copies(), w.visible(t, mixed))
+	}
+
+	// Expiry is the clock's doing: nothing sweeps between here and the checks below.
+	time.Sleep(time.Until(soon) + 200*time.Millisecond)
+	u.isNull(t, "project", w.projectB)
 	u.isNull(t, "asset", w.c1.asset)
 	u.isNull(t, "asset", w.c3.asset)
+	u.isNull(t, "file", w.c1.file)
+	if got := w.visible(t, u); got != "" {
+		t.Fatalf("assets listed after the grants expired: %s", got)
+	}
+	if got := level(); got != "VIEW" || copies() != 0 || w.visible(t, mixed) != "c1" {
+		t.Fatalf("after expiry: level %s, %d copies, sees %s; want the grant that did not expire", got, copies(), w.visible(t, mixed))
+	}
+
+	// The sweeper only tidies up: it deletes the expired grants and their rows.
+	svc := access.NewService(sqlc.New(pool), db.PoolTx(pool))
+	if n, err := svc.Sweep(context.Background()); err != nil || n < 3 {
+		t.Fatalf("sweep removed %d grants: %v", n, err)
+	}
+	var stale int
+	if err := pool.QueryRow(context.Background(), `SELECT count(*) FROM asset_access WHERE expires_at <= now()`).Scan(&stale); err != nil || stale != 0 {
+		t.Fatalf("%d expired rows left after the sweep (%v)", stale, err)
+	}
+	if got := level(); got != "VIEW" {
+		t.Fatalf("after the sweep: level %s", got)
+	}
 	if n, err := svc.Sweep(context.Background()); err != nil || n != 0 {
 		t.Fatalf("second sweep removed %d: %v", n, err)
 	}

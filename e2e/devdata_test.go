@@ -19,11 +19,13 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/bcc-media/mediabrain/internal/access"
 	"github.com/bcc-media/mediabrain/internal/app"
 	"github.com/bcc-media/mediabrain/internal/auth"
 	"github.com/bcc-media/mediabrain/internal/cli"
 	"github.com/bcc-media/mediabrain/internal/config"
 	"github.com/bcc-media/mediabrain/internal/db"
+	"github.com/bcc-media/mediabrain/internal/db/sqlc"
 	"github.com/bcc-media/mediabrain/internal/devdata"
 	"github.com/bcc-media/mediabrain/internal/domain"
 	"github.com/bcc-media/mediabrain/internal/fake"
@@ -597,5 +599,58 @@ func TestCLIAgainstDB(t *testing.T) {
 	var out bytes.Buffer
 	if err := cli.Run(ctx, []string{"seed", "catalog", "assets=0"}, &out); err == nil {
 		t.Fatal("expected invalid params error")
+	}
+}
+
+// Migration 10 rebuilds asset_access in SQL; it must give what the service's refresh gives.
+func TestAssetAccessExpiryMigration(t *testing.T) {
+	ctx := context.Background()
+	url := freshDB(t, "access_expiry_migration")
+	if err := db.MigrateUp(ctx, url); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := newStore(t, url).Apply(ctx, "access", devdata.ApplyRequest{}); err != nil {
+		t.Fatal(err)
+	}
+	p := pool2(t, url)
+	// One grant that ends, next to the scenario's permanent ones and its expired one.
+	tag, err := p.Exec(ctx, `UPDATE permission_grant SET expires_at = now() + interval '1 hour'
+		WHERE id = (SELECT id FROM permission_grant WHERE expires_at IS NULL AND scope = 'project' ORDER BY id LIMIT 1)`)
+	if err != nil || tag.RowsAffected() != 1 {
+		t.Fatalf("no project grant to give an expiry: %v", err)
+	}
+	var assets []string
+	if err := p.QueryRow(ctx, `SELECT array_agg(id) FROM asset`).Scan(&assets); err != nil {
+		t.Fatal(err)
+	}
+	if err := access.Refresh(ctx, sqlc.New(p), assets); err != nil {
+		t.Fatal(err)
+	}
+	snapshot := func() (rows string, permanent, expiring int) {
+		err := p.QueryRow(ctx, `SELECT string_agg(concat_ws(' ', principal_id, asset_id, level, expires_at), E'\n' ORDER BY principal_id, asset_id, level),
+			count(*) FILTER (WHERE expires_at IS NULL), count(expires_at) FROM asset_access`).Scan(&rows, &permanent, &expiring)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return
+	}
+	want, permanent, expiring := snapshot()
+	if permanent == 0 || expiring == 0 {
+		t.Fatalf("the data should have permanent and expiring access, got %d and %d", permanent, expiring)
+	}
+
+	if err := db.MigrateDown(ctx, url); err != nil {
+		t.Fatal(err)
+	}
+	var count, pairs int
+	err = p.QueryRow(ctx, `SELECT count(*), count(DISTINCT (principal_id, asset_id)) FROM asset_access`).Scan(&count, &pairs)
+	if err != nil || count == 0 || count != pairs {
+		t.Fatalf("after down: %d rows for %d pairs of principal and asset (%v)", count, pairs, err)
+	}
+	if err := db.MigrateUp(ctx, url); err != nil {
+		t.Fatal(err)
+	}
+	if got, _, _ := snapshot(); got != want {
+		t.Fatalf("the migration built\n%s\nthe service builds\n%s", got, want)
 	}
 }

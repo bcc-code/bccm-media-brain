@@ -61,8 +61,10 @@ func (q *Queries) AssetIDsInScope(ctx context.Context, arg AssetIDsInScopeParams
 }
 
 const assetLevels = `-- name: AssetLevels :many
+
 SELECT asset_id, max(level)::permission_level AS level FROM asset_access
 WHERE asset_id = ANY($1::text[]) AND principal_id = ANY($2::text[])
+  AND (expires_at IS NULL OR expires_at > now())
 GROUP BY asset_id
 `
 
@@ -76,6 +78,8 @@ type AssetLevelsRow struct {
 	Level   PermissionLevel `json:"level"`
 }
 
+// Every read of asset_access must check expires_at: the sweeper only tidies up, it is not
+// what ends access.
 func (q *Queries) AssetLevels(ctx context.Context, arg AssetLevelsParams) ([]AssetLevelsRow, error) {
 	rows, err := q.db.Query(ctx, assetLevels, arg.AssetIds, arg.Principals)
 	if err != nil {
@@ -317,6 +321,7 @@ JOIN rendition r ON r.id = rf.rendition_id
 JOIN asset_version v ON v.id = r.version_id
 JOIN asset_access aa ON aa.asset_id = v.asset_id
 WHERE rf.file_id = ANY($1::text[]) AND aa.principal_id = ANY($2::text[])
+  AND (aa.expires_at IS NULL OR aa.expires_at > now())
 GROUP BY rf.file_id
 `
 
@@ -435,30 +440,32 @@ func (q *Queries) GetUserByExternalID(ctx context.Context, externalID string) (A
 }
 
 const insertAssetAccess = `-- name: InsertAssetAccess :exec
-INSERT INTO asset_access (principal_id, asset_id, level)
-SELECT s.principal_id, s.asset_id, max(s.level)
+INSERT INTO asset_access (principal_id, asset_id, level, expires_at)
+SELECT s.principal_id, s.asset_id, s.level,
+       CASE WHEN bool_or(s.expires_at IS NULL) THEN NULL ELSE max(s.expires_at) END
 FROM (
-    SELECT coalesce(g.user_id, g.group_id) AS principal_id, g.scope_id AS asset_id, g.level
+    SELECT coalesce(g.user_id, g.group_id) AS principal_id, g.scope_id AS asset_id, g.level, g.expires_at
     FROM permission_grant g
     WHERE g.scope = 'asset' AND g.scope_id = ANY($1::text[])
-      AND (g.expires_at IS NULL OR g.expires_at > now())
     UNION ALL
-    SELECT coalesce(g.user_id, g.group_id), ap.asset_id, g.level
+    SELECT coalesce(g.user_id, g.group_id), ap.asset_id, g.level, g.expires_at
     FROM asset_project ap
     JOIN permission_grant g ON g.scope = 'project' AND g.scope_id = ap.project_id
     WHERE ap.asset_id = ANY($1::text[])
-      AND (g.expires_at IS NULL OR g.expires_at > now())
     UNION ALL
-    SELECT coalesce(g.user_id, g.group_id), ap.asset_id, g.level
+    SELECT coalesce(g.user_id, g.group_id), ap.asset_id, g.level, g.expires_at
     FROM asset_project ap
     JOIN project p ON p.id = ap.project_id
     JOIN permission_grant g ON g.scope = 'program' AND g.scope_id = p.program_id
     WHERE ap.asset_id = ANY($1::text[])
-      AND (g.expires_at IS NULL OR g.expires_at > now())
 ) s
-GROUP BY s.principal_id, s.asset_id
+WHERE s.expires_at IS NULL OR s.expires_at > now()
+GROUP BY s.principal_id, s.asset_id, s.level
 `
 
+// One row per level, with the latest time a grant of that level ends (NULL: never). Readers
+// take the highest level that has not ended, so when a higher grant expires a lower one that
+// is still valid counts again without a refresh.
 func (q *Queries) InsertAssetAccess(ctx context.Context, assetIds []string) error {
 	_, err := q.db.Exec(ctx, insertAssetAccess, assetIds)
 	return err

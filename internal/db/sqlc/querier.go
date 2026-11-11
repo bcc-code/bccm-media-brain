@@ -12,6 +12,8 @@ type Querier interface {
 	AddFileHash(ctx context.Context, arg AddFileHashParams) error
 	AddGroupMember(ctx context.Context, arg AddGroupMemberParams) error
 	AssetIDsInScope(ctx context.Context, arg AssetIDsInScopeParams) ([]string, error)
+	// Every read of asset_access must check expires_at: the sweeper only tidies up, it is not
+	// what ends access.
 	AssetLevels(ctx context.Context, arg AssetLevelsParams) ([]AssetLevelsRow, error)
 	AttachFile(ctx context.Context, arg AttachFileParams) (RenditionFile, error)
 	CreateAsset(ctx context.Context, arg CreateAssetParams) (Asset, error)
@@ -65,6 +67,9 @@ type Querier interface {
 	GetUser(ctx context.Context, id string) (AppUser, error)
 	GetUserByEmail(ctx context.Context, email string) (AppUser, error)
 	GetUserByExternalID(ctx context.Context, externalID string) (AppUser, error)
+	// One row per level, with the latest time a grant of that level ends (NULL: never). Readers
+	// take the highest level that has not ended, so when a higher grant expires a lower one that
+	// is still valid counts again without a refresh.
 	InsertAssetAccess(ctx context.Context, assetIds []string) error
 	InsertSubtitleCues(ctx context.Context, arg []InsertSubtitleCuesParams) (int64, error)
 	LatestSubtitleTrack(ctx context.Context, renditionID string) (SubtitleTrack, error)
