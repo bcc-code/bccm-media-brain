@@ -80,11 +80,13 @@ func TestSignInCreatesAndUpdatesTheUser(t *testing.T) {
 func TestATokenCannotTakeOverAnotherUsersEmail(t *testing.T) {
 	victim := signIn(t)
 	thief := user{sub: "e2e|thief-" + unique()}
-	thief.token = tokenFor(thief.sub, victim.email)
 	var me struct{ Me struct{ ID, Email *string } }
-	thief.must(t, `{ me { id email } }`, nil, &me)
-	if *me.Me.ID == victim.id || me.Me.Email != nil {
-		t.Fatalf("thief became %+v", me.Me)
+	for _, email := range []string{victim.email, strings.ToUpper(victim.email)} {
+		thief.token = tokenFor(thief.sub, email)
+		thief.must(t, `{ me { id email } }`, nil, &me)
+		if *me.Me.ID == victim.id || me.Me.Email != nil {
+			t.Fatalf("with %s the thief became %+v", email, me.Me)
+		}
 	}
 }
 
