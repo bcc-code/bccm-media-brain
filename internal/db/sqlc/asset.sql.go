@@ -263,6 +263,30 @@ func (q *Queries) GetAsset(ctx context.Context, id string) (Asset, error) {
 	return i, err
 }
 
+const getAssetByLegacyID = `-- name: GetAssetByLegacyID :one
+SELECT id, type_id, title, description, captured_at, camera, reel, metadata, legacy_ids, created_at, updated_at, original_language FROM asset WHERE legacy_ids @> ARRAY[$1::text] ORDER BY id LIMIT 1
+`
+
+func (q *Queries) GetAssetByLegacyID(ctx context.Context, legacyID string) (Asset, error) {
+	row := q.db.QueryRow(ctx, getAssetByLegacyID, legacyID)
+	var i Asset
+	err := row.Scan(
+		&i.ID,
+		&i.TypeID,
+		&i.Title,
+		&i.Description,
+		&i.CapturedAt,
+		&i.Camera,
+		&i.Reel,
+		&i.Metadata,
+		&i.LegacyIds,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OriginalLanguage,
+	)
+	return i, err
+}
+
 const getAssetType = `-- name: GetAssetType :one
 SELECT id, name, description FROM asset_type WHERE id = $1
 `
@@ -561,6 +585,46 @@ func (q *Queries) ListRenditions(ctx context.Context, versionIds []string) ([]Re
 		return nil, err
 	}
 	return items, nil
+}
+
+const lockLegacyID = `-- name: LockLegacyID :exec
+SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))
+`
+
+// Serialises imports of the same legacy id until the transaction ends.
+func (q *Queries) LockLegacyID(ctx context.Context, legacyID string) error {
+	_, err := q.db.Exec(ctx, lockLegacyID, legacyID)
+	return err
+}
+
+const setAssetMetadataKey = `-- name: SetAssetMetadataKey :one
+UPDATE asset SET metadata = jsonb_set(metadata, ARRAY[$1::text], $2::jsonb) WHERE id = $3 RETURNING id, type_id, title, description, captured_at, camera, reel, metadata, legacy_ids, created_at, updated_at, original_language
+`
+
+type SetAssetMetadataKeyParams struct {
+	Key   string          `json:"key"`
+	Value json.RawMessage `json:"value"`
+	ID    string          `json:"id"`
+}
+
+func (q *Queries) SetAssetMetadataKey(ctx context.Context, arg SetAssetMetadataKeyParams) (Asset, error) {
+	row := q.db.QueryRow(ctx, setAssetMetadataKey, arg.Key, arg.Value, arg.ID)
+	var i Asset
+	err := row.Scan(
+		&i.ID,
+		&i.TypeID,
+		&i.Title,
+		&i.Description,
+		&i.CapturedAt,
+		&i.Camera,
+		&i.Reel,
+		&i.Metadata,
+		&i.LegacyIds,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OriginalLanguage,
+	)
+	return i, err
 }
 
 const unlinkAssetProject = `-- name: UnlinkAssetProject :execrows

@@ -60,3 +60,6 @@ SELECT * FROM file_hash WHERE file_id = ANY(@file_ids::text[]) ORDER BY file_id,
 
 -- name: ListFileCopies :many
 SELECT * FROM file_copy WHERE file_id = ANY(@file_ids::text[]) ORDER BY file_id, id;
+
+-- name: GetStorageLocationByName :one
+SELECT * FROM storage_location WHERE name = $1;

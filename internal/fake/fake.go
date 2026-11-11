@@ -17,6 +17,7 @@ import (
 	"github.com/bcc-media/mediabrain/internal/file"
 	"github.com/bcc-media/mediabrain/internal/project"
 	"github.com/bcc-media/mediabrain/internal/subtitle"
+	"github.com/bcc-media/mediabrain/pkg/vidispine"
 )
 
 var epoch = time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
@@ -162,4 +163,57 @@ func (x *Faker) VTT(n int) string {
 	}
 	text, _ := subtitle.Render(subtitle.VTT, cues)
 	return text
+}
+
+// CantemoItem is an item as the Vidispine API of a Cantemo Portal describes it.
+type CantemoItem struct {
+	ID     string
+	Fields map[string]string
+	Shapes []vidispine.Shape
+}
+
+// CantemoItem builds an item whose original file lies on the given Vidispine storage, with a
+// low-resolution shape next to it.
+func (x *Faker) CantemoItem(storageID string) CantemoItem {
+	item := x.CantemoPlaceholder()
+	path := "raw/" + x.Path("mxf")
+	name := path[strings.LastIndex(path, "/")+1:]
+	seconds := x.f.Number(5, 3600)
+	res := Pick(x, vidispine.Resolution{Width: 1920, Height: 1080}, vidispine.Resolution{Width: 3840, Height: 2160})
+	duration := vidispine.Timestamp{Samples: int64(seconds) * 25, TimeBase: vidispine.Fraction{Numerator: 1, Denominator: 25}}
+	n := x.f.Number(100000, 999999)
+	shape := func(tag, mime, codec, path string, size int64, res vidispine.Resolution) vidispine.Shape {
+		n++
+		return vidispine.Shape{
+			ID: fmt.Sprintf("VX-%d", n), Tag: []string{tag}, MimeType: []string{mime},
+			ContainerComponent: vidispine.ContainerComponent{Duration: duration, File: []vidispine.File{{
+				ID: fmt.Sprintf("VX-%d", n+500000), Path: path, URI: []string{"file:///mnt/" + storageID + "/" + path},
+				State: vidispine.FileStateClosed, Size: size, Hash: x.hash(20), Storage: storageID,
+			}}},
+			VideoComponent: []vidispine.VideoComponent{{Resolution: res, Codec: codec, Duration: duration}},
+			AudioComponent: []vidispine.AudioComponent{{ChannelCount: 2, Codec: "pcm_s24le", Duration: duration}},
+		}
+	}
+	item.Fields[vidispine.FieldOriginalFilename] = name
+	item.Fields[vidispine.FieldDurationSeconds] = fmt.Sprint(seconds)
+	item.Fields["originalVideoCodec"] = "mpeg2video"
+	item.Shapes = []vidispine.Shape{
+		shape(vidispine.ShapeTagOriginal, "application/mxf", "mpeg2video", path, int64(seconds)*int64(x.f.Number(500_000, 6_000_000)), res),
+		shape(vidispine.ShapeTagLowres, "video/mp4", "h264", strings.TrimSuffix(path, ".mxf")+"_lowres.mp4", int64(seconds)*100_000, vidispine.Resolution{Width: 640, Height: 360}),
+	}
+	return item
+}
+
+// CantemoPlaceholder builds an item that has metadata but no files yet.
+func (x *Faker) CantemoPlaceholder() CantemoItem {
+	return CantemoItem{
+		ID: fmt.Sprintf("VX-%d", x.f.Number(1000, 9_999_999)),
+		Fields: map[string]string{
+			vidispine.FieldTitle: x.Title(),
+			"mediaType":          "video",
+			"created":            epoch.Add(-time.Duration(x.f.Number(1, 700*24)) * time.Hour).Format(time.RFC3339),
+			"user":               strings.ToLower(x.f.FirstName()),
+			"portal_mf982016":    x.sentence(),
+		},
+	}
 }

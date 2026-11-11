@@ -6,6 +6,8 @@
 //	mediabrain seed <scenario> [flags] [k=v]   run a scenario
 //	mediabrain reset-data                      truncate all tables
 //	mediabrain admin grant|revoke <user>       make a user a system administrator, or not
+//	mediabrain cantemo import [flags] <VX-id>  import one Cantemo item as an asset
+//	mediabrain cantemo refresh <asset id>      refresh an imported asset's Cantemo metadata
 //
 // Configuration comes from the environment and .env (see internal/config).
 package cli
@@ -22,6 +24,7 @@ import (
 
 	"github.com/bcc-media/mediabrain/internal/access"
 	"github.com/bcc-media/mediabrain/internal/app"
+	"github.com/bcc-media/mediabrain/internal/cantemo"
 	"github.com/bcc-media/mediabrain/internal/config"
 	"github.com/bcc-media/mediabrain/internal/db"
 	"github.com/bcc-media/mediabrain/internal/db/sqlc"
@@ -40,6 +43,9 @@ const usage = `usage:
   mediabrain seed <scenario> [-reset] [-seed N] [param=value ...]
   mediabrain reset-data                       truncate all application tables
   mediabrain admin grant|revoke <email|id>    make a signed-in user a system administrator, or not
+  mediabrain cantemo import [-type N] [-project PJ-...] <VX-id>
+                                              import one Cantemo item as an asset (type 1 by default)
+  mediabrain cantemo refresh <asset id>       replace an imported asset's Cantemo metadata
 `
 
 // Run executes the command line args (without the program name).
@@ -57,7 +63,7 @@ func Run(ctx context.Context, args []string, out io.Writer) error {
 			listScenarios(out)
 			return nil
 		}
-	case "serve", "migrate", "reset-data", "admin":
+	case "serve", "migrate", "reset-data", "admin", "cantemo":
 	default:
 		return usageErr("unknown command %q", cmd)
 	}
@@ -81,6 +87,8 @@ func Run(ctx context.Context, args []string, out io.Writer) error {
 		return seed(ctx, cfg, args, out)
 	case "admin":
 		return admin(ctx, cfg, args, out)
+	case "cantemo":
+		return cantemoCmd(ctx, cfg, args, out)
 	default: // reset-data
 		return withStore(ctx, cfg, func(s *devdata.Store) error {
 			if err := s.Reset(ctx); err != nil {
@@ -177,6 +185,54 @@ func admin(ctx context.Context, cfg config.Config, args []string, out io.Writer)
 		return err
 	}
 	fmt.Fprintf(out, "%s: administrator = %v\n", u.ID, u.IsAdmin)
+	return nil
+}
+
+func cantemoCmd(ctx context.Context, cfg config.Config, args []string, out io.Writer) error {
+	if len(args) == 0 || (args[0] != "import" && args[0] != "refresh") {
+		return usageErr("cantemo needs import or refresh")
+	}
+	fs := flag.NewFlagSet("cantemo", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	typeID := fs.Int("type", 1, "asset type id")
+	project := fs.String("project", "", "project to link the asset to")
+	if err := fs.Parse(args[1:]); err != nil {
+		return usageErr("%v", err)
+	}
+	if fs.NArg() != 1 {
+		return usageErr("cantemo %s needs exactly one id", args[0])
+	}
+	id := fs.Arg(0)
+
+	src, err := cantemo.NewSource(cfg.CantemoURL, cfg.CantemoUsername, cfg.CantemoPassword)
+	if err != nil {
+		return fmt.Errorf("CANTEMO_URL: %w", err)
+	}
+	pool, err := db.Connect(ctx, cfg.DatabaseURL)
+	if err != nil {
+		return err
+	}
+	defer pool.Close()
+	svc := cantemo.NewService(sqlc.New(pool), db.PoolTx(pool), src)
+	ctx = access.With(ctx, access.System())
+
+	if args[0] == "refresh" {
+		a, err := svc.Refresh(ctx, id)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(out, "%s: refreshed from %s\n", a.ID, cantemo.ItemID(a))
+		return nil
+	}
+	in := cantemo.ImportInput{ItemID: id, TypeID: int16(*typeID)}
+	if *project != "" {
+		in.ProjectID = project
+	}
+	a, err := svc.Import(ctx, in)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(out, "%s: imported %s %q\n", a.ID, id, a.Title)
 	return nil
 }
 

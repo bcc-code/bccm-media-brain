@@ -29,6 +29,7 @@ var errorCodes = []struct {
 	{domain.ErrConflict, "CONFLICT"},
 	{domain.ErrForbidden, "FORBIDDEN"},
 	{domain.ErrUnauthenticated, "UNAUTHENTICATED"},
+	{domain.ErrUnavailable, "UNAVAILABLE"},
 }
 
 // NewServer builds the GraphQL handler. Introspection is for development only.

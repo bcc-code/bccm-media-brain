@@ -8,12 +8,14 @@ import (
 
 	"github.com/bcc-media/mediabrain/internal/access"
 	"github.com/bcc-media/mediabrain/internal/asset"
+	"github.com/bcc-media/mediabrain/internal/cantemo"
 	"github.com/bcc-media/mediabrain/internal/db"
 	"github.com/bcc-media/mediabrain/internal/db/sqlc"
 	"github.com/bcc-media/mediabrain/internal/fake"
 	"github.com/bcc-media/mediabrain/internal/file"
 	"github.com/bcc-media/mediabrain/internal/project"
 	"github.com/bcc-media/mediabrain/internal/subtitle"
+	"github.com/bcc-media/mediabrain/pkg/vidispine"
 )
 
 // registry lists every scenario shown in the debug UI and the seed CLI. Scenarios go through
@@ -57,6 +59,16 @@ var registry = []Scenario{
 		Run: runSubtitleRevisions,
 	},
 	{
+		Name: "cantemo",
+		Description: "Assets as an import from Cantemo leaves them: the item id in legacyIds, Cantemo's fields under " +
+			"metadata.cantemo, and the original file on a storage location named after the Vidispine storage. One more " +
+			"item is a placeholder without files and without a project. No Cantemo is contacted: the items are made up.",
+		Params: []Param{
+			{Name: "items", Label: "Items", Type: Int, Default: "5", Min: ptr(1), Max: ptr(500)},
+		},
+		Run: runCantemo,
+	},
+	{
 		Name: "edge-cases",
 		Description: "Awkward data: unicode, very long and markup-looking titles, a zero-byte file, missing and mismatched " +
 			"copies, one file in several locations, an asset without versions, a version without renditions, " +
@@ -71,14 +83,66 @@ type services struct {
 	files     *file.Service
 	assets    *asset.Service
 	subtitles *subtitle.Service
+	// cantemo imports from the made-up items added to source.
+	cantemo *cantemo.Service
+	source  *cantemoItems
 }
 
 func newServices(q sqlc.Querier) services {
 	tx := db.SameTx(q)
+	source := &cantemoItems{items: map[string]fake.CantemoItem{}}
 	return services{
 		access: access.NewService(q, tx), projects: project.NewService(q, tx), files: file.NewService(q, tx),
 		assets: asset.NewService(q, tx), subtitles: subtitle.NewService(q, tx),
+		cantemo: cantemo.NewService(q, tx, source), source: source,
 	}
+}
+
+// cantemoItems stands in for the Vidispine API with items held in memory.
+type cantemoItems struct{ items map[string]fake.CantemoItem }
+
+func (c *cantemoItems) GetMetadata(_ context.Context, itemID string) (*vidispine.MetadataResult, error) {
+	out := &vidispine.MetadataResult{ID: itemID, Terse: map[string][]*vidispine.MetadataField{}}
+	for name, value := range c.items[itemID].Fields {
+		out.Terse[name] = []*vidispine.MetadataField{{Start: vidispine.MinusInf, End: vidispine.PlusInf, Value: value}}
+	}
+	return out, nil
+}
+
+func (c *cantemoItems) GetShapes(_ context.Context, itemID string) (*vidispine.ShapeResult, error) {
+	return &vidispine.ShapeResult{ID: itemID, Shape: c.items[itemID].Shapes}, nil
+}
+
+func (c *cantemoItems) GetStorageMethods(_ context.Context, storageID string) (*vidispine.StorageResult, error) {
+	return &vidispine.StorageResult{Methods: []vidispine.StorageMethod{{URI: "file:///mnt/" + storageID + "/"}}}, nil
+}
+
+func runCantemo(ctx context.Context, env Env, v Values) (string, error) {
+	s, f := newServices(env.Q), env.Fake
+	prog, err := s.program(ctx, f)
+	if err != nil {
+		return "", err
+	}
+	pj, err := s.project(ctx, f, prog)
+	if err != nil {
+		return "", err
+	}
+	storage := fmt.Sprintf("VX-%d", f.Int(1, 99))
+	for range v.Int("items") {
+		item := f.CantemoItem(storage)
+		s.source.items[item.ID] = item
+		if _, err := s.cantemo.Import(ctx, cantemo.ImportInput{ItemID: item.ID, TypeID: 1, ProjectID: &pj.ID}); err != nil {
+			return "", err
+		}
+	}
+	placeholder := f.CantemoPlaceholder()
+	s.source.items[placeholder.ID] = placeholder
+	a, err := s.cantemo.Import(ctx, cantemo.ImportInput{ItemID: placeholder.ID, TypeID: 1})
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%d items imported into project %s from storage %s, placeholder %s as %s",
+		v.Int("items"), pj.Code, storage, placeholder.ID, a.ID), nil
 }
 
 func (s services) program(ctx context.Context, f *fake.Faker) (sqlc.Program, error) {

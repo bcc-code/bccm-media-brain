@@ -450,6 +450,7 @@ const (
 	HashAlgoBlake3  HashAlgo = "blake3"
 	HashAlgoSha256  HashAlgo = "sha256"
 	HashAlgoMd5     HashAlgo = "md5"
+	HashAlgoSha1    HashAlgo = "sha1"
 )
 
 func (e *HashAlgo) Scan(src interface{}) error {
@@ -492,7 +493,8 @@ func (e HashAlgo) Valid() bool {
 	case HashAlgoXxh3128,
 		HashAlgoBlake3,
 		HashAlgoSha256,
-		HashAlgoMd5:
+		HashAlgoMd5,
+		HashAlgoSha1:
 		return true
 	}
 	return false

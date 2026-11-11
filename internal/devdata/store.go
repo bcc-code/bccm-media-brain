@@ -2,6 +2,7 @@ package devdata
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -10,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/bcc-media/mediabrain/internal/access"
+	"github.com/bcc-media/mediabrain/internal/cantemo"
 	"github.com/bcc-media/mediabrain/internal/db"
 	"github.com/bcc-media/mediabrain/internal/db/sqlc"
 	"github.com/bcc-media/mediabrain/internal/domain"
@@ -59,6 +61,9 @@ type TableStat struct {
 // Store runs scenarios and maintenance operations against the database.
 type Store struct {
 	pool *pgxpool.Pool
+
+	// Cantemo is where the debug UI imports from; nil when Cantemo is not configured.
+	Cantemo cantemo.Source
 }
 
 // NewStore returns a Store using pool.
@@ -135,6 +140,34 @@ func (s *Store) CreateUser(ctx context.Context, email string, admin bool) (User,
 		ExternalID: "debug|" + email, Email: email, Name: email, Admin: admin,
 	})
 	return User{ID: u.ID, Email: u.Email, Name: u.Name, Admin: u.IsAdmin, Active: u.Active}, err
+}
+
+// CantemoAsset is what the debug UI shows after an import or a refresh.
+type CantemoAsset struct {
+	ID        string          `json:"id"`
+	Title     string          `json:"title"`
+	LegacyIDs []string        `json:"legacyIds"`
+	Metadata  json.RawMessage `json:"metadata"`
+}
+
+func cantemoAsset(a sqlc.Asset, err error) (CantemoAsset, error) {
+	return CantemoAsset{ID: a.ID, Title: a.Title, LegacyIDs: a.LegacyIds, Metadata: a.Metadata}, err
+}
+
+func (s *Store) cantemoService() *cantemo.Service {
+	return cantemo.NewService(sqlc.New(s.pool), db.PoolTx(s.pool), s.Cantemo)
+}
+
+func (s *Store) CantemoConfigured() bool { return s.Cantemo != nil }
+
+// CantemoImport imports one item from the configured Cantemo, as the system principal.
+func (s *Store) CantemoImport(ctx context.Context, in cantemo.ImportInput) (CantemoAsset, error) {
+	return cantemoAsset(s.cantemoService().Import(access.With(ctx, access.System()), in))
+}
+
+// CantemoRefresh refreshes the Cantemo metadata of an imported asset.
+func (s *Store) CantemoRefresh(ctx context.Context, assetID string) (CantemoAsset, error) {
+	return cantemoAsset(s.cantemoService().Refresh(access.With(ctx, access.System()), assetID))
 }
 
 // Reset truncates every application table except the reference tables.

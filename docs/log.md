@@ -2,6 +2,42 @@
 
 Newest first. Each entry: what changed, why, and what was left out on purpose.
 
+## 2026-11-11 — Cantemo in the debug UI
+
+- `/debug/` has a Cantemo card to import one item and to refresh an imported asset, and shows
+  the resulting asset and its metadata. Why: trying a real item should not need a GraphQL
+  mutation or the CLI.
+- It calls new debug API routes (`/debug/api/cantemo…`) that run `cantemo.Service` as the system
+  principal, like scenarios do; `devdata.Store.Cantemo` is the source, set in `app.New`.
+- Left out: looking at an item without importing it, and a list of imported assets.
+
+## 2026-11-11 — Import and refresh from Cantemo
+
+**What**
+- `importFromCantemo` / `mediabrain cantemo import`: one Cantemo (Vidispine) item becomes an
+  asset with its metadata and the file of its original shape. `refreshFromCantemo` /
+  `cantemo refresh` replaces `metadata.cantemo`. Administrators only. Details in
+  [cantemo.md](cantemo.md).
+- `pkg/vidispine`: the Vidispine client, extracted from `bccm-flows` as a package other Go
+  projects can import, with a fake server for tests.
+- `sha1` hashes, the `UNAVAILABLE` error code, settings `CANTEMO_URL`, `CANTEMO_USERNAME`,
+  `CANTEMO_PASSWORD`, dev-data scenario `cantemo`, and [codebase.md](codebase.md): a map of the
+  code's conventions, so changes need not start with exploring.
+
+**Why these choices**
+- *One at a time, by an administrator.* The mapping can be judged on real items before anything
+  is imported in bulk, and only administrators may register files.
+- *Refresh touches only `metadata.cantemo`.* Title and description may have been edited here;
+  Cantemo's values stay available next to them without overwriting anything.
+- *The client lives in this repository under `pkg/`.* No new repository to maintain yet; the
+  package imports nothing from `internal/`, so it can move without changing.
+- *Read side of the client only.* That is what is used and tested here. Flows' write operations
+  move over when flows switches to the package.
+
+**Left out on purpose**
+Bulk import, scheduled refresh, proxies and other shapes, subtitle sidecars, refreshing files,
+mapping Portal's own fields (description, people, tags). Not yet tried against the real Cantemo.
+
 ## 2026-11-10 — Yaak workspace and a default debug user
 
 - `yaak/` holds a Yaak workspace with requests for the standard operations.

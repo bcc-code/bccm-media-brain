@@ -41,6 +41,7 @@
   td.n { text-align: right; font-variant-numeric: tabular-nums; }
   .row { display: flex; gap: 8px; margin-top: 12px; }
   #log { font: 12px/1.5 ui-monospace, monospace; background: var(--code); border-radius: 8px; padding: 10px; max-height: 420px; overflow: auto; white-space: pre-wrap; word-break: break-word; }
+  pre { font: 12px/1.5 ui-monospace, monospace; background: var(--code); border-radius: 8px; padding: 10px; margin: 12px 0 0; max-height: 360px; overflow: auto; white-space: pre-wrap; word-break: break-word; }
   .ok { color: var(--ok); } .err { color: var(--danger); }
   .always { font-size: 11px; color: var(--danger); margin-left: 6px; }
   .hint { color: var(--muted); margin: 0 0 8px; }
@@ -55,6 +56,21 @@
 </header>
 <main>
   <section>
+    <h2>Cantemo</h2>
+    <div class="card">
+      <p id="cantemo-status">Loading…</p>
+      <form id="cantemo-import" class="fields">
+        <label>Item id<input type="text" name="itemId" placeholder="VX-123" required></label>
+        <label title="Asset type id (1 = raw material)">Type<input type="number" name="typeId" value="1" min="1" style="width:70px"></label>
+        <label title="Optional. Without a project only administrators see the asset">Project<input type="text" name="projectId" placeholder="PJ-… (optional)" style="width:240px"></label>
+        <button type="submit">Import</button>
+      </form>
+      <form id="cantemo-refresh" class="fields" style="margin-top:12px">
+        <label>Asset id<input type="text" name="assetId" placeholder="AS-…" required style="width:260px"></label>
+        <button type="submit" class="ghost">Refresh metadata</button>
+      </form>
+      <pre id="cantemo-result" hidden></pre>
+    </div>
     <h2>Scenarios</h2>
     <div id="scenarios">Loading…</div>
   </section>
@@ -193,12 +209,47 @@ document.getElementById('newuser').onsubmit = async ev => {
   } catch (e) { log('add user: ' + e.message, 'err'); }
 };
 
+// Imports and refreshes run as the system principal, whoever this browser acts as.
+async function loadCantemo() {
+  const status = document.getElementById('cantemo-status');
+  try {
+    const { configured } = await api('cantemo');
+    status.textContent = configured
+      ? 'Import one item from the configured Cantemo, or refresh the Cantemo metadata of an imported asset.'
+      : 'Cantemo is not configured: set CANTEMO_URL, CANTEMO_USERNAME and CANTEMO_PASSWORD in .env and restart. The "cantemo" scenario below creates assets that look imported.';
+    for (const b of document.querySelectorAll('#cantemo-import button, #cantemo-refresh button')) b.disabled = !configured;
+  } catch (e) { status.textContent = 'Cantemo: ' + e.message; }
+}
+
+function cantemoForm(id, path, body, done) {
+  const form = document.getElementById(id);
+  form.onsubmit = async ev => {
+    ev.preventDefault();
+    const btn = form.querySelector('button');
+    btn.disabled = true;
+    try {
+      const a = await api(path, { method: 'POST', body: JSON.stringify(body(form)) });
+      const out = document.getElementById('cantemo-result');
+      out.textContent = JSON.stringify(a, null, 2);
+      out.hidden = false;
+      document.getElementById('cantemo-refresh').assetId.value = a.id;
+      log(`cantemo: ${done} ${(a.legacyIds || []).join(', ')} as ${a.id} "${a.title}"`, 'ok');
+      loadStats();
+    } catch (e) { log(`cantemo: ${e.message}`, 'err'); }
+    finally { btn.disabled = false; }
+  };
+}
+cantemoForm('cantemo-import', 'cantemo/import',
+  f => ({ itemId: f.itemId.value.trim(), typeId: Number(f.typeId.value || 1), projectId: f.projectId.value.trim() }), 'imported');
+cantemoForm('cantemo-refresh', 'cantemo/refresh', f => ({ assetId: f.assetId.value.trim() }), 'refreshed');
+
 document.getElementById('refresh').onclick = () => { loadStats(); loadUsers(); };
 document.getElementById('reset').onclick = async () => {
   if (!confirm('Delete ALL data in every table?')) return;
   try { await api('reset', { method: 'POST' }); log('all data reset', 'ok'); loadStats(); loadUsers(); }
   catch (e) { log('reset: ' + e.message, 'err'); }
 };
+loadCantemo();
 loadScenarios();
 loadStats();
 loadUsers();

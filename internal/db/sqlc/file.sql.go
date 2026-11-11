@@ -305,6 +305,24 @@ func (q *Queries) GetStorageLocation(ctx context.Context, id string) (StorageLoc
 	return i, err
 }
 
+const getStorageLocationByName = `-- name: GetStorageLocationByName :one
+SELECT id, name, kind, base_uri, online, created_at FROM storage_location WHERE name = $1
+`
+
+func (q *Queries) GetStorageLocationByName(ctx context.Context, name string) (StorageLocation, error) {
+	row := q.db.QueryRow(ctx, getStorageLocationByName, name)
+	var i StorageLocation
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Kind,
+		&i.BaseUri,
+		&i.Online,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const getStorageLocations = `-- name: GetStorageLocations :many
 SELECT id, name, kind, base_uri, online, created_at FROM storage_location WHERE id = ANY($1::text[])
 `

@@ -13,6 +13,7 @@ func build(seed uint64) []any {
 	return []any{
 		x.User(), prog, x.Project("PG-1", prog.Code), x.Location(), x.VideoFile(), x.SubtitleFile("x"),
 		x.Asset(1), x.Path("mov"), x.SRT(5), x.VTT(5), x.Int(1, 9), Pick(x, "a", "b", "c"),
+		x.CantemoItem("VX-42"), x.CantemoPlaceholder(),
 	}
 }
 

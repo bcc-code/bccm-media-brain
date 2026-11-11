@@ -148,3 +148,38 @@ func writeFile(t *testing.T, path, content string) {
 		t.Fatal(err)
 	}
 }
+
+func TestCantemoSettings(t *testing.T) {
+	base := map[string]string{"DATABASE_URL": "postgres://x"}
+	with := func(extra map[string]string) func(string) (string, bool) {
+		all := map[string]string{}
+		for _, m := range []map[string]string{base, extra} {
+			for k, v := range m {
+				all[k] = v
+			}
+		}
+		return env(all)
+	}
+
+	cfg, err := LoadFrom(with(nil))
+	if err != nil || cfg.CantemoURL != "" {
+		t.Fatalf("unset: %+v, %v", cfg, err)
+	}
+	cfg, err = LoadFrom(with(map[string]string{"CANTEMO_URL": "https://c.example/API", "CANTEMO_USERNAME": "u", "CANTEMO_PASSWORD": "p"}))
+	if err != nil || cfg.CantemoURL != "https://c.example/API" || cfg.CantemoUsername != "u" || cfg.CantemoPassword != "p" {
+		t.Fatalf("set: %+v, %v", cfg, err)
+	}
+	for _, partial := range []map[string]string{
+		{"CANTEMO_URL": "https://c.example/API"},
+		{"CANTEMO_URL": "https://c.example/API", "CANTEMO_USERNAME": "u"},
+		{"CANTEMO_URL": "https://c.example/API", "CANTEMO_PASSWORD": "p"},
+	} {
+		if _, err := LoadFrom(with(partial)); !errors.Is(err, ErrCantemoIncomplete) {
+			t.Errorf("%v: err = %v", partial, err)
+		}
+	}
+	// Credentials without a URL configure nothing.
+	if _, err := LoadFrom(with(map[string]string{"CANTEMO_USERNAME": "u"})); err != nil {
+		t.Fatal(err)
+	}
+}

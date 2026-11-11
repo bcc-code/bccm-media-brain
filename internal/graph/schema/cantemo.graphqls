@@ -1,0 +1,21 @@
+input CantemoImportInput {
+  "The Cantemo (Vidispine) item id, e.g. VX-123."
+  itemId: String!
+  typeId: Int!
+  "Links the new asset to this project. Without it only administrators see the asset."
+  projectId: ID
+}
+
+extend type Mutation {
+  """
+  Administrators only. Creates an asset from one Cantemo item: its metadata under
+  metadata.cantemo, the item id in legacyIds and, when the item has an original file, a version
+  with a master rendition holding that file. An item can be imported once.
+  """
+  importFromCantemo(input: CantemoImportInput!): Asset!
+  """
+  Administrators only. Replaces metadata.cantemo of an imported asset with Cantemo's current
+  values. Nothing else on the asset changes.
+  """
+  refreshFromCantemo(assetId: ID!): Asset!
+}

@@ -12,7 +12,10 @@ HTTP  ->  auth middleware  ->  GraphQL resolvers  ->  domain services  ->  sqlc 
   types are bound directly to the sqlc models and inputs to the services' input structs
   (`gqlgen.yml`), so there is no mapping layer to keep in sync.
 - **Domain services hold the rules**: validation, permission checks, multi-step writes. One
-  package per area: `project`, `file`, `asset`, `subtitle`, plus `access` for users and grants.
+  package per area: `project`, `file`, `asset`, `subtitle`, `cantemo` (import from Cantemo, see
+  [cantemo.md](cantemo.md)), plus `access` for users and grants.
+- **`pkg/`** holds code other Go projects may import (`pkg/vidispine`). It never imports
+  `internal/`.
 - **`internal/access` answers "may this caller do that?"** Services call it; resolvers never do.
   See [security.md](security.md).
 - **`internal/domain`** has the shared error values, paging rule and small input helpers.
@@ -36,6 +39,7 @@ Services return the values in `internal/domain`. The GraphQL layer turns them in
 | `CONFLICT` | Already exists, still in use, or a newer revision exists |
 | `FORBIDDEN` | The caller can see the object but may not do this |
 | `UNAUTHENTICATED` | No valid token (also HTTP 401 before GraphQL runs) |
+| `UNAVAILABLE` | A system MediaBrain depends on (Cantemo) is not configured or did not answer. The cause is logged, never sent |
 | `INTERNAL` | Anything unexpected. The cause is logged, never sent |
 
 Lookups by id (`asset(id:)`, `file(id:)`, ...) return `null` instead of `NOT_FOUND`.
@@ -64,7 +68,9 @@ needs its own rule (file copies, the project behind a link) the batch method app
   and two cross-cutting guards: statement counts for nested queries, and a sweep that makes each
   database statement of each operation fail in turn to prove failures are contained.
 - **Unit tests** cover what needs no database: subtitle parsing, input rules, token verification,
-  the auth middleware, config, the loader.
+  the auth middleware, config, the loader, the Vidispine client.
+- **Other systems are faked as HTTP servers**, not mocked in Go: `internal/auth/authtest` issues
+  tokens, `pkg/vidispine/vidispinetest` is a Vidispine that tests fill with items.
 - There is deliberately **no in-memory fake of the database**. The permission rules are SQL; a
   fake would test a second implementation of them.
 

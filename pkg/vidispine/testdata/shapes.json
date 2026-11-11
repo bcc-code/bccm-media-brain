@@ -1,0 +1,84 @@
+{
+  "id": "VX-1",
+  "shape": [
+    {
+      "id": "VX-1001",
+      "created": "2023-08-01T19:05:11.512+0000",
+      "essenceVersion": 0,
+      "tag": ["original"],
+      "mimeType": ["application/mxf"],
+      "containerComponent": {
+        "duration": {"samples": 90000, "timeBase": {"numerator": 1, "denominator": 25}},
+        "format": "mxf",
+        "firstSMPTETimecode": "19:00:00:00",
+        "startTimecode": 1710000,
+        "startTimestamp": {"samples": 0, "timeBase": {"numerator": 1, "denominator": 25}},
+        "roundedTimeBase": 25,
+        "dropFrame": false,
+        "timeCodeTimeBase": {"numerator": 1, "denominator": 25},
+        "mediaInfo": {"property": [{"key": "Format", "value": "MXF"}]},
+        "file": [
+          {
+            "id": "VX-2001",
+            "path": "raw/2023/08/01/EXAMPLE_20230801_PGM.mxf",
+            "uri": ["file:///mnt/isilon/system/ingest/raw/2023/08/01/EXAMPLE_20230801_PGM.mxf"],
+            "state": "CLOSED",
+            "size": 52428800,
+            "hash": "3f786850e387550fdab836ed7e6dc881de23001b",
+            "timestamp": "2023-08-01T19:05:10.000+0000",
+            "refreshFlag": 1,
+            "storage": "VX-42",
+            "metadata": {}
+          }
+        ],
+        "id": "VX-3001",
+        "metadata": [{"key": "creation_time", "value": "2023-08-01T19:00:00.000000Z"}]
+      },
+      "audioComponent": [
+        {
+          "channelCount": 1, "channelLayout": 4, "sampleFormat": "SAMPLE_FMT_S32", "frameSize": 0,
+          "mediaInfo": {"Bit_rate_mode": "CBR", "property": []},
+          "file": [], "id": "VX-3002", "metadata": [], "codec": "pcm_s24le",
+          "timeBase": {"numerator": 1, "denominator": 48000}, "itemTrack": "A1", "essenceStreamId": 1,
+          "bitrate": 1152000, "pid": 2,
+          "duration": {"samples": 172800000, "timeBase": {"numerator": 1, "denominator": 48000}},
+          "startTimestamp": {"samples": 0, "timeBase": {"numerator": 1, "denominator": 48000}}
+        },
+        {
+          "channelCount": 1, "channelLayout": 4, "sampleFormat": "SAMPLE_FMT_S32", "frameSize": 0,
+          "mediaInfo": {"property": []},
+          "file": [], "id": "VX-3003", "metadata": [], "codec": "pcm_s24le",
+          "timeBase": {"numerator": 1, "denominator": 48000}, "itemTrack": "A2", "essenceStreamId": 2,
+          "bitrate": 1152000, "pid": 3,
+          "duration": {"samples": 172800000, "timeBase": {"numerator": 1, "denominator": 48000}},
+          "startTimestamp": {"samples": 0, "timeBase": {"numerator": 1, "denominator": 48000}}
+        }
+      ],
+      "videoComponent": [
+        {
+          "resolution": {"width": 1920, "height": 1080},
+          "pixelFormat": "yuv422p", "maxBFrames": 2,
+          "pixelAspectRatio": {"numerator": 1, "denominator": 1},
+          "fieldOrder": "top first",
+          "codecTimeBase": {"numerator": 1, "denominator": 50},
+          "averageFrameRate": {"numerator": 25, "denominator": 1},
+          "realBaseFrameRate": {"numerator": 25, "denominator": 1},
+          "displayWidth": {"numerator": 1920, "denominator": 1},
+          "displayHeight": {"numerator": 1080, "denominator": 1},
+          "containerSAR": {"horizontal": 1, "vertical": 1},
+          "colr_primaries": 1, "colr_transfer_function": 1, "colr_matrix": 1,
+          "startTimecode": 1710000, "dropFrame": false, "bitDepth": 8, "bitsPerPixel": 16,
+          "colorPrimaries": "BT.709",
+          "mediaInfo": {"Format_Settings_GOP": "M=3, N=12", "intra_dc_precision": 10, "Bit_rate_mode": "CBR", "property": []},
+          "file": [], "id": "VX-3004", "metadata": [], "codec": "mpeg2video",
+          "timeBase": {"numerator": 1, "denominator": 25}, "itemTrack": "V1", "essenceStreamId": 0,
+          "bitrate": 50000000, "numberOfPackets": 90000, "extradata": "000001B3", "pid": 1,
+          "duration": {"samples": 90000, "timeBase": {"numerator": 1, "denominator": 25}},
+          "profile": 0, "level": 2,
+          "startTimestamp": {"samples": 0, "timeBase": {"numerator": 1, "denominator": 25}}
+        }
+      ],
+      "metadata": {}
+    }
+  ]
+}

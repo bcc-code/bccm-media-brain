@@ -43,8 +43,17 @@ in three places is one file with three **copies** (storage location + relative p
 - Registering content whose hash is already known returns the existing file and adds any new
   hashes and copies, so ingest can be re-run safely. Hashes that point at two different files, a
   different size for a known hash, or a path that already holds another file are conflicts.
+- Hash algorithms: xxh3_128, blake3, sha256, md5, and sha1 because that is what Vidispine
+  records for the files imported from Cantemo.
 - A copy has a status: present, missing, mismatch (hash no longer matches).
 - A file with copies, or used by a rendition, cannot be deleted.
+
+## Imported from Cantemo
+
+An asset imported from Cantemo carries the item id in `legacy_ids` and Cantemo's fields under
+`metadata.cantemo` (`itemId`, `refreshedAt`, `fields`). Its original file hangs on a version
+labelled "Cantemo original", and the copy lies on a storage location named after the Vidispine
+storage. Refresh replaces `metadata.cantemo` only. See [cantemo.md](cantemo.md).
 
 ## Subtitles
 

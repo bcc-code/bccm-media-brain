@@ -9,11 +9,14 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/bcc-media/mediabrain/internal/cantemo"
 	"github.com/bcc-media/mediabrain/internal/domain"
 )
 
 type fakeBackend struct {
 	applyErr, resetErr, statsErr, usersErr error
+	cantemoErr                             error
+	gotImport                              cantemo.ImportInput
 	gotName                                string
 	gotReq                                 ApplyRequest
 }
@@ -33,6 +36,17 @@ func (f *fakeBackend) Users(context.Context) ([]User, error) {
 
 func (f *fakeBackend) CreateUser(_ context.Context, email string, admin bool) (User, error) {
 	return User{ID: "US-2", Email: &email, Admin: admin}, f.usersErr
+}
+
+func (f *fakeBackend) CantemoConfigured() bool { return true }
+
+func (f *fakeBackend) CantemoImport(_ context.Context, in cantemo.ImportInput) (CantemoAsset, error) {
+	f.gotImport = in
+	return CantemoAsset{ID: "AS-1", LegacyIDs: []string{in.ItemID}}, f.cantemoErr
+}
+
+func (f *fakeBackend) CantemoRefresh(_ context.Context, assetID string) (CantemoAsset, error) {
+	return CantemoAsset{ID: assetID}, f.cantemoErr
 }
 
 func call(h http.Handler, method, path, body string) *httptest.ResponseRecorder {
@@ -127,5 +141,38 @@ func TestUsers(t *testing.T) {
 	}
 	if w := call(h, http.MethodGet, "/api/users", ""); w.Code != 500 {
 		t.Fatalf("list error = %d", w.Code)
+	}
+}
+
+func TestCantemoEndpoints(t *testing.T) {
+	b := &fakeBackend{}
+	h := Handler(b)
+	if w := call(h, http.MethodGet, "/api/cantemo", ""); w.Code != 200 || !strings.Contains(w.Body.String(), `"configured":true`) {
+		t.Fatalf("status = %d %s", w.Code, w.Body)
+	}
+	w := call(h, http.MethodPost, "/api/cantemo/import", `{"itemId":"VX-1","typeId":2,"projectId":"PJ-1"}`)
+	if w.Code != 200 || b.gotImport.ItemID != "VX-1" || b.gotImport.TypeID != 2 || b.gotImport.ProjectID == nil || *b.gotImport.ProjectID != "PJ-1" {
+		t.Fatalf("import = %d %s, input %+v", w.Code, w.Body, b.gotImport)
+	}
+	if call(h, http.MethodPost, "/api/cantemo/import", `{"itemId":"VX-1","typeId":1,"projectId":""}`); b.gotImport.ProjectID != nil {
+		t.Fatalf("an empty project must mean no project, got %q", *b.gotImport.ProjectID)
+	}
+	if w := call(h, http.MethodPost, "/api/cantemo/refresh", `{"assetId":"AS-9"}`); w.Code != 200 || !strings.Contains(w.Body.String(), `"AS-9"`) {
+		t.Fatalf("refresh = %d %s", w.Code, w.Body)
+	}
+	for _, path := range []string{"/api/cantemo/import", "/api/cantemo/refresh"} {
+		if w := call(h, http.MethodPost, path, "{bad"); w.Code != 400 {
+			t.Errorf("%s bad json = %d", path, w.Code)
+		}
+		for err, code := range map[error]int{
+			domain.ErrInvalidInput: 400, domain.ErrNotFound: 404, domain.ErrConflict: 409,
+			domain.ErrUnavailable: 503, errors.New("db"): 500,
+		} {
+			b.cantemoErr = err
+			if w := call(h, http.MethodPost, path, "{}"); w.Code != code || !strings.Contains(w.Body.String(), "error") {
+				t.Errorf("%s with %v = %d, want %d", path, err, w.Code, code)
+			}
+		}
+		b.cantemoErr = nil
 	}
 }

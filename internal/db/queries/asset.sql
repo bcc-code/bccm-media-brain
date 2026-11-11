@@ -93,3 +93,13 @@ SELECT * FROM rendition WHERE version_id = ANY(@version_ids::text[]) ORDER BY ve
 -- name: ListRenditionFiles :many
 SELECT * FROM rendition_file WHERE rendition_id = ANY(@rendition_ids::text[])
 ORDER BY rendition_id, role, position, file_id;
+
+-- name: GetAssetByLegacyID :one
+SELECT * FROM asset WHERE legacy_ids @> ARRAY[@legacy_id::text] ORDER BY id LIMIT 1;
+
+-- name: SetAssetMetadataKey :one
+UPDATE asset SET metadata = jsonb_set(metadata, ARRAY[@key::text], @value::jsonb) WHERE id = @id RETURNING *;
+
+-- name: LockLegacyID :exec
+-- Serialises imports of the same legacy id until the transaction ends.
+SELECT pg_advisory_xact_lock(hashtextextended(@legacy_id::text, 0));

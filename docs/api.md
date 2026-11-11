@@ -19,6 +19,7 @@ Conventions:
 | Files | `file`, `fileByHash`, `files`, `storageLocations` | `registerFile`, `addFileCopy`, `setFileCopyStatus`, `removeFileCopy`, `deleteFile`, `create/update/deleteStorageLocation` |
 | Assets | `asset(s)`, `assetVersion`, `rendition`, `assetTypes`, `languages` | `create/update/deleteAsset`, `linkAssetToProject`, `unlinkAssetFromProject`, `create/update/deleteAssetVersion`, `create/update/deleteRendition`, `attachFile`, `detachFile` |
 | Subtitles | `subtitleTrack`, `subtitleTracks` | `importSubtitles`, `editSubtitles`, `deleteSubtitleTrack` |
+| Cantemo ([cantemo.md](cantemo.md)) | | `importFromCantemo`, `refreshFromCantemo` |
 
 ## Examples
 

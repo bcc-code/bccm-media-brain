@@ -43,7 +43,8 @@ freshly reset database. Any other user must exist (run a scenario or add one in 
 ## Administrators
 
 `app_user.is_admin` marks system administrators. They bypass grant checks and are the only ones
-who manage programs (create/delete), storage locations and files.
+who manage programs (create/delete), storage locations and files, and who import from Cantemo
+(an import registers files and may create a storage location).
 
 - First administrator: `mediabrain admin grant <email>` (`make admin-grant u=...`). The user must
   have signed in once; promoting an address nobody has proven they own would be a takeover path.
@@ -103,6 +104,15 @@ grants, and expired or revoked grants. `e2e/auth_test.go` and `internal/auth` co
 (missing, malformed, expired, wrong issuer or audience, foreign key, tampered, `alg: none`),
 untrusted proxies, inactive users and the debug bypass. `e2e/graph_test.go` fails every database
 statement of every operation in turn and requires a clean `INTERNAL` error each time.
+
+## Cantemo
+
+MediaBrain reads Cantemo with one service account (`CANTEMO_USERNAME`, `CANTEMO_PASSWORD`); it
+never writes there. Import and refresh are for administrators, so what the account can read is
+not exposed to anyone else. Three things are kept away from clients: Cantemo's address and error
+texts (logged; the client gets `UNAVAILABLE`), credentials inside Vidispine storage addresses
+(removed before the address becomes a storage location's base URI), and item ids are checked
+against `VX-<digits>` before they go into a request path.
 
 ## Not covered yet
 

@@ -18,6 +18,8 @@ var (
 	ErrConflict        = errors.New("conflict")
 	ErrForbidden       = errors.New("forbidden")
 	ErrUnauthenticated = errors.New("unauthenticated")
+	// ErrUnavailable means a system MediaBrain depends on is not configured or did not answer.
+	ErrUnavailable = errors.New("unavailable")
 )
 
 const (
@@ -31,6 +33,10 @@ func Invalid(format string, a ...any) error {
 
 func Conflict(format string, a ...any) error {
 	return fmt.Errorf("%w: %s", ErrConflict, fmt.Sprintf(format, a...))
+}
+
+func Unavailable(format string, a ...any) error {
+	return fmt.Errorf("%w: %s", ErrUnavailable, fmt.Sprintf(format, a...))
 }
 
 // FromPG maps database errors of reads, inserts and updates to domain errors.

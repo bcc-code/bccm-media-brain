@@ -10,6 +10,8 @@ enum HashAlgo {
   BLAKE3
   SHA256
   MD5
+  "What Vidispine (Cantemo) records for its files."
+  SHA1
 }
 
 enum CopyStatus {

@@ -20,6 +20,7 @@ var hashBytes = map[sqlc.HashAlgo]int{
 	sqlc.HashAlgoBlake3:  32,
 	sqlc.HashAlgoSha256:  32,
 	sqlc.HashAlgoMd5:     16,
+	sqlc.HashAlgoSha1:    20,
 }
 
 type Service struct {

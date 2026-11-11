@@ -231,6 +231,9 @@ models:
         value: github.com/bcc-media/mediabrain/internal/db/sqlc.LocationKindS3
       LOCAL:
         value: github.com/bcc-media/mediabrain/internal/db/sqlc.LocationKindLocal
+  CantemoImportInput:
+    model:
+      - github.com/bcc-media/mediabrain/internal/cantemo.ImportInput
   HashAlgo:
     model:
       - github.com/bcc-media/mediabrain/internal/db/sqlc.HashAlgo
@@ -243,6 +246,8 @@ models:
         value: github.com/bcc-media/mediabrain/internal/db/sqlc.HashAlgoSha256
       MD5:
         value: github.com/bcc-media/mediabrain/internal/db/sqlc.HashAlgoMd5
+      SHA1:
+        value: github.com/bcc-media/mediabrain/internal/db/sqlc.HashAlgoSha1
   CopyStatus:
     model:
       - github.com/bcc-media/mediabrain/internal/db/sqlc.CopyStatus

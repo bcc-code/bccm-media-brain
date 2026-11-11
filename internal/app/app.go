@@ -15,6 +15,7 @@ import (
 	"github.com/bcc-media/mediabrain/internal/access"
 	"github.com/bcc-media/mediabrain/internal/asset"
 	"github.com/bcc-media/mediabrain/internal/auth"
+	"github.com/bcc-media/mediabrain/internal/cantemo"
 	"github.com/bcc-media/mediabrain/internal/config"
 	"github.com/bcc-media/mediabrain/internal/db"
 	"github.com/bcc-media/mediabrain/internal/db/sqlc"
@@ -48,6 +49,10 @@ func New(ctx context.Context, cfg config.Config) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
+	cantemoSrc, err := cantemo.NewSource(cfg.CantemoURL, cfg.CantemoUsername, cfg.CantemoPassword)
+	if err != nil {
+		return nil, fmt.Errorf("app: CANTEMO_URL: %w", err)
+	}
 	if cfg.AutoMigrate {
 		if err := db.MigrateUp(ctx, cfg.DatabaseURL); err != nil {
 			return nil, err
@@ -71,6 +76,7 @@ func New(ctx context.Context, cfg config.Config) (*App, error) {
 		FilesSvc:     file.NewService(q, tx),
 		AssetsSvc:    asset.NewService(q, tx),
 		SubtitlesSvc: subtitle.NewService(q, tx),
+		CantemoSvc:   cantemo.NewService(q, tx, cantemoSrc),
 	}
 	opts := HandlerOptions{
 		Playground: cfg.Playground,
@@ -83,7 +89,9 @@ func New(ctx context.Context, cfg config.Config) (*App, error) {
 	}
 	if cfg.Debug {
 		slog.Warn("DEBUG enabled: /debug/ can wipe data and requests can act as any user — never enable in production")
-		opts.Debug = devdata.Handler(devdata.NewStore(pool))
+		store := devdata.NewStore(pool)
+		store.Cantemo = cantemoSrc
+		opts.Debug = devdata.Handler(store)
 	}
 	srv := &http.Server{
 		Handler:           NewHandler(resolver, pool, opts),

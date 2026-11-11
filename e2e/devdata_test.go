@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"path/filepath"
@@ -22,6 +23,7 @@ import (
 	"github.com/bcc-media/mediabrain/internal/db"
 	"github.com/bcc-media/mediabrain/internal/devdata"
 	"github.com/bcc-media/mediabrain/internal/domain"
+	"github.com/bcc-media/mediabrain/internal/fake"
 )
 
 // freshDB creates an empty, migrated database and returns its URL.
@@ -300,6 +302,33 @@ func TestDebugAPI(t *testing.T) {
 	}
 	if code := call("POST", "/debug/api/users", `{"email":" "}`, nil); code != 400 {
 		t.Fatalf("blank email = %d", code)
+	}
+
+	// Cantemo: import and refresh from the debug UI, as the system principal.
+	var status map[string]bool
+	if code := call("GET", "/debug/api/cantemo", "", &status); code != 200 || !status["configured"] {
+		t.Fatalf("cantemo status = %d %v", code, status)
+	}
+	item := cantemoItem(fake.New(11), newCantemoStorage())
+	var imported devdata.CantemoAsset
+	if code := call("POST", "/debug/api/cantemo/import", fmt.Sprintf(`{"itemId":%q,"typeId":1}`, item.ID), &imported); code != 200 ||
+		len(imported.LegacyIDs) != 1 || imported.LegacyIDs[0] != item.ID || !strings.Contains(string(imported.Metadata), item.ID) {
+		t.Fatalf("cantemo import = %d %+v", code, imported)
+	}
+	if code := call("POST", "/debug/api/cantemo/import", fmt.Sprintf(`{"itemId":%q,"typeId":1}`, item.ID), nil); code != http.StatusConflict {
+		t.Fatalf("second import = %d", code)
+	}
+	cantemo.SetField(item.ID, "title", "Changed in Cantemo")
+	var refreshed devdata.CantemoAsset
+	if code := call("POST", "/debug/api/cantemo/refresh", fmt.Sprintf(`{"assetId":%q}`, imported.ID), &refreshed); code != 200 ||
+		refreshed.Title != imported.Title || !strings.Contains(string(refreshed.Metadata), "Changed in Cantemo") {
+		t.Fatalf("cantemo refresh = %d %+v", code, refreshed)
+	}
+	if code := call("POST", "/debug/api/cantemo/import", `{"itemId":"nope","typeId":1}`, nil); code != 400 {
+		t.Fatalf("bad item id = %d", code)
+	}
+	if code := call("POST", "/debug/api/cantemo/refresh", `{"assetId":"AS-01ARZ3NDEKTSV4RRFFQ69G5FAV"}`, nil); code != 404 {
+		t.Fatalf("refresh of unknown asset = %d", code)
 	}
 
 	if code := call("POST", "/debug/api/scenarios/catalog", `{"params":{"assets":"-1"}}`, nil); code != 400 {

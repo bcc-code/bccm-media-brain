@@ -42,6 +42,7 @@ type Querier interface {
 	FileLevels(ctx context.Context, arg FileLevelsParams) ([]FileLevelsRow, error)
 	FindSubtitleRendition(ctx context.Context, arg FindSubtitleRenditionParams) (Rendition, error)
 	GetAsset(ctx context.Context, id string) (Asset, error)
+	GetAssetByLegacyID(ctx context.Context, legacyID string) (Asset, error)
 	GetAssetType(ctx context.Context, id int16) (AssetType, error)
 	GetAssetVersion(ctx context.Context, id string) (AssetVersion, error)
 	GetFile(ctx context.Context, id string) (File, error)
@@ -56,6 +57,7 @@ type Querier interface {
 	GetProject(ctx context.Context, id string) (Project, error)
 	GetRendition(ctx context.Context, id string) (GetRenditionRow, error)
 	GetStorageLocation(ctx context.Context, id string) (StorageLocation, error)
+	GetStorageLocationByName(ctx context.Context, name string) (StorageLocation, error)
 	GetStorageLocations(ctx context.Context, ids []string) ([]StorageLocation, error)
 	GetSubtitleTrack(ctx context.Context, id string) (SubtitleTrack, error)
 	GetUser(ctx context.Context, id string) (AppUser, error)
@@ -86,9 +88,12 @@ type Querier interface {
 	ListUserGroups(ctx context.Context) ([]UserGroup, error)
 	ListUsers(ctx context.Context, arg ListUsersParams) ([]AppUser, error)
 	ListVisibleProjects(ctx context.Context, arg ListVisibleProjectsParams) ([]Project, error)
+	// Serialises imports of the same legacy id until the transaction ends.
+	LockLegacyID(ctx context.Context, legacyID string) error
 	ProgramSeenViaProject(ctx context.Context, arg ProgramSeenViaProjectParams) (bool, error)
 	RemoveSSOMemberships(ctx context.Context, arg RemoveSSOMembershipsParams) error
 	ScopeLevel(ctx context.Context, arg ScopeLevelParams) (PermissionLevel, error)
+	SetAssetMetadataKey(ctx context.Context, arg SetAssetMetadataKeyParams) (Asset, error)
 	SetFileCopyStatus(ctx context.Context, arg SetFileCopyStatusParams) (FileCopy, error)
 	SetUserAdmin(ctx context.Context, arg SetUserAdminParams) (AppUser, error)
 	UnlinkAssetProject(ctx context.Context, arg UnlinkAssetProjectParams) (int64, error)

@@ -150,6 +150,8 @@ func TestAdminOnlyOperations(t *testing.T) {
 		"list users":      {`{ users { id email } }`, nil},
 		"list groups":     {`{ userGroups { id } }`, nil},
 		"make admin":      {`mutation($u: String!) { setUserAdmin(user: $u, admin: true) { id } }`, map[string]any{"u": editor.id}},
+		"cantemo import":  {importFromCantemo, map[string]any{"in": map[string]any{"itemId": cantemoItem(w.f, newCantemoStorage()).ID, "typeId": 1, "projectId": w.projectA}}},
+		"cantemo refresh": {refreshFromCantemo, map[string]any{"id": w.c1.asset}},
 	} {
 		t.Run(name, func(t *testing.T) { editor.fails(t, "FORBIDDEN", c.query, c.vars) })
 	}

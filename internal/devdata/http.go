@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/bcc-media/mediabrain/internal/cantemo"
 	"github.com/bcc-media/mediabrain/internal/domain"
 )
 
@@ -20,6 +21,9 @@ type Backend interface {
 	Stats(ctx context.Context) ([]TableStat, error)
 	Users(ctx context.Context) ([]User, error)
 	CreateUser(ctx context.Context, email string, admin bool) (User, error)
+	CantemoConfigured() bool
+	CantemoImport(ctx context.Context, in cantemo.ImportInput) (CantemoAsset, error)
+	CantemoRefresh(ctx context.Context, assetID string) (CantemoAsset, error)
 }
 
 // Handler serves the debug UI and its JSON API. Mount it with
@@ -32,6 +36,9 @@ type Backend interface {
 //	POST /api/reset              truncate all tables
 //	GET  /api/users              users to act as
 //	POST /api/users              create a user (body: {"email": ..., "admin": ...})
+//	GET  /api/cantemo            whether Cantemo is configured
+//	POST /api/cantemo/import     import one item (body: {"itemId": ..., "typeId": ..., "projectId": ...})
+//	POST /api/cantemo/refresh    refresh an imported asset (body: {"assetId": ...})
 func Handler(b Backend) http.Handler {
 	mux := http.NewServeMux()
 
@@ -112,7 +119,59 @@ func Handler(b Backend) http.Handler {
 		}
 	})
 
+	mux.HandleFunc("GET /api/cantemo", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]bool{"configured": b.CantemoConfigured()})
+	})
+
+	mux.HandleFunc("POST /api/cantemo/import", func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			ItemID    string `json:"itemId"`
+			TypeID    int16  `json:"typeId"`
+			ProjectID string `json:"projectId"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeErr(w, http.StatusBadRequest, err)
+			return
+		}
+		in := cantemo.ImportInput{ItemID: req.ItemID, TypeID: req.TypeID}
+		if req.ProjectID != "" {
+			in.ProjectID = &req.ProjectID
+		}
+		a, err := b.CantemoImport(r.Context(), in)
+		writeResult(w, a, err)
+	})
+
+	mux.HandleFunc("POST /api/cantemo/refresh", func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			AssetID string `json:"assetId"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeErr(w, http.StatusBadRequest, err)
+			return
+		}
+		a, err := b.CantemoRefresh(r.Context(), req.AssetID)
+		writeResult(w, a, err)
+	})
+
 	return mux
+}
+
+// writeResult answers with v, or with the status that fits a domain error.
+func writeResult(w http.ResponseWriter, v any, err error) {
+	switch {
+	case err == nil:
+		writeJSON(w, http.StatusOK, v)
+	case errors.Is(err, domain.ErrInvalidInput):
+		writeErr(w, http.StatusBadRequest, err)
+	case errors.Is(err, domain.ErrNotFound):
+		writeErr(w, http.StatusNotFound, err)
+	case errors.Is(err, domain.ErrConflict):
+		writeErr(w, http.StatusConflict, err)
+	case errors.Is(err, domain.ErrUnavailable):
+		writeErr(w, http.StatusServiceUnavailable, err)
+	default:
+		writeErr(w, http.StatusInternalServerError, err)
+	}
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
