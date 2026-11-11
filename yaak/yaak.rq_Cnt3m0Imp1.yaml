@@ -1,0 +1,55 @@
+type: http_request
+model: http_request
+id: rq_Cnt3m0Imp1
+createdAt: 2026-11-11T10:00:00
+updatedAt: 2026-11-11T10:00:00
+workspaceId: wk_tPlK1TUEUQ
+folderId: fl_Cnt3m0Imp7
+authentication: {}
+authenticationType: null
+body:
+  query: |
+    mutation($in: CantemoImportInput!) {
+      importFromCantemo(input: $in) {
+        id title legacyIds metadata
+        versions { label renditions { kind files { role file { sizeBytes codec hashes { algo value } copies { path location { name baseUri } } } } } }
+      }
+    }
+  variables: |-
+    {
+      "in": {
+        "itemId": "${[ cantemo_item_id ]}",
+        "typeId": 1,
+        "projectId": "${[ project_id ]}"
+      }
+    }
+bodyType: graphql
+description: Needs CANTEMO_URL, CANTEMO_USERNAME and CANTEMO_PASSWORD on the server. An item can be imported once. Leave projectId out to keep the asset visible to administrators only. Put the returned id into asset_id.
+headers:
+- enabled: true
+  name: Content-Type
+  value: application/json
+  id: Zx5cV6bNm7
+method: POST
+name: Import from Cantemo (admin)
+sortPriority: 1000.0
+url: ${[ base_url ]}/query
+urlParameters: []
+settingSendCookies:
+  enabled: false
+  value: true
+settingStoreCookies:
+  enabled: false
+  value: true
+settingValidateCertificates:
+  enabled: false
+  value: true
+settingFollowRedirects:
+  enabled: false
+  value: true
+settingRequestTimeout:
+  enabled: false
+  value: 0
+settingHttpVersion:
+  enabled: false
+  value: auto

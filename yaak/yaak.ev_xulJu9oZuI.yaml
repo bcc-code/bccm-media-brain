@@ -3,7 +3,7 @@ model: environment
 id: ev_xulJu9oZuI
 workspaceId: wk_tPlK1TUEUQ
 createdAt: 2026-11-10T23:30:00
-updatedAt: 2026-11-10T23:30:00
+updatedAt: 2026-11-11T13:29:46.441714
 name: Global Variables
 public: true
 base: true
@@ -44,7 +44,7 @@ variables:
   id: dL5sLb1Nub
 - enabled: true
   name: asset_id
-  value: ''
+  value: AS-01M75CQRGD3MHAR0KMTZV5QV2F
   id: 4CmWpWODy3
 - enabled: true
   name: version_id
