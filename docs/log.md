@@ -2,6 +2,21 @@
 
 Newest first. Each entry: what changed, why, and what was left out on purpose.
 
+## 2026-11-12 — Audit records name the request and the client
+
+- An audit record said who changed what, but not with which request or from where, and the
+  request log's `remote` is the proxy (system review, finding SEC-08). Every request now has
+  an id, returned as `X-Request-Id` and written as `request` on its request line and on the
+  audit records and refusals it causes, with `client`, the address it came from. The request
+  line of `/query` also names the `user` and `token`.
+- New setting `AUTH_CLIENT_HEADER`: the header in which the proxy reports its client. Read
+  only from a trusted proxy, only recorded. Unset, `client` is the peer.
+- The id is made here and one sent by the caller is ignored: a caller could otherwise reuse an
+  id to blur which request did what.
+- Left out, by decision: logging `NOT_FOUND` answers. Trying ids one has no access to stays
+  invisible in the log. Also left out: an append-only store for audit lines; the log remains
+  the only copy.
+
 ## 2026-11-11 — A pool size chosen on purpose, and nothing waits without end
 
 - The pool was pgx's default, the CPU count and at least 4, while one GraphQL request runs

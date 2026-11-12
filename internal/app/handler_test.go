@@ -189,5 +189,23 @@ func TestRequestLogging(t *testing.T) {
 		if m["level"] != want[i].level || m["status"] != want[i].status || m["msg"] != "http request" {
 			t.Errorf("line %d = %v", i, m)
 		}
+		if id, _ := m["request"].(string); len(id) != 16 || m["user"] != nil || m["client"] != nil {
+			t.Errorf("line %d: request %v, user %v, client %v", i, m["request"], m["user"], m["client"])
+		}
+	}
+
+	// What sign-in learns about the request is on its log line, under the id the client got.
+	buf.Reset()
+	signedIn := logRequests(log, http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		o := access.OriginOf(r.Context())
+		o.Client, o.User, o.Token = "203.0.113.9", "US-1", "TK-1"
+	}))
+	rec := do(t, signedIn, http.MethodPost, "/query", "")
+	var m map[string]any
+	if err := json.Unmarshal(buf.Bytes(), &m); err != nil {
+		t.Fatal(err)
+	}
+	if id := rec.Header().Get("X-Request-Id"); id == "" || m["request"] != id || m["client"] != "203.0.113.9" || m["user"] != "US-1" || m["token"] != "TK-1" {
+		t.Errorf("header %q, line %v", id, m)
 	}
 }

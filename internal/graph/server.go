@@ -48,10 +48,11 @@ func NewServer(r *Resolver, introspection bool) *handler.Server {
 // caller is who a refusal is logged about, named the way access.Audited names who made a change.
 func caller(ctx context.Context) []any {
 	p, _ := access.From(ctx)
+	who := []any{"user", p.UserID}
 	if p.TokenID != "" {
-		return []any{"user", p.UserID, "token", p.TokenID}
+		who = append(who, "token", p.TokenID)
 	}
-	return []any{"user", p.UserID}
+	return append(who, access.OriginAttrs(ctx)...)
 }
 
 // presentError gives every error a code. Domain errors have their own, with the detail a client

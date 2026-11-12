@@ -168,3 +168,29 @@ func TestAudited(t *testing.T) {
 		t.Fatal("dropped or muted records were written")
 	}
 }
+
+func TestOriginInAuditRecords(t *testing.T) {
+	var buf bytes.Buffer
+	old := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, nil)))
+	defer slog.SetDefault(old)
+
+	ctx := With(context.Background(), Principal{UserID: "US-1"})
+	if OriginOf(ctx) != nil || OriginAttrs(ctx) != nil {
+		t.Fatal("no origin outside a request")
+	}
+	_ = Audited(ctx, nil, "asset.update", "AS-1")
+	if strings.Contains(buf.String(), "request=") || strings.Contains(buf.String(), "client=") {
+		t.Fatalf("a change made outside a request names one: %s", buf.String())
+	}
+
+	buf.Reset()
+	ctx = WithOrigin(ctx, &Origin{RequestID: "abc123", Client: "203.0.113.9"})
+	_ = Audited(ctx, nil, "asset.update", "AS-1", "title", true)
+	if got := buf.String(); !strings.Contains(got, "target=AS-1 title=true request=abc123 client=203.0.113.9") {
+		t.Fatalf("audit record = %s", got)
+	}
+	if got := OriginAttrs(WithOrigin(ctx, &Origin{})); len(got) != 0 {
+		t.Fatalf("an empty origin gives %v", got)
+	}
+}

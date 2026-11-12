@@ -178,7 +178,7 @@ need no updates. The one exception: reference tables that a migration seeds (`as
 - Config goes through `internal/config` (env + `.env`). Add new settings there, in
   `.env.example`, and in this file. Current settings: `DATABASE_URL`, `HTTP_ADDR`, `AUTO_MIGRATE`,
   `GRAPHQL_PLAYGROUND`, `DEBUG`, `DEBUG_USER`, `DEBUG_ALLOW_REMOTE`, `LOG_FORMAT`, `LOG_LEVEL`, and for sign-in `AUTH_ISSUER`,
-  `AUTH_AUDIENCE`, `AUTH_JWKS_URL`, `AUTH_TRUSTED_PROXIES`, `AUTH_HEADER`, `AUTH_SERVICE_HEADER`, `AUTH_GROUPS_CLAIM`, and for
+  `AUTH_AUDIENCE`, `AUTH_JWKS_URL`, `AUTH_TRUSTED_PROXIES`, `AUTH_HEADER`, `AUTH_SERVICE_HEADER`, `AUTH_CLIENT_HEADER`, `AUTH_GROUPS_CLAIM`, and for
   the Vidispine import `VIDISPINE_URL`, `VIDISPINE_USERNAME`, `VIDISPINE_PASSWORD` (optional, all or none).
 - **Security is not optional.** Every query and mutation is authenticated and checks permissions
   in its domain service. Reading something without access must look exactly like "not found".

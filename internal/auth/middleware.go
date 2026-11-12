@@ -41,7 +41,10 @@ type Users interface {
 type Options struct {
 	Header string
 	// ServiceHeader is where machine clients send their service token. Empty: only Header.
-	ServiceHeader  string
+	ServiceHeader string
+	// ClientHeader is the header in which the proxy reports the address of its client. It is
+	// read only from a trusted proxy and only recorded. Empty: the peer's address is recorded.
+	ClientHeader   string
 	TrustedProxies []netip.Prefix
 	Verifier       Verifier // nil: only the debug bypass can authenticate
 	Users          Users
@@ -91,10 +94,36 @@ func Middleware(opts Options, next http.Handler) http.Handler {
 	return &middleware{Options: opts, next: next, now: time.Now, cache: map[[sha256.Size]byte]cached{}}
 }
 
+// maxClientLen bounds what a proxy's client header may add to every log line of a request.
+const maxClientLen = 128
+
+// client is where the request came from, for the logs: what a trusted proxy reports in
+// ClientHeader, otherwise the peer. A header from anyone else would let a caller choose what
+// the audit log says about them.
+func (m *middleware) client(r *http.Request) string {
+	if m.ClientHeader != "" && m.trusted(r.RemoteAddr) {
+		if v := strings.TrimSpace(r.Header.Get(m.ClientHeader)); v != "" {
+			if len(v) > maxClientLen {
+				v = v[:maxClientLen]
+			}
+			return v
+		}
+	}
+	if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
+		return host
+	}
+	return r.RemoteAddr
+}
+
 func (m *middleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	origin := access.OriginOf(r.Context())
+	if origin != nil {
+		origin.Client = m.client(r)
+	}
 	p, status, err := m.authenticate(r)
 	if err != nil {
-		slog.WarnContext(r.Context(), "auth: request refused", "status", status, "reason", err.Error(), "remote", r.RemoteAddr)
+		slog.WarnContext(r.Context(), "auth: request refused", append([]any{"status", status, "reason", err.Error(), "remote", r.RemoteAddr},
+			access.OriginAttrs(r.Context())...)...)
 		code := "UNAUTHENTICATED"
 		if status == http.StatusForbidden {
 			code = "FORBIDDEN"
@@ -105,6 +134,9 @@ func (m *middleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			"message": strings.ToLower(http.StatusText(status)), "extensions": map[string]string{"code": code},
 		}}})
 		return
+	}
+	if origin != nil {
+		origin.User, origin.Token = p.UserID, p.TokenID
 	}
 	m.next.ServeHTTP(w, r.WithContext(access.With(r.Context(), p)))
 }

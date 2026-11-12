@@ -443,6 +443,46 @@ func auditLog(t *testing.T) func() []map[string]any {
 	}
 }
 
+// An audit record made through the API names the request and the client: the same id the
+// caller got in X-Request-Id and the address the proxy reported.
+func TestAuditLogNamesRequestAndClient(t *testing.T) {
+	w := newWorld(t, 136)
+	viewer := signIn(t)
+	grant(t, w.admin, "ASSET", w.c1.asset, "VIEW", map[string]any{"userId": viewer.id})
+	lines := auditLog(t)
+	send := func(u user, client string) string {
+		t.Helper()
+		body, _ := json.Marshal(map[string]any{"query": updateAsset,
+			"variables": map[string]any{"id": w.c1.asset, "in": map[string]any{"typeId": 1, "title": "Named"}}})
+		req, _ := http.NewRequest(http.MethodPost, baseURL+"/query", bytes.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer "+u.token)
+		if client != "" {
+			req.Header.Set("X-Forwarded-For", client)
+		}
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		res.Body.Close()
+		id := res.Header.Get("X-Request-Id")
+		if id == "" {
+			t.Fatal("the answer has no X-Request-Id")
+		}
+		return id
+	}
+
+	changed := send(w.admin, "203.0.113.9")
+	denied := send(viewer, "")
+	want := []map[string]any{
+		{"msg": "audit: change", "action": "asset.update", "user": w.admin.id, "target": w.c1.asset, "request": changed, "client": "203.0.113.9"},
+		{"msg": "audit: denied", "user": viewer.id, "path": "updateAsset", "request": denied, "client": "127.0.0.1"},
+	}
+	if got := lines(); !reflect.DeepEqual(got, want) || changed == denied {
+		t.Fatalf("audit log = %v, want %v", got, want)
+	}
+}
+
 // TestAuditLog checks that the log says what was changed, by whom and with which details, only
 // once it has happened, and that refusals are logged apart from changes.
 func TestAuditLog(t *testing.T) {

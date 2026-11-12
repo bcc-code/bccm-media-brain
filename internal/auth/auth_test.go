@@ -313,3 +313,39 @@ func TestParseProxiesRejects(t *testing.T) {
 		t.Fatalf("empty list = %v, %v", got, err)
 	}
 }
+
+// The audit log names the client. Only a trusted proxy may say who that is: anyone else would
+// be choosing what the log says about them.
+func TestMiddlewareRecordsTheClient(t *testing.T) {
+	proxies, _ := ParseProxies("10.0.0.0/8")
+	const svc = "US-svc:mbs_abc"
+	long := strings.Repeat("9", 300)
+	for name, c := range map[string]struct {
+		header, remote, sent string
+		debug                bool
+		want                 string
+		user                 string
+	}{
+		"the proxy's word":        {"X-Real-IP", "10.1.2.3:555", "203.0.113.9", false, "203.0.113.9", svc},
+		"no header configured":    {"", "10.1.2.3:555", "203.0.113.9", false, "10.1.2.3", svc},
+		"the proxy sent nothing":  {"X-Real-IP", "10.1.2.3:555", "", false, "10.1.2.3", svc},
+		"a header of any length":  {"X-Real-IP", "10.1.2.3:555", long, false, long[:128], svc},
+		"a peer that is no proxy": {"X-Real-IP", "192.0.2.7:555", "203.0.113.9", true, "192.0.2.7", svc},
+		"a refused request":       {"X-Real-IP", "192.0.2.7:555", "203.0.113.9", false, "192.0.2.7", ""},
+		"a peer without a port":   {"", "10.1.2.3", "", false, "10.1.2.3", svc},
+	} {
+		origin := &access.Origin{RequestID: "r1"}
+		h := Middleware(Options{Header: "Authorization", ClientHeader: c.header, TrustedProxies: proxies, Users: &fakeUsers{}, Debug: c.debug},
+			http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+		req := httptest.NewRequest(http.MethodPost, "/query", nil)
+		req.RemoteAddr = c.remote
+		req.Header.Set("Authorization", "mbs_abc")
+		if c.sent != "" {
+			req.Header.Set("X-Real-IP", c.sent)
+		}
+		h.ServeHTTP(httptest.NewRecorder(), req.WithContext(access.WithOrigin(req.Context(), origin)))
+		if origin.Client != c.want || origin.User != c.user || origin.RequestID != "r1" {
+			t.Errorf("%s: client %q, user %q; want %q, %q", name, origin.Client, origin.User, c.want, c.user)
+		}
+	}
+}

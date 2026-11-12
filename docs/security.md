@@ -197,8 +197,20 @@ to every caller. Dev-data scenarios and the CLI run as an explicit system princi
     record. Metadata, titles and token values are never logged.
   - `audit: denied` for every `FORBIDDEN` answer of the API, with the user and the operation.
   - Refused sign-ins are logged with the reason.
-  - Not recorded: reads, sign-ins that create or update a user, the sweeper, and data generated
-    by dev-data scenarios. The log is the only store; there is no audit table.
+  - **Which request, from where.** Every HTTP request gets an id: the `X-Request-Id` response
+    header, `request` on its `http request` line and on every `audit: change`,
+    `audit: denied` and refused sign-in it causes. Those records also carry `client`, the
+    address the request came from, and the `http request` line of `/query` adds `user` and
+    `token`. `client` is what the proxy reports in `AUTH_CLIENT_HEADER`, read only when the
+    peer is a trusted proxy and cut at 128 characters; without the setting, or without the
+    header, it is the peer's own address, which behind a proxy is the proxy. It is recorded
+    and never decides anything. Set the header only if the proxy overwrites it: a proxy that
+    passes a client's `X-Forwarded-For` along lets the client write its own audit trail.
+    Changes made outside a request (command line, sweeper) have neither field.
+  - Not recorded: reads, sign-ins that create or update a user, the sweeper, data generated
+    by dev-data scenarios, and attempts on objects the caller cannot see: those answer
+    `NOT_FOUND` like any wrong id, by decision (system review, finding SEC-08). The log is
+    the only store; there is no audit table.
 
 ## How this is tested
 

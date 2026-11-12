@@ -41,7 +41,7 @@ func TestMain(m *testing.M) { os.Exit(run(m)) }
 func appConfig() config.Config {
 	return config.Config{
 		DatabaseURL: dbURL, HTTPAddr: "127.0.0.1:0", AutoMigrate: true, Playground: true, Debug: true,
-		AuthHeader: "Authorization", AuthGroupsClaim: "groups", AuthTrustedProxies: "127.0.0.1",
+		AuthHeader: "Authorization", AuthGroupsClaim: "groups", AuthTrustedProxies: "127.0.0.1", AuthClientHeader: "X-Forwarded-For",
 		AuthIssuer: issuer.URL, AuthAudience: authtest.Audience, AuthJWKSURL: issuer.JWKSURL,
 		VidispineURL: vsServer.URL, VidispineUsername: vidispinetest.Username, VidispinePassword: vidispinetest.Password,
 	}
