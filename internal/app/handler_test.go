@@ -90,7 +90,7 @@ func TestQueryEndpoint(t *testing.T) {
 	if rec := query(h, `{"query":"{ ping }"}`, false); rec.Code != http.StatusUnauthorized || !strings.Contains(rec.Body.String(), "UNAUTHENTICATED") {
 		t.Fatalf("anonymous = %d %s", rec.Code, rec.Body)
 	}
-	if rec := query(h, `{"query":"{ __schema { types { name } } }"}`, true); !strings.Contains(rec.Body.String(), "introspection disabled") {
+	if rec := query(h, `{"query":"{ __schema { types { name } } }"}`, true); !strings.Contains(rec.Body.String(), "introspection disabled") || !strings.Contains(rec.Body.String(), `"code":"INTROSPECTION_DISABLED"`) {
 		t.Fatalf("introspection without playground = %s", rec.Body)
 	}
 	huge := `{"query":"{ ping }","variables":{"x":"` + strings.Repeat("a", maxBody) + `"}}`

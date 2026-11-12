@@ -54,7 +54,7 @@ func (s *Service) Create(ctx context.Context, in Input, projectID *string) (sqlc
 		return sqlc.Asset{}, err
 	}
 	if projectID == nil && !p.Admin {
-		return sqlc.Asset{}, domain.Invalid("projectId is required")
+		return sqlc.Asset{}, domain.InvalidField("projectId", "projectId is required")
 	}
 	if err := in.validate(); err != nil {
 		return sqlc.Asset{}, err
@@ -175,7 +175,7 @@ func (s *Service) Delete(ctx context.Context, id string) error {
 
 func (s *Service) Link(ctx context.Context, assetID, projectID string, role sqlc.LinkRole) (sqlc.AssetProject, error) {
 	if !role.Valid() {
-		return sqlc.AssetProject{}, domain.Invalid("unknown role")
+		return sqlc.AssetProject{}, domain.InvalidField("role", "unknown role")
 	}
 	var link sqlc.AssetProject
 	err := s.tx.InTx(ctx, func(q sqlc.Querier) error {
@@ -224,7 +224,7 @@ func (in VersionInput) status() (sqlc.VersionStatus, error) {
 		return sqlc.VersionStatusDraft, nil
 	}
 	if !in.Status.Valid() {
-		return "", domain.Invalid("unknown status")
+		return "", domain.InvalidField("status", "unknown status")
 	}
 	return *in.Status, nil
 }
@@ -311,7 +311,7 @@ func (s *Service) CreateRendition(ctx context.Context, versionID string, in Rend
 		return sqlc.Rendition{}, err
 	}
 	if !in.Kind.Valid() {
-		return sqlc.Rendition{}, domain.Invalid("unknown kind")
+		return sqlc.Rendition{}, domain.InvalidField("kind", "unknown kind")
 	}
 	if err := in.validate(); err != nil {
 		return sqlc.Rendition{}, err
@@ -372,7 +372,7 @@ func (s *Service) AttachFile(ctx context.Context, renditionID, fileID string, ro
 		return sqlc.RenditionFile{}, err
 	}
 	if !role.Valid() {
-		return sqlc.RenditionFile{}, domain.Invalid("unknown role")
+		return sqlc.RenditionFile{}, domain.InvalidField("role", "unknown role")
 	}
 	if err := access.RequireFileReuse(ctx, s.q, fileID); err != nil {
 		return sqlc.RenditionFile{}, err

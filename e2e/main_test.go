@@ -101,7 +101,10 @@ type gqlError struct {
 	Message    string `json:"message"`
 	Path       []any  `json:"path"`
 	Extensions struct {
-		Code string `json:"code"`
+		Code            string `json:"code"`
+		Reason          string `json:"reason"`
+		Field           string `json:"field"`
+		CurrentRevision *int   `json:"currentRevision"`
 	} `json:"extensions"`
 }
 

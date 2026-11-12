@@ -27,7 +27,9 @@ Conventions:
   fields. Pass the revision you read as `expectedRevision`: when someone else changed the object
   since, the update is refused with `CONFLICT` and nothing changes. Without `expectedRevision`
   the last write wins. Subtitle tracks have their own revisions (`editSubtitles`).
-- Errors carry `extensions.code` ([architecture.md](architecture.md#errors)).
+- Every error carries `extensions.code`; a conflict also says which kind (`reason`, and
+  `currentRevision` for a stale one) and an invalid input which `field`
+  ([architecture.md](architecture.md#errors)).
 - Scalars: `Time` (RFC 3339), `Date` (`YYYY-MM-DD`), `JSON`, `Int64`.
 
 | Area | Queries | Mutations |

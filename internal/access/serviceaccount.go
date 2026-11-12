@@ -32,7 +32,7 @@ func (s *Service) CreateServiceAccount(ctx context.Context, in ServiceAccountInp
 	}
 	// A name that looks like an id would be read as one wherever an id or name is accepted.
 	if strings.HasPrefix(name, "US-") {
-		return sqlc.AppUser{}, domain.Invalid("name must not start with US-")
+		return sqlc.AppUser{}, domain.InvalidField("name", "name must not start with US-")
 	}
 	u, err := s.q.CreateServiceAccount(ctx, sqlc.CreateServiceAccountParams{
 		ExternalID: serviceSubject + name, Name: name, IsAdmin: in.Admin,
@@ -105,7 +105,7 @@ func (s *Service) CreateServiceToken(ctx context.Context, in ServiceTokenInput) 
 	expires := time.Now().Add(defaultTokenTTL)
 	if in.ExpiresAt != nil {
 		if expires = *in.ExpiresAt; !expires.After(time.Now()) {
-			return NewServiceToken{}, domain.Invalid("expiresAt must be in the future")
+			return NewServiceToken{}, domain.InvalidField("expiresAt", "expiresAt must be in the future")
 		}
 	}
 	u, err := s.serviceAccount(ctx, in.ServiceAccount)

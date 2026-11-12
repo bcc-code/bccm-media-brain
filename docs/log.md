@@ -2,6 +2,26 @@
 
 Newest first. Each entry: what changed, why, and what was left out on purpose.
 
+## 2026-11-11 — Every error has a code, and says what a client acts on
+
+- **Code.** A `Date` or `Time` that could not be read answered with a message and no
+  `extensions` at all, against what `api.md` promised (system review, finding GQL-05). The
+  scalars now return `INVALID_INPUT` (`Time` is gqlgen's own, wrapped). The presenter answers
+  `INTERNAL`, and logs the cause, for anything else that arrives without a code, so the
+  promise no longer depends on each error's origin. gqlgen's three codes for a request that
+  never reaches a service are in the error table.
+- **Detail.** `CONFLICT` meant a stale revision, a value already taken, a delete blocked by
+  references or a superseded subtitle revision, told apart only by the English message; an
+  `INVALID_INPUT` did not name the field (finding GQL-06). `extensions` now has `reason`
+  (`STALE_REVISION`, `ALREADY_EXISTS`, `IN_USE`), `currentRevision` for the stale case and
+  `field`. They ride on a typed domain error (`domain.Detail`), not on the message, and the
+  codes are unchanged, so nothing a client relied on moved.
+- A reference to something that does not exist names its field from the foreign key's name
+  (`asset_type_id_fkey` on `asset` is `typeId`): the API names fields after columns.
+- Left out: the field behind `ALREADY_EXISTS` (a unique constraint can span columns, and its
+  name does not say which input was the taken one); a `field` for errors about several fields
+  or about subtitle content; the conflicts of file registration, which stay without a reason.
+
 ## 2026-11-11 — Origin columns named for what they hold, copies know their age
 
 - `asset_project.linked_by` and `asset_group_member.added_by` held an origin (folder or manual;

@@ -43,6 +43,28 @@ Services return the values in `internal/domain`. The GraphQL layer turns them in
 | `TIMEOUT` | The request ran for 30 seconds and was stopped; a mutation changed nothing. Ask for less |
 | `INTERNAL` | Anything unexpected. The cause is logged, never sent |
 
+A request that never reaches a service is refused by gqlgen with its own codes, and HTTP 422:
+
+| Code | Meaning |
+|---|---|
+| `GRAPHQL_PARSE_FAILED` | The document is not GraphQL |
+| `GRAPHQL_VALIDATION_FAILED` | Unknown field or argument, or a value of the wrong type |
+| `COMPLEXITY_LIMIT_EXCEEDED` | The query costs more than the limit (see "Limits on a query") |
+| `INTROSPECTION_DISABLED` | `__schema` or `__type` where `GRAPHQL_PLAYGROUND` is off (HTTP 200: this one is refused while the query runs) |
+
+Every error has a code: `presentError` answers `INTERNAL` for anything that arrives without
+one. The custom scalars (`Date`, `Time`) return domain errors for that reason; a new scalar
+must too.
+
+Beside the code, `extensions` carries what a client acts on, so that it never parses the
+message (`domain.Detail`):
+
+| Key | When | Meaning |
+|---|---|---|
+| `reason` | `CONFLICT` | `STALE_REVISION` (reload and merge), `ALREADY_EXISTS` (a unique value is taken), `IN_USE` (a delete is blocked by what refers to the object). Absent for the conflicts that are none of these, such as a file whose hashes disagree |
+| `currentRevision` | `reason` is `STALE_REVISION` | The revision the object, or the subtitle track's chain, is at now |
+| `field` | `INVALID_INPUT` | The input field or argument that is wrong, where one field is: a required or malformed value, an unknown enum value, a reference to something that does not exist (taken from the foreign key's name) |
+
 Lookups by id (`asset(id:)`, `file(id:)`, ...) return `null` instead of `NOT_FOUND`.
 Database constraint violations are mapped in `domain.FromPG`, so the database stays the final
 judge of uniqueness and references without leaking its messages.

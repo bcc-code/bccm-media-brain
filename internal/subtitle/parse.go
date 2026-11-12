@@ -49,7 +49,7 @@ func toMs(h, m, s, ms string) (int64, bool) {
 // Parse reads SRT or WebVTT text into cues, ordered by start time.
 func Parse(format Format, content string) ([]Cue, error) {
 	if format != SRT && format != VTT {
-		return nil, domain.Invalid("format must be SRT or VTT")
+		return nil, domain.InvalidField("format", "format must be SRT or VTT")
 	}
 	if len(content) > MaxContentBytes {
 		return nil, domain.Invalid("subtitle content is larger than %d MB", MaxContentBytes>>20)
@@ -154,7 +154,7 @@ func Render(format Format, cues []Cue) (string, error) {
 			fmt.Fprintf(&b, "%s --> %s\n%s\n\n", stamp(c.StartMs, "."), stamp(c.EndMs, "."), text)
 		}
 	default:
-		return "", domain.Invalid("format must be SRT or VTT")
+		return "", domain.InvalidField("format", "format must be SRT or VTT")
 	}
 	return b.String(), nil
 }

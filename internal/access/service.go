@@ -279,7 +279,7 @@ func (s *Service) Grant(ctx context.Context, in GrantInput) (sqlc.PermissionGran
 		return sqlc.PermissionGrant{}, err
 	}
 	if _, ok := rank[in.Level]; !ok {
-		return sqlc.PermissionGrant{}, domain.Invalid("unknown level")
+		return sqlc.PermissionGrant{}, domain.InvalidField("level", "unknown level")
 	}
 	targets := 0
 	for _, t := range []*string{in.UserID, in.UserEmail, in.GroupID} {
@@ -291,7 +291,7 @@ func (s *Service) Grant(ctx context.Context, in GrantInput) (sqlc.PermissionGran
 		return sqlc.PermissionGrant{}, domain.Invalid("give exactly one of userId, userEmail or groupId")
 	}
 	if in.ExpiresAt != nil && !in.ExpiresAt.After(time.Now()) {
-		return sqlc.PermissionGrant{}, domain.Invalid("expiresAt must be in the future")
+		return sqlc.PermissionGrant{}, domain.InvalidField("expiresAt", "expiresAt must be in the future")
 	}
 	var g sqlc.PermissionGrant
 	err = s.tx.InTx(ctx, func(q sqlc.Querier) error {

@@ -105,7 +105,7 @@ func (s *Service) Import(ctx context.Context, in ImportInput) (sqlc.Asset, error
 	}
 	itemID := strings.TrimSpace(in.ItemID)
 	if !itemIDPattern.MatchString(itemID) {
-		return sqlc.Asset{}, domain.Invalid("itemId must look like VX-123")
+		return sqlc.Asset{}, domain.InvalidField("itemId", "itemId must look like VX-123")
 	}
 
 	// Everything is read from Vidispine before the transaction starts, so that no database
@@ -146,7 +146,7 @@ func (s *Service) Import(ctx context.Context, in ImportInput) (sqlc.Asset, error
 		}
 		existing, err := q.GetAssetByLegacyID(ctx, itemID)
 		if err == nil {
-			return domain.Conflict("%s is already imported as %s", itemID, existing.ID)
+			return domain.Exists("%s is already imported as %s", itemID, existing.ID)
 		}
 		if !errors.Is(domain.FromPG(err), domain.ErrNotFound) {
 			return err

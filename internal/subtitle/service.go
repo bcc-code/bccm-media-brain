@@ -43,7 +43,7 @@ func (s *Service) Import(ctx context.Context, in ImportInput) (sqlc.SubtitleTrac
 		kind = *in.Kind
 	}
 	if !kind.Valid() {
-		return sqlc.SubtitleTrack{}, domain.Invalid("unknown kind")
+		return sqlc.SubtitleTrack{}, domain.InvalidField("kind", "unknown kind")
 	}
 	language := domain.Blank(in.Language)
 
@@ -146,7 +146,7 @@ func (s *Service) Edit(ctx context.Context, trackID string, cues []Cue) (sqlc.Su
 			return domain.FromPG(err)
 		}
 		if latest.ID != base.ID {
-			return domain.Conflict("track has a newer revision (%d)", latest.Revision)
+			return domain.Stale(latest.Revision, "track has a newer revision (%d)", latest.Revision)
 		}
 		track, err = addRevision(ctx, q, sqlc.CreateSubtitleTrackParams{
 			RenditionID: base.RenditionID, AssetID: base.AssetID, Language: base.Language,

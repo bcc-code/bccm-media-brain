@@ -38,7 +38,7 @@ func (s *Service) CreateProgram(ctx context.Context, in ProgramInput) (sqlc.Prog
 		return sqlc.Program{}, err
 	}
 	if !programCode.MatchString(in.Code) {
-		return sqlc.Program{}, domain.Invalid("code must be 4-5 capital letters")
+		return sqlc.Program{}, domain.InvalidField("code", "code must be 4-5 capital letters")
 	}
 	name, meta, err := nameAndMeta(in.Name, in.Metadata)
 	if err != nil {
@@ -138,14 +138,14 @@ func (in ProjectInput) status() (sqlc.ProjectStatus, error) {
 		return sqlc.ProjectStatusPlanned, nil
 	}
 	if !in.Status.Valid() {
-		return "", domain.Invalid("unknown status")
+		return "", domain.InvalidField("status", "unknown status")
 	}
 	return *in.Status, nil
 }
 
 func (in ProjectInput) checkDates() error {
 	if in.StartsOn != nil && in.EndsOn != nil && in.EndsOn.Before(*in.StartsOn) {
-		return domain.Invalid("endsOn must not be before startsOn")
+		return domain.InvalidField("endsOn", "endsOn must not be before startsOn")
 	}
 	return nil
 }
@@ -156,7 +156,7 @@ func (s *Service) CreateProject(ctx context.Context, in ProjectInput) (sqlc.Proj
 		return sqlc.Project{}, err
 	}
 	if !projectCode.MatchString(in.Code) || !strings.HasPrefix(in.Code, prog.Code+"_") {
-		return sqlc.Project{}, domain.Invalid("code must be %s_ followed by letters, digits or underscores", prog.Code)
+		return sqlc.Project{}, domain.InvalidField("code", "code must be %s_ followed by letters, digits or underscores", prog.Code)
 	}
 	name, meta, err := nameAndMeta(in.Name, in.Metadata)
 	if err != nil {

@@ -131,3 +131,38 @@ func TestFromPGUpdate(t *testing.T) {
 		}
 	}
 }
+
+func TestDetail(t *testing.T) {
+	fk := func(table, constraint string) error {
+		return FromPG(&pgconn.PgError{Code: "23503", TableName: table, ConstraintName: constraint})
+	}
+	cases := map[string]struct {
+		err  error
+		kind error
+		want Detail
+	}{
+		"plain invalid":     {Invalid("no"), ErrInvalidInput, Detail{}},
+		"plain conflict":    {Conflict("no"), ErrConflict, Detail{}},
+		"field":             {InvalidField("code", "code must be %d letters", 4), ErrInvalidInput, Detail{Field: "code"}},
+		"required":          {second(Required("name", " ")), ErrInvalidInput, Detail{Field: "name"}},
+		"exists":            {FromPG(&pgconn.PgError{Code: "23505"}), ErrConflict, Detail{Reason: ReasonAlreadyExists}},
+		"in use":            {FromPGDelete(&pgconn.PgError{Code: "23503"}), ErrConflict, Detail{Reason: ReasonInUse}},
+		"stale":             {Stale(7, "now at %d", 7), ErrConflict, Detail{Reason: ReasonStaleRevision, CurrentRevision: 7}},
+		"reference":         {fk("asset", "asset_type_id_fkey"), ErrInvalidInput, Detail{Field: "typeId"}},
+		"one word":          {fk("subtitle_track", "subtitle_track_language_fkey"), ErrInvalidInput, Detail{Field: "language"}},
+		"named differently": {fk("asset", "fk_type"), ErrInvalidInput, Detail{}},
+		"not a foreign key": {fk("asset", "asset_title_check"), ErrInvalidInput, Detail{}},
+		"wrapped":           {fmt.Errorf("while saving: %w", Exists("taken")), ErrConflict, Detail{Reason: ReasonAlreadyExists}},
+		"something else":    {errors.New("boom"), nil, Detail{}},
+	}
+	for name, c := range cases {
+		if got := DetailOf(c.err); got != c.want || (c.kind != nil && !errors.Is(c.err, c.kind)) {
+			t.Errorf("%s: %v gives %+v, want %+v of kind %v", name, c.err, got, c.want, c.kind)
+		}
+	}
+	if got := InvalidField("code", "code must be %d letters", 4).Error(); got != "invalid input: code must be 4 letters" {
+		t.Errorf("message = %q", got)
+	}
+}
+
+func second[T any](_ T, err error) error { return err }

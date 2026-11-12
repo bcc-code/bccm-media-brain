@@ -89,12 +89,17 @@ func TestUpdatesCheckTheExpectedRevision(t *testing.T) {
 			if !contains(e.Message, "revision") {
 				t.Errorf("the conflict should say what happened, got %q", e.Message)
 			}
+			if x := e.Extensions; x.Reason != "STALE_REVISION" || x.CurrentRevision == nil || *x.CurrentRevision != start+2 {
+				t.Errorf("a client cannot tell that it must reload revision %d: %+v", start+2, x)
+			}
 			if now, after := r.row(t); now != start+2 || after != before {
 				t.Fatalf("a refused update changed the row:\n%s\n%s", before, after)
 			}
 
 			for _, bad := range []int{0, -1} {
-				w.admin.fails(t, "INVALID_INPUT", r.mutation, r.vars(bad))
+				if e := w.admin.fails(t, "INVALID_INPUT", r.mutation, r.vars(bad)); e.Extensions.Field != "expectedRevision" {
+					t.Errorf("revision %d: the error names the field %q", bad, e.Extensions.Field)
+				}
 			}
 		})
 	}

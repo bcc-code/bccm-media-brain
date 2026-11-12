@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"strings"
 
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/99designs/gqlgen/graphql/handler"
@@ -53,7 +54,9 @@ func caller(ctx context.Context) []any {
 	return []any{"user", p.UserID}
 }
 
-// presentError gives domain errors a code and logs the cause of masked ones.
+// presentError gives every error a code. Domain errors have their own, with the detail a client
+// can act on; what gqlgen refused before a resolver ran keeps gqlgen's code; anything else is
+// unexpected, and only its cause's log line says what it was.
 func presentError(ctx context.Context, err error) *gqlerror.Error {
 	out := graphql.DefaultErrorPresenter(ctx, err)
 	for _, c := range errorCodes {
@@ -62,13 +65,35 @@ func presentError(ctx context.Context, err error) *gqlerror.Error {
 				slog.WarnContext(ctx, "audit: denied", append(caller(ctx), "path", out.Path.String())...)
 			}
 			out.Extensions = map[string]any{"code": c.code}
+			d := domain.DetailOf(err)
+			if d.Reason != "" {
+				out.Extensions["reason"] = d.Reason
+			}
+			if d.Reason == domain.ReasonStaleRevision {
+				out.Extensions["currentRevision"] = d.CurrentRevision
+			}
+			if d.Field != "" {
+				out.Extensions["field"] = d.Field
+			}
 			return out
 		}
 	}
+	if _, ok := out.Extensions["code"]; ok {
+		return out
+	}
+	// The one thing gqlgen refuses during execution without a code of its own. __schema and
+	// __type cannot fail in another way, so the path is enough to know it.
+	if len(out.Path) > 0 && strings.HasPrefix(out.Path.String(), "__") {
+		out.Extensions = map[string]any{"code": "INTROSPECTION_DISABLED"}
+		return out
+	}
+	cause := err
 	var internal internalError
 	if errors.As(err, &internal) {
-		slog.ErrorContext(ctx, "graphql: internal error", "error", internal.cause.Error(), "path", out.Path.String())
-		out.Extensions = map[string]any{"code": "INTERNAL"}
+		cause = internal.cause
 	}
+	slog.ErrorContext(ctx, "graphql: internal error", "error", cause.Error(), "path", out.Path.String())
+	out.Message = internalError{}.Error()
+	out.Extensions = map[string]any{"code": "INTERNAL"}
 	return out
 }

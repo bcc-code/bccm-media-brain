@@ -46,7 +46,7 @@ func (in *LocationInput) validate() error {
 		return err
 	}
 	if !in.Kind.Valid() {
-		return domain.Invalid("unknown kind")
+		return domain.InvalidField("kind", "unknown kind")
 	}
 	return nil
 }
@@ -146,11 +146,11 @@ func decodeHash(h HashInput) ([]byte, error) {
 func cleanPath(p string) (string, error) {
 	p = strings.TrimSpace(p)
 	if p == "" || strings.HasPrefix(p, "/") {
-		return "", domain.Invalid("path must be relative to the storage location")
+		return "", domain.InvalidField("path", "path must be relative to the storage location")
 	}
 	for _, seg := range strings.Split(p, "/") {
 		if seg == ".." {
-			return "", domain.Invalid("path must not contain ..")
+			return "", domain.InvalidField("path", "path must not contain ..")
 		}
 	}
 	return p, nil
@@ -165,9 +165,9 @@ func (s *Service) Register(ctx context.Context, in RegisterInput) (sqlc.File, er
 	}
 	switch {
 	case in.SizeBytes < 0:
-		return sqlc.File{}, domain.Invalid("sizeBytes must not be negative")
+		return sqlc.File{}, domain.InvalidField("sizeBytes", "sizeBytes must not be negative")
 	case in.DurationMs != nil && *in.DurationMs < 0:
-		return sqlc.File{}, domain.Invalid("durationMs must not be negative")
+		return sqlc.File{}, domain.InvalidField("durationMs", "durationMs must not be negative")
 	case (in.Width != nil && *in.Width <= 0) || (in.Height != nil && *in.Height <= 0):
 		return sqlc.File{}, domain.Invalid("width and height must be positive")
 	case len(in.Hashes) == 0:
@@ -383,7 +383,7 @@ func (s *Service) SetCopyStatus(ctx context.Context, copyID string, status sqlc.
 		return sqlc.FileCopy{}, err
 	}
 	if !status.Valid() {
-		return sqlc.FileCopy{}, domain.Invalid("unknown status")
+		return sqlc.FileCopy{}, domain.InvalidField("status", "unknown status")
 	}
 	c, err := s.q.GetFileCopy(ctx, copyID)
 	if err != nil {

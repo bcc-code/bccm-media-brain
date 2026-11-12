@@ -36,6 +36,9 @@ models:
   JSON:
     model:
       - github.com/bcc-media/mediabrain/internal/graph/scalar.JSON
+  Time:
+    model:
+      - github.com/bcc-media/mediabrain/internal/graph/scalar.Time
   User:
     model:
       - github.com/bcc-media/mediabrain/internal/db/sqlc.AppUser
