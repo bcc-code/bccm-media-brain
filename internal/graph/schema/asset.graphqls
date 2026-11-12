@@ -87,7 +87,8 @@ type AssetProjectLink {
   assetId: ID!
   projectId: ID!
   role: LinkRole!
-  linkedBy: LinkOrigin!
+  "How the link came to be: from a folder rule or made by hand."
+  linkOrigin: LinkOrigin!
   createdAt: Time!
   "Null only if the project stopped being visible while the request ran."
   project: Project

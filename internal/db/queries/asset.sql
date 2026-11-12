@@ -34,7 +34,7 @@ WHERE (sqlc.narg('type_id')::smallint IS NULL OR a.type_id = sqlc.narg('type_id'
 ORDER BY a.id DESC LIMIT sqlc.arg('limit') OFFSET sqlc.arg('offset');
 
 -- name: LinkAssetProject :one
-INSERT INTO asset_project (asset_id, project_id, role, linked_by) VALUES ($1, $2, $3, $4) RETURNING *;
+INSERT INTO asset_project (asset_id, project_id, role, link_origin) VALUES ($1, $2, $3, $4) RETURNING *;
 
 -- name: UnlinkAssetProject :execrows
 DELETE FROM asset_project WHERE asset_id = $1 AND project_id = $2 AND role = $3;

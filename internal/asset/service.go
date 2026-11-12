@@ -79,7 +79,7 @@ func (s *Service) Create(ctx context.Context, in Input, projectID *string) (sqlc
 			return nil
 		}
 		_, err = q.LinkAssetProject(ctx, sqlc.LinkAssetProjectParams{
-			AssetID: a.ID, ProjectID: *projectID, Role: sqlc.LinkRoleSource, LinkedBy: sqlc.LinkOriginManual,
+			AssetID: a.ID, ProjectID: *projectID, Role: sqlc.LinkRoleSource, LinkOrigin: sqlc.LinkOriginManual,
 		})
 		if err != nil {
 			return domain.FromPG(err)
@@ -187,7 +187,7 @@ func (s *Service) Link(ctx context.Context, assetID, projectID string, role sqlc
 		}
 		var err error
 		link, err = q.LinkAssetProject(ctx, sqlc.LinkAssetProjectParams{
-			AssetID: assetID, ProjectID: projectID, Role: role, LinkedBy: sqlc.LinkOriginManual,
+			AssetID: assetID, ProjectID: projectID, Role: role, LinkOrigin: sqlc.LinkOriginManual,
 		})
 		if err != nil {
 			return domain.FromPG(err)

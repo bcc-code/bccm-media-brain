@@ -67,7 +67,7 @@ func (q *Queries) CreateFile(ctx context.Context, arg CreateFileParams) (File, e
 }
 
 const createFileCopy = `-- name: CreateFileCopy :one
-INSERT INTO file_copy (file_id, location_id, path, last_seen_at) VALUES ($1, $2, $3, $4) RETURNING id, file_id, location_id, path, status, last_seen_at, last_verified_at
+INSERT INTO file_copy (file_id, location_id, path, last_seen_at) VALUES ($1, $2, $3, $4) RETURNING id, file_id, location_id, path, status, last_seen_at, last_verified_at, created_at
 `
 
 type CreateFileCopyParams struct {
@@ -93,6 +93,7 @@ func (q *Queries) CreateFileCopy(ctx context.Context, arg CreateFileCopyParams) 
 		&i.Status,
 		&i.LastSeenAt,
 		&i.LastVerifiedAt,
+		&i.CreatedAt,
 	)
 	return i, err
 }
@@ -213,7 +214,7 @@ func (q *Queries) GetFileByHash(ctx context.Context, arg GetFileByHashParams) (F
 }
 
 const getFileCopy = `-- name: GetFileCopy :one
-SELECT id, file_id, location_id, path, status, last_seen_at, last_verified_at FROM file_copy WHERE id = $1
+SELECT id, file_id, location_id, path, status, last_seen_at, last_verified_at, created_at FROM file_copy WHERE id = $1
 `
 
 func (q *Queries) GetFileCopy(ctx context.Context, id string) (FileCopy, error) {
@@ -227,12 +228,13 @@ func (q *Queries) GetFileCopy(ctx context.Context, id string) (FileCopy, error) 
 		&i.Status,
 		&i.LastSeenAt,
 		&i.LastVerifiedAt,
+		&i.CreatedAt,
 	)
 	return i, err
 }
 
 const getFileCopyByPath = `-- name: GetFileCopyByPath :one
-SELECT id, file_id, location_id, path, status, last_seen_at, last_verified_at FROM file_copy WHERE location_id = $1 AND path = $2
+SELECT id, file_id, location_id, path, status, last_seen_at, last_verified_at, created_at FROM file_copy WHERE location_id = $1 AND path = $2
 `
 
 type GetFileCopyByPathParams struct {
@@ -251,6 +253,7 @@ func (q *Queries) GetFileCopyByPath(ctx context.Context, arg GetFileCopyByPathPa
 		&i.Status,
 		&i.LastSeenAt,
 		&i.LastVerifiedAt,
+		&i.CreatedAt,
 	)
 	return i, err
 }
@@ -363,7 +366,7 @@ func (q *Queries) GetStorageLocations(ctx context.Context, ids []string) ([]Stor
 }
 
 const listFileCopies = `-- name: ListFileCopies :many
-SELECT id, file_id, location_id, path, status, last_seen_at, last_verified_at FROM file_copy WHERE file_id = ANY($1::text[]) ORDER BY file_id, id
+SELECT id, file_id, location_id, path, status, last_seen_at, last_verified_at, created_at FROM file_copy WHERE file_id = ANY($1::text[]) ORDER BY file_id, id
 `
 
 func (q *Queries) ListFileCopies(ctx context.Context, fileIds []string) ([]FileCopy, error) {
@@ -383,6 +386,7 @@ func (q *Queries) ListFileCopies(ctx context.Context, fileIds []string) ([]FileC
 			&i.Status,
 			&i.LastSeenAt,
 			&i.LastVerifiedAt,
+			&i.CreatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -496,7 +500,7 @@ func (q *Queries) ListStorageLocations(ctx context.Context) ([]StorageLocation, 
 }
 
 const setFileCopyStatus = `-- name: SetFileCopyStatus :one
-UPDATE file_copy SET status = $2, last_seen_at = $3, last_verified_at = $4 WHERE id = $1 RETURNING id, file_id, location_id, path, status, last_seen_at, last_verified_at
+UPDATE file_copy SET status = $2, last_seen_at = $3, last_verified_at = $4 WHERE id = $1 RETURNING id, file_id, location_id, path, status, last_seen_at, last_verified_at, created_at
 `
 
 type SetFileCopyStatusParams struct {
@@ -522,6 +526,7 @@ func (q *Queries) SetFileCopyStatus(ctx context.Context, arg SetFileCopyStatusPa
 		&i.Status,
 		&i.LastSeenAt,
 		&i.LastVerifiedAt,
+		&i.CreatedAt,
 	)
 	return i, err
 }

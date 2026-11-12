@@ -1574,18 +1574,18 @@ type AssetGroup struct {
 }
 
 type AssetGroupMember struct {
-	GroupID string       `json:"group_id"`
-	AssetID string       `json:"asset_id"`
-	AddedBy MemberOrigin `json:"added_by"`
-	AddedAt time.Time    `json:"added_at"`
+	GroupID      string       `json:"group_id"`
+	AssetID      string       `json:"asset_id"`
+	MemberOrigin MemberOrigin `json:"member_origin"`
+	AddedAt      time.Time    `json:"added_at"`
 }
 
 type AssetProject struct {
-	AssetID   string     `json:"asset_id"`
-	ProjectID string     `json:"project_id"`
-	Role      LinkRole   `json:"role"`
-	LinkedBy  LinkOrigin `json:"linked_by"`
-	CreatedAt time.Time  `json:"created_at"`
+	AssetID    string     `json:"asset_id"`
+	ProjectID  string     `json:"project_id"`
+	Role       LinkRole   `json:"role"`
+	LinkOrigin LinkOrigin `json:"link_origin"`
+	CreatedAt  time.Time  `json:"created_at"`
 }
 
 type AssetRelation struct {
@@ -1681,6 +1681,7 @@ type FileCopy struct {
 	Status         CopyStatus `json:"status"`
 	LastSeenAt     *time.Time `json:"last_seen_at"`
 	LastVerifiedAt *time.Time `json:"last_verified_at"`
+	CreatedAt      time.Time  `json:"created_at"`
 }
 
 type FileHash struct {

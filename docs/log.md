@@ -2,6 +2,23 @@
 
 Newest first. Each entry: what changed, why, and what was left out on purpose.
 
+## 2026-11-11 — Origin columns named for what they hold, copies know their age
+
+- `asset_project.linked_by` and `asset_group_member.added_by` held an origin (folder or manual;
+  rule or person), while `*_by` names a user everywhere else. They are now `link_origin` and
+  `member_origin` (system review, finding DB-13; migration `00015`). **API change:**
+  `AssetProjectLink.linkedBy` is now `linkOrigin`. Renamed rather than kept beside the new
+  name because nothing outside this repository uses the API yet.
+- `file_copy.created_at` (`FileCopy.createdAt`): when a copy was registered. Existing rows take
+  the time from their id, which starts with its creation time.
+- `subtitle_track.language` is a copy of its rendition's language, and `updateRendition`
+  changed only the original. A trigger on `rendition` now carries the change to its tracks,
+  and the migration brings existing tracks back in line.
+- Left out: the other timestamp names (`computed_at`, `added_at`, `granted_at`,
+  `refreshed_at`) say what happened and stay; `user_group` and `rendition_file` still have no
+  `created_at`; dropping `subtitle_track.language` instead of syncing it would change every
+  track query and the loaders for no gain to a client.
+
 ## 2026-11-11 — The database counts revisions
 
 - `revision` was incremented by each UPDATE statement that remembered to; the codebase guide

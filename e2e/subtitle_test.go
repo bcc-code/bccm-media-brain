@@ -214,3 +214,20 @@ func TestSubtitleValidation(t *testing.T) {
 		t.Fatal("failed edits must not add revisions")
 	}
 }
+
+// A track's language is a copy of its rendition's; changing the rendition changes the copy.
+func TestSubtitleLanguageFollowsItsRendition(t *testing.T) {
+	admin, f := signInAdmin(t), fake.New(1210)
+	c := newClip(t, admin, f, newProject(t, admin, f, newProgram(t, admin, f)), "")
+	var imp struct{ ImportSubtitles trackJSON }
+	admin.must(t, importSubtitles, map[string]any{"in": map[string]any{
+		"versionId": c.version, "language": "en", "format": "VTT", "content": f.VTT(2),
+	}}, &imp)
+	admin.must(t, `mutation($id: ID!) { updateRendition(id: $id, input: {language: "nb"}) { id } }`,
+		map[string]any{"id": imp.ImportSubtitles.RenditionID}, nil)
+	var got struct{ SubtitleTrack struct{ Language *string } }
+	admin.must(t, `query($id: ID!) { subtitleTrack(id: $id) { language } }`, map[string]any{"id": imp.ImportSubtitles.ID}, &got)
+	if got.SubtitleTrack.Language == nil || *got.SubtitleTrack.Language != "nb" {
+		t.Fatalf("the track's language is %v, its rendition's is nb", got.SubtitleTrack.Language)
+	}
+}

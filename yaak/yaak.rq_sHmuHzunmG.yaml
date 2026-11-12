@@ -10,7 +10,7 @@ authenticationType: null
 body:
   query: |
     mutation($assetId: ID!, $projectId: ID!, $role: LinkRole!) {
-      linkAssetToProject(assetId: $assetId, projectId: $projectId, role: $role) { assetId projectId role linkedBy }
+      linkAssetToProject(assetId: $assetId, projectId: $projectId, role: $role) { assetId projectId role linkOrigin }
     }
   variables: |-
     {

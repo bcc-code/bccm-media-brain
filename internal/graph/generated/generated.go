@@ -77,12 +77,12 @@ type ComplexityRoot struct {
 	}
 
 	AssetProjectLink struct {
-		AssetID   func(childComplexity int) int
-		CreatedAt func(childComplexity int) int
-		LinkedBy  func(childComplexity int) int
-		Project   func(childComplexity int) int
-		ProjectID func(childComplexity int) int
-		Role      func(childComplexity int) int
+		AssetID    func(childComplexity int) int
+		CreatedAt  func(childComplexity int) int
+		LinkOrigin func(childComplexity int) int
+		Project    func(childComplexity int) int
+		ProjectID  func(childComplexity int) int
+		Role       func(childComplexity int) int
 	}
 
 	AssetType struct {
@@ -119,6 +119,7 @@ type ComplexityRoot struct {
 	}
 
 	FileCopy struct {
+		CreatedAt      func(childComplexity int) int
 		FileID         func(childComplexity int) int
 		ID             func(childComplexity int) int
 		LastSeenAt     func(childComplexity int) int
@@ -593,12 +594,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.AssetProjectLink.CreatedAt(childComplexity), true
-	case "AssetProjectLink.linkedBy":
-		if e.ComplexityRoot.AssetProjectLink.LinkedBy == nil {
+	case "AssetProjectLink.linkOrigin":
+		if e.ComplexityRoot.AssetProjectLink.LinkOrigin == nil {
 			break
 		}
 
-		return e.ComplexityRoot.AssetProjectLink.LinkedBy(childComplexity), true
+		return e.ComplexityRoot.AssetProjectLink.LinkOrigin(childComplexity), true
 	case "AssetProjectLink.project":
 		if e.ComplexityRoot.AssetProjectLink.Project == nil {
 			break
@@ -765,6 +766,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.File.Width(childComplexity), true
 
+	case "FileCopy.createdAt":
+		if e.ComplexityRoot.FileCopy.CreatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FileCopy.CreatedAt(childComplexity), true
 	case "FileCopy.fileId":
 		if e.ComplexityRoot.FileCopy.FileID == nil {
 			break
@@ -2457,7 +2464,8 @@ type AssetProjectLink {
   assetId: ID!
   projectId: ID!
   role: LinkRole!
-  linkedBy: LinkOrigin!
+  "How the link came to be: from a folder rule or made by hand."
+  linkOrigin: LinkOrigin!
   createdAt: Time!
   "Null only if the project stopped being visible while the request ran."
   project: Project
@@ -2659,6 +2667,8 @@ type FileCopy {
   status: CopyStatus!
   lastSeenAt: Time
   lastVerifiedAt: Time
+  "When the copy was registered."
+  createdAt: Time!
   location: StorageLocation!
 }
 
@@ -2993,8 +3003,8 @@ func (ec *executionContext) childFields_AssetProjectLink(ctx context.Context, fi
 		return ec.fieldContext_AssetProjectLink_projectId(ctx, field)
 	case "role":
 		return ec.fieldContext_AssetProjectLink_role(ctx, field)
-	case "linkedBy":
-		return ec.fieldContext_AssetProjectLink_linkedBy(ctx, field)
+	case "linkOrigin":
+		return ec.fieldContext_AssetProjectLink_linkOrigin(ctx, field)
 	case "createdAt":
 		return ec.fieldContext_AssetProjectLink_createdAt(ctx, field)
 	case "project":
@@ -3085,6 +3095,8 @@ func (ec *executionContext) childFields_FileCopy(ctx context.Context, field grap
 		return ec.fieldContext_FileCopy_lastSeenAt(ctx, field)
 	case "lastVerifiedAt":
 		return ec.fieldContext_FileCopy_lastVerifiedAt(ctx, field)
+	case "createdAt":
+		return ec.fieldContext_FileCopy_createdAt(ctx, field)
 	case "location":
 		return ec.fieldContext_FileCopy_location(ctx, field)
 	}
@@ -5278,16 +5290,16 @@ func (ec *executionContext) fieldContext_AssetProjectLink_role(_ context.Context
 	return graphql.NewScalarFieldContext("AssetProjectLink", field, false, false, "LinkRole")
 }
 
-func (ec *executionContext) _AssetProjectLink_linkedBy(ctx context.Context, field graphql.CollectedField, obj *sqlc.AssetProject) (ret graphql.Marshaler) {
+func (ec *executionContext) _AssetProjectLink_linkOrigin(ctx context.Context, field graphql.CollectedField, obj *sqlc.AssetProject) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
 		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_AssetProjectLink_linkedBy(ctx, field)
+			return ec.fieldContext_AssetProjectLink_linkOrigin(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return obj.LinkedBy, nil
+			return obj.LinkOrigin, nil
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v sqlc.LinkOrigin) graphql.Marshaler {
@@ -5297,7 +5309,7 @@ func (ec *executionContext) _AssetProjectLink_linkedBy(ctx context.Context, fiel
 		true,
 	)
 }
-func (ec *executionContext) fieldContext_AssetProjectLink_linkedBy(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_AssetProjectLink_linkOrigin(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("AssetProjectLink", field, false, false, "LinkOrigin")
 }
 
@@ -6093,6 +6105,29 @@ func (ec *executionContext) _FileCopy_lastVerifiedAt(ctx context.Context, field 
 	)
 }
 func (ec *executionContext) fieldContext_FileCopy_lastVerifiedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("FileCopy", field, false, false, "Time")
+}
+
+func (ec *executionContext) _FileCopy_createdAt(ctx context.Context, field graphql.CollectedField, obj *sqlc.FileCopy) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_FileCopy_createdAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.CreatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_FileCopy_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("FileCopy", field, false, false, "Time")
 }
 
@@ -13878,8 +13913,8 @@ func (ec *executionContext) _AssetProjectLink(ctx context.Context, sel ast.Selec
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
-		case "linkedBy":
-			out.Values[i] = ec._AssetProjectLink_linkedBy(ctx, field, obj)
+		case "linkOrigin":
+			out.Values[i] = ec._AssetProjectLink_linkOrigin(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
@@ -14162,6 +14197,11 @@ func (ec *executionContext) _FileCopy(ctx context.Context, sel ast.SelectionSet,
 		case "lastVerifiedAt":
 			out.Values[i] = ec._FileCopy_lastVerifiedAt(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "createdAt":
+			out.Values[i] = ec._FileCopy_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "location":

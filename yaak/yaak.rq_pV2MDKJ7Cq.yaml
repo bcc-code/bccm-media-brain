@@ -13,7 +13,7 @@ body:
       asset(id: $id) {
         id title description myLevel metadata legacyIds originalLanguage capturedAt camera reel createdAt updatedAt
         type { name }
-        projects { role linkedBy project { id code name } }
+        projects { role linkOrigin project { id code name } }
         versions {
           id number label status createdBy
           renditions {

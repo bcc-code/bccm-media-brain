@@ -358,14 +358,14 @@ func (q *Queries) GetRendition(ctx context.Context, id string) (GetRenditionRow,
 }
 
 const linkAssetProject = `-- name: LinkAssetProject :one
-INSERT INTO asset_project (asset_id, project_id, role, linked_by) VALUES ($1, $2, $3, $4) RETURNING asset_id, project_id, role, linked_by, created_at
+INSERT INTO asset_project (asset_id, project_id, role, link_origin) VALUES ($1, $2, $3, $4) RETURNING asset_id, project_id, role, link_origin, created_at
 `
 
 type LinkAssetProjectParams struct {
-	AssetID   string     `json:"asset_id"`
-	ProjectID string     `json:"project_id"`
-	Role      LinkRole   `json:"role"`
-	LinkedBy  LinkOrigin `json:"linked_by"`
+	AssetID    string     `json:"asset_id"`
+	ProjectID  string     `json:"project_id"`
+	Role       LinkRole   `json:"role"`
+	LinkOrigin LinkOrigin `json:"link_origin"`
 }
 
 func (q *Queries) LinkAssetProject(ctx context.Context, arg LinkAssetProjectParams) (AssetProject, error) {
@@ -373,21 +373,21 @@ func (q *Queries) LinkAssetProject(ctx context.Context, arg LinkAssetProjectPara
 		arg.AssetID,
 		arg.ProjectID,
 		arg.Role,
-		arg.LinkedBy,
+		arg.LinkOrigin,
 	)
 	var i AssetProject
 	err := row.Scan(
 		&i.AssetID,
 		&i.ProjectID,
 		&i.Role,
-		&i.LinkedBy,
+		&i.LinkOrigin,
 		&i.CreatedAt,
 	)
 	return i, err
 }
 
 const listAssetProjects = `-- name: ListAssetProjects :many
-SELECT asset_id, project_id, role, linked_by, created_at FROM asset_project WHERE asset_id = ANY($1::text[]) ORDER BY asset_id, created_at, project_id, role
+SELECT asset_id, project_id, role, link_origin, created_at FROM asset_project WHERE asset_id = ANY($1::text[]) ORDER BY asset_id, created_at, project_id, role
 `
 
 func (q *Queries) ListAssetProjects(ctx context.Context, assetIds []string) ([]AssetProject, error) {
@@ -403,7 +403,7 @@ func (q *Queries) ListAssetProjects(ctx context.Context, assetIds []string) ([]A
 			&i.AssetID,
 			&i.ProjectID,
 			&i.Role,
-			&i.LinkedBy,
+			&i.LinkOrigin,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err

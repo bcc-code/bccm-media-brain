@@ -65,6 +65,8 @@ type FileCopy {
   status: CopyStatus!
   lastSeenAt: Time
   lastVerifiedAt: Time
+  "When the copy was registered."
+  createdAt: Time!
   location: StorageLocation!
 }
 

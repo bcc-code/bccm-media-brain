@@ -13,7 +13,7 @@ import (
 const (
 	createAsset = `mutation($p: ID, $in: AssetInput!) { createAsset(projectId: $p, input: $in) {
 		id typeId title description capturedAt camera reel metadata legacyIds originalLanguage myLevel
-		type { name } projects { projectId role linkedBy project { id } } versions { id }
+		type { name } projects { projectId role linkOrigin project { id } } versions { id }
 	} }`
 	updateAsset = `mutation($id: ID!, $in: AssetInput!) { updateAsset(id: $id, input: $in) { id title description legacyIds metadata updatedAt createdAt } }`
 	assetTree   = `query($id: ID!) { asset(id: $id) {
@@ -40,8 +40,8 @@ func TestAssetLifecycle(t *testing.T) {
 			OriginalLanguage   string
 			Type               struct{ Name string }
 			Projects           []struct {
-				ProjectID, Role, LinkedBy string
-				Project                   struct{ ID string }
+				ProjectID, Role, LinkOrigin string
+				Project                     struct{ ID string }
 			}
 			Versions []struct{ ID string }
 		}
@@ -52,7 +52,7 @@ func TestAssetLifecycle(t *testing.T) {
 		len(a.LegacyIds) != 1 || a.MyLevel != "ADMIN" || len(a.Versions) != 0 {
 		t.Fatalf("created = %+v", a)
 	}
-	if len(a.Projects) != 1 || a.Projects[0].Role != "SOURCE" || a.Projects[0].LinkedBy != "MANUAL" || a.Projects[0].Project.ID != project {
+	if len(a.Projects) != 1 || a.Projects[0].Role != "SOURCE" || a.Projects[0].LinkOrigin != "MANUAL" || a.Projects[0].Project.ID != project {
 		t.Fatalf("project link = %+v", a.Projects)
 	}
 

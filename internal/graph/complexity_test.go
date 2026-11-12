@@ -52,7 +52,7 @@ func TestComplexityOfQueries(t *testing.T) {
 		subtitleTracks { id cues { text } } } } }`
 	const tree = `{ id title description myLevel metadata legacyIds originalLanguage capturedAt camera reel createdAt updatedAt
 		type { name }
-		projects { role linkedBy project { id code name } }
+		projects { role linkOrigin project { id code name } }
 		versions { id number label status createdBy
 			renditions { id kind language purpose
 				files { role position file { id sizeBytes mimeType codec copies { path location { name } } } }

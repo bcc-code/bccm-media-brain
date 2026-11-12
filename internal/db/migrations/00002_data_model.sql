@@ -300,7 +300,7 @@ CREATE TABLE rendition (
     id         text           PRIMARY KEY DEFAULT new_id('RE') CHECK (is_id(id, 'RE')),
     version_id text           NOT NULL REFERENCES asset_version (id) ON DELETE CASCADE,
     kind       rendition_kind NOT NULL,
-    language   text,                         -- BCP 47, e.g. no-NB
+    language   text,                         -- BCP 47, e.g. nb-NO
     purpose    text,
     overrides  jsonb          NOT NULL DEFAULT '{}', -- per-field metadata overrides (title, synopsis, ...)
     metadata   jsonb          NOT NULL DEFAULT '{}',

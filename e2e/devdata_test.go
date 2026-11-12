@@ -670,6 +670,58 @@ func TestEmailCaseMigration(t *testing.T) {
 	}
 }
 
+// Migration 15 gives file copies a created_at taken from their id and brings subtitle tracks
+// back to their rendition's language.
+func TestCopyTimeAndSubtitleLanguageMigration(t *testing.T) {
+	ctx := context.Background()
+	url := freshDB(t, "copy_time_migration")
+	if err := db.MigrateUp(ctx, url); err != nil {
+		t.Fatal(err)
+	}
+	for _, scenario := range []string{"catalog", "subtitle-revisions"} {
+		if _, err := newStore(t, url).Apply(ctx, scenario, devdata.ApplyRequest{}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	p := pool2(t, url)
+	for step := 0; ; step++ {
+		var has bool
+		err := p.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM information_schema.columns
+			WHERE table_name = 'file_copy' AND column_name = 'created_at')`).Scan(&has)
+		if err != nil || step > 20 {
+			t.Fatalf("migration 15 is still applied after %d steps down (%v)", step, err)
+		}
+		if !has {
+			break
+		}
+		if err := db.MigrateDown(ctx, url); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// 01ARZ3NDEK, the time part of this id, is 1469922850259 ms: 2016-07-30 23:54:10.259 UTC.
+	tag, err := p.Exec(ctx, `INSERT INTO file_copy (id, file_id, location_id, path)
+		SELECT 'FC-01ARZ3NDEKTSV4RRFFQ69G5FAV', file_id, location_id, path || '.old' FROM file_copy ORDER BY id LIMIT 1`)
+	if err != nil || tag.RowsAffected() != 1 {
+		t.Fatalf("no file copy to add an old one next to: %v", err)
+	}
+	tag, err = p.Exec(ctx, `UPDATE subtitle_track t SET language = (SELECT code FROM language l WHERE l.code IS DISTINCT FROM t.language ORDER BY code LIMIT 1)`)
+	if err != nil || tag.RowsAffected() == 0 {
+		t.Fatalf("no subtitle tracks to set adrift: %v", err)
+	}
+	if err := db.MigrateUp(ctx, url); err != nil {
+		t.Fatal(err)
+	}
+	var old string
+	var recent, adrift int
+	err = p.QueryRow(ctx, `SELECT
+		(SELECT to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS.MS') FROM file_copy WHERE id = 'FC-01ARZ3NDEKTSV4RRFFQ69G5FAV'),
+		(SELECT count(*) FROM file_copy WHERE created_at BETWEEN now() - interval '10 minutes' AND now()),
+		(SELECT count(*) FROM subtitle_track t JOIN rendition r ON r.id = t.rendition_id WHERE t.language IS DISTINCT FROM r.language)`).Scan(&old, &recent, &adrift)
+	if err != nil || old != "2016-07-30 23:54:10.259" || recent == 0 || adrift != 0 {
+		t.Fatalf("copy created at %q, %d recent copies, %d tracks adrift (%v)", old, recent, adrift, err)
+	}
+}
+
 // Migration 10 rebuilds asset_access in SQL; it must give what the service's refresh gives.
 func TestAssetAccessExpiryMigration(t *testing.T) {
 	ctx := context.Background()
