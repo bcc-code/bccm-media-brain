@@ -29,6 +29,7 @@ type StorageLocation {
   baseUri: String!
   online: Boolean!
   createdAt: Time!
+  updatedAt: Time!
 }
 
 "Unique content, identified by its hashes rather than by a path."

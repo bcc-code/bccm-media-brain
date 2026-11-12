@@ -2,6 +2,22 @@
 
 Newest first. Each entry: what changed, why, and what was left out on purpose.
 
+## 2026-11-11 — The database counts revisions
+
+- `revision` was incremented by each UPDATE statement that remembered to; the codebase guide
+  had to warn that a new query must do it too. One that forgot, or a fix by hand in psql, left
+  the counter where it was, and an update based on the old row was then accepted (system
+  review, finding DB-09). Migration `00014` adds a `bump_revision` trigger to program, project,
+  asset, asset version, rendition and storage location, and the queries no longer write the
+  column. The check stays the UPDATE's own `WHERE revision = ...`, which sees the old value.
+- Asset version, rendition and storage location get `updated_at`, kept by the same trigger as
+  elsewhere, and `updatedAt` in the API. Rows that existed start at their `created_at`.
+- A consequence to know: every UPDATE of such a row now counts, also one that changes nothing
+  and one the database makes itself (`ON DELETE SET NULL` on `asset_version.created_by`).
+  Before, only the statements that said so counted.
+- Left out: comparing old and new row to skip an UPDATE that changes nothing. A full
+  replacement with the same values counted as an edit before, and still does.
+
 ## 2026-11-11 — Indexes for what a delete looks up
 
 - Deleting a file or a subtitle track makes the database find the rows that point at it, once

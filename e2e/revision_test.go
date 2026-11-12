@@ -174,3 +174,45 @@ func TestRevisionCountsOwnEditsOnly(t *testing.T) {
 		t.Fatalf("an imported and refreshed asset is at revision %d, want 2 (%v)", revision, err)
 	}
 }
+
+// The database counts revisions and keeps updated_at, so a statement that says nothing about
+// either (a new query, a fix by hand) still makes an update based on the old row stale.
+func TestTheDatabaseCountsRevisions(t *testing.T) {
+	w := newWorld(t, 44)
+	ctx := context.Background()
+	for name, r := range revisedObjects(w) {
+		t.Run(name, func(t *testing.T) {
+			var start, now int
+			var moved bool
+			err := pool.QueryRow(ctx, `SELECT revision FROM `+r.table+` WHERE id = $1`, r.id).Scan(&start)
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = pool.QueryRow(ctx, `UPDATE `+r.table+` x SET id = x.id FROM `+r.table+` old
+				WHERE x.id = $1 AND old.id = x.id RETURNING x.revision, x.updated_at > old.updated_at`, r.id).Scan(&now, &moved)
+			if err != nil || now != start+1 || !moved {
+				t.Fatalf("an UPDATE that names neither column: revision %d -> %d, updated_at moved: %v (%v)", start, now, moved, err)
+			}
+			if e := w.admin.fails(t, "CONFLICT", r.mutation, r.vars(start)); !contains(e.Message, "revision") {
+				t.Fatalf("an update based on revision %d was refused with %q", start, e.Message)
+			}
+		})
+	}
+
+	var read struct {
+		Asset struct {
+			Versions []struct {
+				UpdatedAt  string
+				Renditions []struct{ UpdatedAt string }
+			}
+		}
+		StorageLocations []struct{ UpdatedAt string }
+	}
+	w.admin.must(t, `query($id: ID!) { asset(id: $id) { versions { updatedAt renditions { updatedAt } } } storageLocations { updatedAt } }`,
+		map[string]any{"id": w.c1.asset}, &read)
+	if len(read.StorageLocations) == 0 || read.StorageLocations[0].UpdatedAt == "" ||
+		len(read.Asset.Versions) == 0 || read.Asset.Versions[0].UpdatedAt == "" ||
+		len(read.Asset.Versions[0].Renditions) == 0 || read.Asset.Versions[0].Renditions[0].UpdatedAt == "" {
+		t.Fatalf("updatedAt is missing: %+v", read)
+	}
+}

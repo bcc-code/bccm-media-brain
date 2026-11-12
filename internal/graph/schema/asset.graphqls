@@ -104,6 +104,7 @@ type AssetVersion {
   status: VersionStatus!
   createdBy: ID
   createdAt: Time!
+  updatedAt: Time!
   renditions: [Rendition!]!
 }
 
@@ -119,6 +120,7 @@ type Rendition {
   overrides: JSON!
   metadata: JSON!
   createdAt: Time!
+  updatedAt: Time!
   files: [RenditionFile!]!
   "The latest revision, or every revision with history."
   subtitleTracks(history: Boolean! = false): [SubtitleTrack!]!

@@ -42,7 +42,8 @@ Why three levels: the same edit exists in many forms (languages, encodes), and a
 replaces all of them together.
 
 **revision** (program, project, asset, asset_version, rendition, storage_location): starts at 1
-and goes up by one with every update of the row's own editable fields, in the same statement.
+and goes up by one with every UPDATE of the row, counted by a trigger so that no statement can
+forget it. The same six tables have `updated_at`.
 Links, grants and children do not move it. An update can name the revision it was based on and
 is refused when the row has moved on ([api.md](api.md)). It has nothing to do with
 `asset_version.number` (which edit of the asset) or a subtitle track's `revision` (which

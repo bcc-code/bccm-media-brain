@@ -101,6 +101,7 @@ type ComplexityRoot struct {
 		Renditions func(childComplexity int) int
 		Revision   func(childComplexity int) int
 		Status     func(childComplexity int) int
+		UpdatedAt  func(childComplexity int) int
 	}
 
 	File struct {
@@ -267,6 +268,7 @@ type ComplexityRoot struct {
 		Purpose        func(childComplexity int) int
 		Revision       func(childComplexity int) int
 		SubtitleTracks func(childComplexity int, history bool) int
+		UpdatedAt      func(childComplexity int) int
 		VersionID      func(childComplexity int) int
 	}
 
@@ -297,6 +299,7 @@ type ComplexityRoot struct {
 		Name      func(childComplexity int) int
 		Online    func(childComplexity int) int
 		Revision  func(childComplexity int) int
+		UpdatedAt func(childComplexity int) int
 	}
 
 	SubtitleCue struct {
@@ -688,6 +691,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.AssetVersion.Status(childComplexity), true
+	case "AssetVersion.updatedAt":
+		if e.ComplexityRoot.AssetVersion.UpdatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AssetVersion.UpdatedAt(childComplexity), true
 
 	case "File.codec":
 		if e.ComplexityRoot.File.Codec == nil {
@@ -1788,6 +1797,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Rendition.SubtitleTracks(childComplexity, args["history"].(bool)), true
+	case "Rendition.updatedAt":
+		if e.ComplexityRoot.Rendition.UpdatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Rendition.UpdatedAt(childComplexity), true
 	case "Rendition.versionId":
 		if e.ComplexityRoot.Rendition.VersionID == nil {
 			break
@@ -1917,6 +1932,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.StorageLocation.Revision(childComplexity), true
+	case "StorageLocation.updatedAt":
+		if e.ComplexityRoot.StorageLocation.UpdatedAt == nil {
+			break
+		}
+
+		return e.ComplexityRoot.StorageLocation.UpdatedAt(childComplexity), true
 
 	case "SubtitleCue.endMs":
 		if e.ComplexityRoot.SubtitleCue.EndMs == nil {
@@ -2453,6 +2474,7 @@ type AssetVersion {
   status: VersionStatus!
   createdBy: ID
   createdAt: Time!
+  updatedAt: Time!
   renditions: [Rendition!]!
 }
 
@@ -2468,6 +2490,7 @@ type Rendition {
   overrides: JSON!
   metadata: JSON!
   createdAt: Time!
+  updatedAt: Time!
   files: [RenditionFile!]!
   "The latest revision, or every revision with history."
   subtitleTracks(history: Boolean! = false): [SubtitleTrack!]!
@@ -2600,6 +2623,7 @@ type StorageLocation {
   baseUri: String!
   online: Boolean!
   createdAt: Time!
+  updatedAt: Time!
 }
 
 "Unique content, identified by its hashes rather than by a path."
@@ -3009,6 +3033,8 @@ func (ec *executionContext) childFields_AssetVersion(ctx context.Context, field 
 		return ec.fieldContext_AssetVersion_createdBy(ctx, field)
 	case "createdAt":
 		return ec.fieldContext_AssetVersion_createdAt(ctx, field)
+	case "updatedAt":
+		return ec.fieldContext_AssetVersion_updatedAt(ctx, field)
 	case "renditions":
 		return ec.fieldContext_AssetVersion_renditions(ctx, field)
 	}
@@ -3205,6 +3231,8 @@ func (ec *executionContext) childFields_Rendition(ctx context.Context, field gra
 		return ec.fieldContext_Rendition_metadata(ctx, field)
 	case "createdAt":
 		return ec.fieldContext_Rendition_createdAt(ctx, field)
+	case "updatedAt":
+		return ec.fieldContext_Rendition_updatedAt(ctx, field)
 	case "files":
 		return ec.fieldContext_Rendition_files(ctx, field)
 	case "subtitleTracks":
@@ -3267,6 +3295,8 @@ func (ec *executionContext) childFields_StorageLocation(ctx context.Context, fie
 		return ec.fieldContext_StorageLocation_online(ctx, field)
 	case "createdAt":
 		return ec.fieldContext_StorageLocation_createdAt(ctx, field)
+	case "updatedAt":
+		return ec.fieldContext_StorageLocation_updatedAt(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type StorageLocation", field.Name)
 }
@@ -5576,6 +5606,29 @@ func (ec *executionContext) _AssetVersion_createdAt(ctx context.Context, field g
 	)
 }
 func (ec *executionContext) fieldContext_AssetVersion_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("AssetVersion", field, false, false, "Time")
+}
+
+func (ec *executionContext) _AssetVersion_updatedAt(ctx context.Context, field graphql.CollectedField, obj *sqlc.AssetVersion) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AssetVersion_updatedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AssetVersion_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("AssetVersion", field, false, false, "Time")
 }
 
@@ -10010,6 +10063,29 @@ func (ec *executionContext) fieldContext_Rendition_createdAt(_ context.Context, 
 	return graphql.NewScalarFieldContext("Rendition", field, false, false, "Time")
 }
 
+func (ec *executionContext) _Rendition_updatedAt(ctx context.Context, field graphql.CollectedField, obj *sqlc.Rendition) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Rendition_updatedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Rendition_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("Rendition", field, false, false, "Time")
+}
+
 func (ec *executionContext) _Rendition_files(ctx context.Context, field graphql.CollectedField, obj *sqlc.Rendition) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -10552,6 +10628,29 @@ func (ec *executionContext) _StorageLocation_createdAt(ctx context.Context, fiel
 	)
 }
 func (ec *executionContext) fieldContext_StorageLocation_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("StorageLocation", field, false, false, "Time")
+}
+
+func (ec *executionContext) _StorageLocation_updatedAt(ctx context.Context, field graphql.CollectedField, obj *sqlc.StorageLocation) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_StorageLocation_updatedAt(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.UpdatedAt, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
+			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_StorageLocation_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("StorageLocation", field, false, false, "Time")
 }
 
@@ -13906,6 +14005,11 @@ func (ec *executionContext) _AssetVersion(ctx context.Context, sel ast.Selection
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
+		case "updatedAt":
+			out.Values[i] = ec._AssetVersion_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
 		case "renditions":
 			out.ResolveConcurrently(ec.OperationContext, &deferred, i,
 				true, true,
@@ -15017,6 +15121,11 @@ func (ec *executionContext) _Rendition(ctx context.Context, sel ast.SelectionSet
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
+		case "updatedAt":
+			out.Values[i] = ec._Rendition_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
 		case "files":
 			out.ResolveConcurrently(ec.OperationContext, &deferred, i,
 				true, true,
@@ -15211,6 +15320,11 @@ func (ec *executionContext) _StorageLocation(ctx context.Context, sel ast.Select
 			}
 		case "createdAt":
 			out.Values[i] = ec._StorageLocation_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updatedAt":
+			out.Values[i] = ec._StorageLocation_updatedAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}

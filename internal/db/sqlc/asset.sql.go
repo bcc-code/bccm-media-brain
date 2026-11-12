@@ -92,7 +92,7 @@ INSERT INTO asset_version (asset_id, number, label, status, created_by)
 SELECT $1::text, coalesce(max(v.number), 0) + 1, $2::text, $3::version_status,
        $4::text
 FROM asset_version v WHERE v.asset_id = $1::text
-RETURNING id, asset_id, number, label, status, created_by, created_at, revision
+RETURNING id, asset_id, number, label, status, created_by, created_at, revision, updated_at
 `
 
 type CreateAssetVersionParams struct {
@@ -119,13 +119,14 @@ func (q *Queries) CreateAssetVersion(ctx context.Context, arg CreateAssetVersion
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.Revision,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
 
 const createRendition = `-- name: CreateRendition :one
 INSERT INTO rendition (version_id, kind, language, purpose, overrides, metadata)
-VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, version_id, kind, language, purpose, overrides, metadata, created_at, revision
+VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, version_id, kind, language, purpose, overrides, metadata, created_at, revision, updated_at
 `
 
 type CreateRenditionParams struct {
@@ -157,6 +158,7 @@ func (q *Queries) CreateRendition(ctx context.Context, arg CreateRenditionParams
 		&i.Metadata,
 		&i.CreatedAt,
 		&i.Revision,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
@@ -216,7 +218,7 @@ func (q *Queries) DetachFile(ctx context.Context, arg DetachFileParams) (int64, 
 }
 
 const findSubtitleRendition = `-- name: FindSubtitleRendition :one
-SELECT id, version_id, kind, language, purpose, overrides, metadata, created_at, revision FROM rendition
+SELECT id, version_id, kind, language, purpose, overrides, metadata, created_at, revision, updated_at FROM rendition
 WHERE version_id = $1 AND kind = 'subtitle' AND language IS NOT DISTINCT FROM $2::text
 ORDER BY id LIMIT 1
 `
@@ -239,6 +241,7 @@ func (q *Queries) FindSubtitleRendition(ctx context.Context, arg FindSubtitleRen
 		&i.Metadata,
 		&i.CreatedAt,
 		&i.Revision,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
@@ -305,7 +308,7 @@ func (q *Queries) GetAssetType(ctx context.Context, id int16) (AssetType, error)
 }
 
 const getAssetVersion = `-- name: GetAssetVersion :one
-SELECT id, asset_id, number, label, status, created_by, created_at, revision FROM asset_version WHERE id = $1
+SELECT id, asset_id, number, label, status, created_by, created_at, revision, updated_at FROM asset_version WHERE id = $1
 `
 
 func (q *Queries) GetAssetVersion(ctx context.Context, id string) (AssetVersion, error) {
@@ -320,12 +323,13 @@ func (q *Queries) GetAssetVersion(ctx context.Context, id string) (AssetVersion,
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.Revision,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
 
 const getRendition = `-- name: GetRendition :one
-SELECT r.id, r.version_id, r.kind, r.language, r.purpose, r.overrides, r.metadata, r.created_at, r.revision, v.asset_id FROM rendition r
+SELECT r.id, r.version_id, r.kind, r.language, r.purpose, r.overrides, r.metadata, r.created_at, r.revision, r.updated_at, v.asset_id FROM rendition r
 JOIN asset_version v ON v.id = r.version_id WHERE r.id = $1
 `
 
@@ -347,6 +351,7 @@ func (q *Queries) GetRendition(ctx context.Context, id string) (GetRenditionRow,
 		&i.Rendition.Metadata,
 		&i.Rendition.CreatedAt,
 		&i.Rendition.Revision,
+		&i.Rendition.UpdatedAt,
 		&i.AssetID,
 	)
 	return i, err
@@ -440,7 +445,7 @@ WITH numbered AS (
     SELECT av.id, row_number() OVER (PARTITION BY av.asset_id ORDER BY av.number) AS rn
     FROM asset_version av WHERE av.asset_id = ANY($3::text[])
 )
-SELECT v.id, v.asset_id, v.number, v.label, v.status, v.created_by, v.created_at, v.revision FROM asset_version v JOIN numbered ON numbered.id = v.id
+SELECT v.id, v.asset_id, v.number, v.label, v.status, v.created_by, v.created_at, v.revision, v.updated_at FROM asset_version v JOIN numbered ON numbered.id = v.id
 WHERE numbered.rn > $1::int AND numbered.rn <= $1::int + $2::int
 ORDER BY v.asset_id, v.number
 `
@@ -470,6 +475,7 @@ func (q *Queries) ListAssetVersions(ctx context.Context, arg ListAssetVersionsPa
 			&i.CreatedBy,
 			&i.CreatedAt,
 			&i.Revision,
+			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -579,7 +585,7 @@ func (q *Queries) ListRenditionFiles(ctx context.Context, renditionIds []string)
 }
 
 const listRenditions = `-- name: ListRenditions :many
-SELECT id, version_id, kind, language, purpose, overrides, metadata, created_at, revision FROM rendition WHERE version_id = ANY($1::text[]) ORDER BY version_id, id
+SELECT id, version_id, kind, language, purpose, overrides, metadata, created_at, revision, updated_at FROM rendition WHERE version_id = ANY($1::text[]) ORDER BY version_id, id
 `
 
 func (q *Queries) ListRenditions(ctx context.Context, versionIds []string) ([]Rendition, error) {
@@ -601,6 +607,7 @@ func (q *Queries) ListRenditions(ctx context.Context, versionIds []string) ([]Re
 			&i.Metadata,
 			&i.CreatedAt,
 			&i.Revision,
+			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -623,7 +630,7 @@ func (q *Queries) LockLegacyID(ctx context.Context, legacyID string) error {
 }
 
 const setAssetMetadataKey = `-- name: SetAssetMetadataKey :one
-UPDATE asset SET metadata = jsonb_set(metadata, ARRAY[$1::text], $2::jsonb), revision = revision + 1
+UPDATE asset SET metadata = jsonb_set(metadata, ARRAY[$1::text], $2::jsonb)
 WHERE id = $3 RETURNING id, type_id, title, description, captured_at, camera, reel, metadata, legacy_ids, created_at, updated_at, original_language, revision
 `
 
@@ -674,7 +681,7 @@ func (q *Queries) UnlinkAssetProject(ctx context.Context, arg UnlinkAssetProject
 
 const updateAsset = `-- name: UpdateAsset :one
 UPDATE asset SET type_id = $2, title = $3, description = $4, captured_at = $5, camera = $6, reel = $7,
-    metadata = $8, legacy_ids = $9, original_language = $10, revision = revision + 1
+    metadata = $8, legacy_ids = $9, original_language = $10
 WHERE id = $1
   AND ($11::integer IS NULL OR revision = $11)
 RETURNING id, type_id, title, description, captured_at, camera, reel, metadata, legacy_ids, created_at, updated_at, original_language, revision
@@ -728,10 +735,10 @@ func (q *Queries) UpdateAsset(ctx context.Context, arg UpdateAssetParams) (Asset
 }
 
 const updateAssetVersion = `-- name: UpdateAssetVersion :one
-UPDATE asset_version SET label = $2, status = $3, revision = revision + 1
+UPDATE asset_version SET label = $2, status = $3
 WHERE id = $1
   AND ($4::integer IS NULL OR revision = $4)
-RETURNING id, asset_id, number, label, status, created_by, created_at, revision
+RETURNING id, asset_id, number, label, status, created_by, created_at, revision, updated_at
 `
 
 type UpdateAssetVersionParams struct {
@@ -758,15 +765,16 @@ func (q *Queries) UpdateAssetVersion(ctx context.Context, arg UpdateAssetVersion
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.Revision,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
 
 const updateRendition = `-- name: UpdateRendition :one
-UPDATE rendition SET language = $2, purpose = $3, overrides = $4, metadata = $5, revision = revision + 1
+UPDATE rendition SET language = $2, purpose = $3, overrides = $4, metadata = $5
 WHERE id = $1
   AND ($6::integer IS NULL OR revision = $6)
-RETURNING id, version_id, kind, language, purpose, overrides, metadata, created_at, revision
+RETURNING id, version_id, kind, language, purpose, overrides, metadata, created_at, revision, updated_at
 `
 
 type UpdateRenditionParams struct {
@@ -798,6 +806,7 @@ func (q *Queries) UpdateRendition(ctx context.Context, arg UpdateRenditionParams
 		&i.Metadata,
 		&i.CreatedAt,
 		&i.Revision,
+		&i.UpdatedAt,
 	)
 	return i, err
 }

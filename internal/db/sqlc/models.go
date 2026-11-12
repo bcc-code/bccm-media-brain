@@ -1619,6 +1619,7 @@ type AssetVersion struct {
 	CreatedBy *string       `json:"created_by"`
 	CreatedAt time.Time     `json:"created_at"`
 	Revision  int32         `json:"revision"`
+	UpdatedAt time.Time     `json:"updated_at"`
 }
 
 type Collection struct {
@@ -1774,6 +1775,7 @@ type Rendition struct {
 	Metadata  json.RawMessage `json:"metadata"`
 	CreatedAt time.Time       `json:"created_at"`
 	Revision  int32           `json:"revision"`
+	UpdatedAt time.Time       `json:"updated_at"`
 }
 
 type RenditionFile struct {
@@ -1826,6 +1828,7 @@ type StorageLocation struct {
 	Online    bool         `json:"online"`
 	CreatedAt time.Time    `json:"created_at"`
 	Revision  int32        `json:"revision"`
+	UpdatedAt time.Time    `json:"updated_at"`
 }
 
 type SubtitleCue struct {

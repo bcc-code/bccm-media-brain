@@ -364,7 +364,7 @@ func (q *Queries) ListVisibleProjects(ctx context.Context, arg ListVisibleProjec
 }
 
 const updateProgram = `-- name: UpdateProgram :one
-UPDATE program SET name = $2, description = $3, metadata = $4, revision = revision + 1
+UPDATE program SET name = $2, description = $3, metadata = $4
 WHERE id = $1
   AND ($5::integer IS NULL OR revision = $5)
 RETURNING id, code, name, description, metadata, created_at, updated_at, revision
@@ -401,7 +401,7 @@ func (q *Queries) UpdateProgram(ctx context.Context, arg UpdateProgramParams) (P
 }
 
 const updateProject = `-- name: UpdateProject :one
-UPDATE project SET name = $2, status = $3, starts_on = $4, ends_on = $5, metadata = $6, revision = revision + 1
+UPDATE project SET name = $2, status = $3, starts_on = $4, ends_on = $5, metadata = $6
 WHERE id = $1
   AND ($7::integer IS NULL OR revision = $7)
 RETURNING id, program_id, code, name, status, starts_on, ends_on, metadata, created_at, updated_at, revision

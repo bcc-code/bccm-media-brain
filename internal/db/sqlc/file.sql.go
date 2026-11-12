@@ -98,7 +98,7 @@ func (q *Queries) CreateFileCopy(ctx context.Context, arg CreateFileCopyParams) 
 }
 
 const createStorageLocation = `-- name: CreateStorageLocation :one
-INSERT INTO storage_location (name, kind, base_uri, online) VALUES ($1, $2, $3, $4) RETURNING id, name, kind, base_uri, online, created_at, revision
+INSERT INTO storage_location (name, kind, base_uri, online) VALUES ($1, $2, $3, $4) RETURNING id, name, kind, base_uri, online, created_at, revision, updated_at
 `
 
 type CreateStorageLocationParams struct {
@@ -124,6 +124,7 @@ func (q *Queries) CreateStorageLocation(ctx context.Context, arg CreateStorageLo
 		&i.Online,
 		&i.CreatedAt,
 		&i.Revision,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
@@ -289,7 +290,7 @@ func (q *Queries) GetFiles(ctx context.Context, ids []string) ([]File, error) {
 }
 
 const getStorageLocation = `-- name: GetStorageLocation :one
-SELECT id, name, kind, base_uri, online, created_at, revision FROM storage_location WHERE id = $1
+SELECT id, name, kind, base_uri, online, created_at, revision, updated_at FROM storage_location WHERE id = $1
 `
 
 func (q *Queries) GetStorageLocation(ctx context.Context, id string) (StorageLocation, error) {
@@ -303,12 +304,13 @@ func (q *Queries) GetStorageLocation(ctx context.Context, id string) (StorageLoc
 		&i.Online,
 		&i.CreatedAt,
 		&i.Revision,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
 
 const getStorageLocationByName = `-- name: GetStorageLocationByName :one
-SELECT id, name, kind, base_uri, online, created_at, revision FROM storage_location WHERE name = $1
+SELECT id, name, kind, base_uri, online, created_at, revision, updated_at FROM storage_location WHERE name = $1
 `
 
 func (q *Queries) GetStorageLocationByName(ctx context.Context, name string) (StorageLocation, error) {
@@ -322,12 +324,13 @@ func (q *Queries) GetStorageLocationByName(ctx context.Context, name string) (St
 		&i.Online,
 		&i.CreatedAt,
 		&i.Revision,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
 
 const getStorageLocations = `-- name: GetStorageLocations :many
-SELECT id, name, kind, base_uri, online, created_at, revision FROM storage_location WHERE id = ANY($1::text[])
+SELECT id, name, kind, base_uri, online, created_at, revision, updated_at FROM storage_location WHERE id = ANY($1::text[])
 `
 
 func (q *Queries) GetStorageLocations(ctx context.Context, ids []string) ([]StorageLocation, error) {
@@ -347,6 +350,7 @@ func (q *Queries) GetStorageLocations(ctx context.Context, ids []string) ([]Stor
 			&i.Online,
 			&i.CreatedAt,
 			&i.Revision,
+			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -459,7 +463,7 @@ func (q *Queries) ListFiles(ctx context.Context, arg ListFilesParams) ([]File, e
 }
 
 const listStorageLocations = `-- name: ListStorageLocations :many
-SELECT id, name, kind, base_uri, online, created_at, revision FROM storage_location ORDER BY name
+SELECT id, name, kind, base_uri, online, created_at, revision, updated_at FROM storage_location ORDER BY name
 `
 
 func (q *Queries) ListStorageLocations(ctx context.Context) ([]StorageLocation, error) {
@@ -479,6 +483,7 @@ func (q *Queries) ListStorageLocations(ctx context.Context) ([]StorageLocation, 
 			&i.Online,
 			&i.CreatedAt,
 			&i.Revision,
+			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -522,10 +527,10 @@ func (q *Queries) SetFileCopyStatus(ctx context.Context, arg SetFileCopyStatusPa
 }
 
 const updateStorageLocation = `-- name: UpdateStorageLocation :one
-UPDATE storage_location SET name = $2, kind = $3, base_uri = $4, online = $5, revision = revision + 1
+UPDATE storage_location SET name = $2, kind = $3, base_uri = $4, online = $5
 WHERE id = $1
   AND ($6::integer IS NULL OR revision = $6)
-RETURNING id, name, kind, base_uri, online, created_at, revision
+RETURNING id, name, kind, base_uri, online, created_at, revision, updated_at
 `
 
 type UpdateStorageLocationParams struct {
@@ -555,6 +560,7 @@ func (q *Queries) UpdateStorageLocation(ctx context.Context, arg UpdateStorageLo
 		&i.Online,
 		&i.CreatedAt,
 		&i.Revision,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
