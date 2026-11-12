@@ -30,7 +30,7 @@ type SubtitleTrack {
   createdBy: ID
   createdAt: Time!
   "At most 5000 per page."
-  cues(limit: Int = 500, offset: Int = 0): [SubtitleCue!]!
+  cues(first: Int = 500, after: String): SubtitleCueConnection!
   "The whole track as subtitle text. SRT drops speakers."
   export(format: SubtitleFormat!): String!
 }
@@ -73,4 +73,10 @@ extend type Mutation {
   "Writes a new revision with exactly these cues. Only the latest revision can be edited."
   editSubtitles(trackId: ID!, cues: [SubtitleCueInput!]!): SubtitleTrack!
   deleteSubtitleTrack(id: ID!): Boolean!
+}
+
+"One page of the cues of a subtitle track."
+type SubtitleCueConnection {
+  nodes: [SubtitleCue!]!
+  pageInfo: PageInfo!
 }

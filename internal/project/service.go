@@ -75,16 +75,17 @@ func (s *Service) Program(ctx context.Context, id string) (sqlc.Program, error) 
 	return s.program(ctx, id, access.View)
 }
 
-func (s *Service) Programs(ctx context.Context, limit, offset int) ([]sqlc.Program, error) {
+func (s *Service) Programs(ctx context.Context, first int, after *string) (domain.Slice[sqlc.Program], error) {
 	p, err := access.From(ctx)
 	if err != nil {
-		return nil, err
+		return domain.Slice[sqlc.Program]{}, err
 	}
-	l, o, err := domain.Page(limit, offset)
+	w, err := domain.NewWindow(first, after, domain.DefaultLimit, domain.MaxLimit)
 	if err != nil {
-		return nil, err
+		return domain.Slice[sqlc.Program]{}, err
 	}
-	return s.q.ListPrograms(ctx, sqlc.ListProgramsParams{IsAdmin: p.Admin, Principals: p.IDs(), Limit: l, Offset: o})
+	rows, err := s.q.ListPrograms(ctx, sqlc.ListProgramsParams{IsAdmin: p.Admin, Principals: p.IDs(), Limit: w.Fetch(), After: w.After})
+	return domain.Cut(rows, w, func(p sqlc.Program) string { return p.Code }), err
 }
 
 func (s *Service) UpdateProgram(ctx context.Context, id string, in ProgramInput, expected *int) (sqlc.Program, error) {
@@ -193,23 +194,24 @@ type ProjectFilter struct {
 	Status    *sqlc.ProjectStatus
 }
 
-func (s *Service) Projects(ctx context.Context, f ProjectFilter, limit, offset int) ([]sqlc.Project, error) {
+func (s *Service) Projects(ctx context.Context, f ProjectFilter, first int, after *string) (domain.Slice[sqlc.Project], error) {
 	p, err := access.From(ctx)
 	if err != nil {
-		return nil, err
+		return domain.Slice[sqlc.Project]{}, err
 	}
-	l, o, err := domain.Page(limit, offset)
+	w, err := domain.NewWindow(first, after, domain.DefaultLimit, domain.MaxLimit)
 	if err != nil {
-		return nil, err
+		return domain.Slice[sqlc.Project]{}, err
 	}
 	var status *string
 	if f.Status != nil {
 		st := string(*f.Status)
 		status = &st
 	}
-	return s.q.ListProjects(ctx, sqlc.ListProjectsParams{
-		ProgramID: f.ProgramID, Status: status, IsAdmin: p.Admin, Principals: p.IDs(), Limit: l, Offset: o,
+	rows, err := s.q.ListProjects(ctx, sqlc.ListProjectsParams{
+		ProgramID: f.ProgramID, Status: status, IsAdmin: p.Admin, Principals: p.IDs(), Limit: w.Fetch(), After: w.After,
 	})
+	return domain.Cut(rows, w, func(p sqlc.Project) string { return p.Code }), err
 }
 
 func (s *Service) UpdateProject(ctx context.Context, id string, in ProjectInput, expected *int) (sqlc.Project, error) {
@@ -270,20 +272,20 @@ func (s *Service) ProgramsByID(ctx context.Context, ids []string) (map[string]sq
 	return out, err
 }
 
-// visibleProjects pages within each program: skip and perProgram count per program.
-func (s *Service) visibleProjects(ctx context.Context, ids, programIDs []string, perProgram, skip int32) ([]sqlc.Project, error) {
+// visibleProjects pages within each program: the first perProgram after the code in after.
+func (s *Service) visibleProjects(ctx context.Context, ids, programIDs []string, perProgram int32, after *string) ([]sqlc.Project, error) {
 	p, err := access.From(ctx)
 	if err != nil {
 		return nil, err
 	}
 	return s.q.ListVisibleProjects(ctx, sqlc.ListVisibleProjectsParams{
-		Ids: ids, ProgramIds: programIDs, IsAdmin: p.Admin, Principals: p.IDs(), PerProgram: perProgram, Skip: skip,
+		Ids: ids, ProgramIds: programIDs, IsAdmin: p.Admin, Principals: p.IDs(), PerProgram: perProgram, After: after,
 	})
 }
 
 // ProjectsByID returns the projects the caller may see; the others are absent.
 func (s *Service) ProjectsByID(ctx context.Context, ids []string) (map[string]sqlc.Project, error) {
-	rows, err := s.visibleProjects(ctx, ids, []string{}, int32(len(ids)), 0)
+	rows, err := s.visibleProjects(ctx, ids, []string{}, int32(len(ids)), nil)
 	out := make(map[string]sqlc.Project, len(rows))
 	for _, r := range rows {
 		out[r.ID] = r
@@ -297,18 +299,12 @@ func (s *Service) ProjectsByID(ctx context.Context, ids []string) (map[string]sq
 const ProjectsPerProgram = 200
 
 // ProjectsFor returns, per program, one page of the projects the caller may see, by code.
-func (s *Service) ProjectsFor(ctx context.Context, programIDs []string, limit, offset int) (map[string][]sqlc.Project, error) {
-	if limit == 0 {
-		limit = ProjectsPerProgram
-	}
-	l, o, err := domain.Page(limit, offset)
+func (s *Service) ProjectsFor(ctx context.Context, programIDs []string, first int, after *string) (map[string]domain.Slice[sqlc.Project], error) {
+	w, err := domain.NewWindow(first, after, ProjectsPerProgram, domain.MaxLimit)
 	if err != nil {
 		return nil, err
 	}
-	rows, err := s.visibleProjects(ctx, []string{}, programIDs, l, o)
-	out := map[string][]sqlc.Project{}
-	for _, r := range rows {
-		out[r.ProgramID] = append(out[r.ProgramID], r)
-	}
-	return out, err
+	rows, err := s.visibleProjects(ctx, []string{}, programIDs, w.Fetch(), w.After)
+	return domain.CutBy(rows, w, func(p sqlc.Project) string { return p.ProgramID },
+		func(p sqlc.Project) string { return p.Code }), err
 }

@@ -229,3 +229,16 @@ func (u user) sees(t *testing.T, field, id string) {
 }
 
 func contains(s, sub string) bool { return strings.Contains(strings.ToLower(s), strings.ToLower(sub)) }
+
+// nodes decodes a connection ({ nodes: [...] }) as the list of its nodes, for the tests that
+// only want the items of a page.
+type nodes[T any] []T
+
+func (n *nodes[T]) UnmarshalJSON(b []byte) error {
+	var c struct{ Nodes []T }
+	if err := json.Unmarshal(b, &c); err != nil {
+		return err
+	}
+	*n = c.Nodes
+	return nil
+}

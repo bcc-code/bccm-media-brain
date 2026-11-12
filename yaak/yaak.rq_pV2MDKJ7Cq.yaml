@@ -15,12 +15,15 @@ body:
         type { name }
         projects { role linkOrigin project { id code name } }
         versions {
-          id number label status createdBy
-          renditions {
-            id kind language purpose
-            files { role position file { id sizeBytes mimeType codec copies { path location { name } } } }
-            subtitleTracks { id language kind revision }
+          nodes {
+            id number label status createdBy
+            renditions {
+              id kind language purpose
+              files { role position file { id sizeBytes mimeType codec copies { path location { name } } } }
+              subtitleTracks { id language kind revision }
+            }
           }
+          pageInfo { hasNextPage endCursor }
         }
       }
     }

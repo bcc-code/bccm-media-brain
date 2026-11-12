@@ -3,10 +3,12 @@ package domain
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
+	"strconv"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -174,19 +176,89 @@ func FromPGUpdate(err error, expected *int32, current func() (int32, error)) err
 	return Stale(now, "changed since revision %d; it is now at revision %d", *expected, now)
 }
 
-// Page validates paging arguments; limit 0 means DefaultLimit.
-func Page(limit, offset int) (int32, int32, error) {
-	return PageMax(limit, offset, MaxLimit)
+// Window is one page of a list: at most Limit items after the item a cursor names.
+type Window struct {
+	Limit int32
+	// After is the sort key of the last item of the page before, as the list's own Cursor
+	// call encoded it. Nil: from the start.
+	After *string
 }
 
-func PageMax(limit, offset, maxLimit int) (int32, int32, error) {
-	if limit == 0 {
-		limit = DefaultLimit
+// NewWindow validates the first and after arguments of a paged list. first 0 means def.
+func NewWindow(first int, after *string, def, max int) (Window, error) {
+	if first == 0 {
+		first = def
 	}
-	if limit < 0 || limit > maxLimit || offset < 0 {
-		return 0, 0, Invalid("limit must be 1..%d and offset >= 0", maxLimit)
+	if first < 0 || first > max {
+		return Window{}, InvalidField("first", "first must be 1..%d", max)
 	}
-	return int32(limit), int32(offset), nil
+	w := Window{Limit: int32(first)}
+	if after == nil || *after == "" {
+		return w, nil
+	}
+	key, err := base64.RawURLEncoding.DecodeString(*after)
+	if err != nil || len(key) == 0 {
+		return Window{}, InvalidField("after", "after must be an endCursor this list returned")
+	}
+	k := string(key)
+	w.After = &k
+	return w, nil
+}
+
+// Fetch is how many rows to read: one more than the page, to learn whether more follow.
+func (w Window) Fetch() int32 { return w.Limit + 1 }
+
+// AfterInt is After for a list sorted by a number.
+func (w Window) AfterInt() (*int32, error) {
+	if w.After == nil {
+		return nil, nil
+	}
+	n, err := strconv.ParseInt(*w.After, 10, 32)
+	if err != nil {
+		return nil, InvalidField("after", "after must be an endCursor this list returned")
+	}
+	k := int32(n)
+	return &k, nil
+}
+
+// Cursor encodes the sort key of an item. Clients must treat it as opaque: what it holds is
+// free to change.
+func Cursor(key string) string { return base64.RawURLEncoding.EncodeToString([]byte(key)) }
+
+// Slice is one page of a list.
+type Slice[T any] struct {
+	Nodes []T
+	// EndCursor names the last node; nil for an empty page.
+	EndCursor   *string
+	HasNextPage bool
+}
+
+// Cut turns the rows read for a window (Fetch of them at most) into its page. key is the sort
+// key of a row, the value the next page's After compares against.
+func Cut[T any](rows []T, w Window, key func(T) string) Slice[T] {
+	s := Slice[T]{Nodes: rows}
+	if len(rows) > int(w.Limit) {
+		s.Nodes, s.HasNextPage = rows[:w.Limit], true
+	}
+	if n := len(s.Nodes); n > 0 {
+		c := Cursor(key(s.Nodes[n-1]))
+		s.EndCursor = &c
+	}
+	return s
+}
+
+// CutBy is Cut for rows that hold one window per parent, as a batched nested list reads them:
+// rows are grouped by parent, in the order they came, and each group is cut on its own.
+func CutBy[T any](rows []T, w Window, parent, key func(T) string) map[string]Slice[T] {
+	groups := map[string][]T{}
+	for _, r := range rows {
+		groups[parent(r)] = append(groups[parent(r)], r)
+	}
+	out := make(map[string]Slice[T], len(groups))
+	for id, g := range groups {
+		out[id] = Cut(g, w, key)
+	}
+	return out
 }
 
 // JSONObject returns raw if it is a JSON object, and {} when it is empty.

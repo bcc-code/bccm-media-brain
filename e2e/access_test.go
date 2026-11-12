@@ -49,8 +49,8 @@ func newWorld(t *testing.T, seed uint64) world {
 // visible returns which of the world's assets the user finds in the asset list.
 func (w world) visible(t *testing.T, u user) string {
 	t.Helper()
-	var out struct{ Assets []struct{ ID string } }
-	u.must(t, `query($t: String) { assets(filter: {title: $t}, limit: 500) { id } }`, map[string]any{"t": w.marker}, &out)
+	var out struct{ Assets nodes[struct{ ID string }] }
+	u.must(t, `query($t: String) { assets(filter: {title: $t}, first: 500) { nodes { id } } }`, map[string]any{"t": w.marker}, &out)
 	names := map[string]string{w.c1.asset: "c1", w.c2.asset: "c2", w.c3.asset: "c3"}
 	var got []string
 	for _, a := range out.Assets {
@@ -74,10 +74,10 @@ func TestNoAccessLooksLikeNotFound(t *testing.T) {
 		nobody.isNull(t, field, id)
 	}
 	var lists struct {
-		Programs []struct{ ID string }
-		Projects []struct{ ID string }
+		Programs nodes[struct{ ID string }]
+		Projects nodes[struct{ ID string }]
 	}
-	nobody.must(t, `query($p: ID) { programs(limit: 500) { id } projects(programId: $p) { id } }`, map[string]any{"p": w.prog.ID}, &lists)
+	nobody.must(t, `query($p: ID) { programs(first: 500) { nodes { id } } projects(programId: $p) { nodes { id } } }`, map[string]any{"p": w.prog.ID}, &lists)
 	if len(lists.Programs) != 0 || len(lists.Projects) != 0 {
 		t.Fatalf("lists = %+v", lists)
 	}
@@ -142,12 +142,12 @@ func TestAdminOnlyOperations(t *testing.T) {
 		"delete location":   {`mutation($id: ID!) { deleteStorageLocation(id: $id) }`, map[string]any{"id": w.location}},
 		"list locations":    {`{ storageLocations { id baseUri } }`, nil},
 		"register file":     {registerFile, map[string]any{"in": fileVars(w.f.VideoFile())}},
-		"list files":        {`{ files { id } }`, nil},
+		"list files":        {`{ files { nodes { id } } }`, nil},
 		"add copy":          {`mutation($f: ID!, $c: FileCopyInput!) { addFileCopy(fileId: $f, copy: $c) { id } }`, map[string]any{"f": w.c1.file, "c": map[string]any{"locationId": w.location, "path": "x.mov"}}},
 		"copy status":       {`mutation($id: ID!) { setFileCopyStatus(id: $id, status: MISSING) { id } }`, map[string]any{"id": "FC-00000000000000000000000000"}},
 		"remove copy":       {`mutation($id: ID!) { removeFileCopy(id: $id) }`, map[string]any{"id": "FC-00000000000000000000000000"}},
 		"delete file":       {`mutation($id: ID!) { deleteFile(id: $id) }`, map[string]any{"id": w.c1.file}},
-		"list users":        {`{ users { id email } }`, nil},
+		"list users":        {`{ users { nodes { id email } } }`, nil},
 		"list groups":       {`{ userGroups { id } }`, nil},
 		"make admin":        {`mutation($u: String!) { setUserAdmin(user: $u, admin: true) { id } }`, map[string]any{"u": editor.id}},
 		"vidispine import":  {importFromVidispine, map[string]any{"in": map[string]any{"itemId": vidispineItem(w.f, newVidispineStorage()).ID, "typeId": 1, "projectId": w.projectA}}},
@@ -180,7 +180,7 @@ func TestPermissionLevels(t *testing.T) {
 		Asset *struct {
 			MyLevel  string
 			Projects []struct{ Project *struct{ ID string } }
-			Versions []struct {
+			Versions nodes[struct {
 				Renditions []struct {
 					Kind  string
 					Files []struct {
@@ -195,14 +195,14 @@ func TestPermissionLevels(t *testing.T) {
 					}
 					SubtitleTracks []struct {
 						ID   string
-						Cues []struct{ Text string }
+						Cues nodes[struct{ Text string }]
 					}
 				}
-			}
+			}]
 		}
 	}
 	const viewQuery = `query($id: ID!) { asset(id: $id) { myLevel projects { project { id } }
-		versions { renditions { kind files { file { id hashes { algo } copies { path location { baseUri } } } } subtitleTracks { id cues { text } } } } } }`
+		versions { nodes { renditions { kind files { file { id hashes { algo } copies { path location { baseUri } } } } subtitleTracks { id cues { nodes { text } } } } } } } }`
 	look := func(u user, asset string) view {
 		var v view
 		u.must(t, viewQuery, map[string]any{"id": asset}, &v)
@@ -247,11 +247,11 @@ func TestPermissionLevels(t *testing.T) {
 
 		// A visible project makes its program visible, with only the projects one may see.
 		var prog struct {
-			Program  struct{ Projects []struct{ ID string } }
-			Programs []struct{ ID string }
-			Projects []struct{ ID string }
+			Program  struct{ Projects nodes[struct{ ID string }] }
+			Programs nodes[struct{ ID string }]
+			Projects nodes[struct{ ID string }]
 		}
-		viewer.must(t, `query($p: ID!) { program(id: $p) { projects { id } } programs(limit: 500) { id } projects(programId: $p) { id } }`, map[string]any{"p": w.prog.ID}, &prog)
+		viewer.must(t, `query($p: ID!) { program(id: $p) { projects { nodes { id } } } programs(first: 500) { nodes { id } } projects(programId: $p) { nodes { id } } }`, map[string]any{"p": w.prog.ID}, &prog)
 		if len(prog.Program.Projects) != 1 || prog.Program.Projects[0].ID != w.projectA || len(prog.Programs) != 1 || len(prog.Projects) != 1 {
 			t.Fatalf("program as seen by viewer = %+v", prog)
 		}

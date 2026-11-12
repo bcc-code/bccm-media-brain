@@ -13,15 +13,15 @@ import (
 const (
 	createAsset = `mutation($p: ID, $in: AssetInput!) { createAsset(projectId: $p, input: $in) {
 		id typeId title description capturedAt camera reel metadata legacyIds originalLanguage myLevel
-		type { name } projects { projectId role linkOrigin project { id } } versions { id }
+		type { name } projects { projectId role linkOrigin project { id } } versions { nodes { id } }
 	} }`
 	updateAsset = `mutation($id: ID!, $in: AssetInput!) { updateAsset(id: $id, input: $in) { id title description legacyIds metadata updatedAt createdAt } }`
 	assetTree   = `query($id: ID!) { asset(id: $id) {
 		id title
-		versions { id number label status createdBy
+		versions { nodes { id number label status createdBy
 			renditions { id kind language purpose
 				files { role position file { id sizeBytes hashes { algo } copies { path location { name } } } }
-				subtitleTracks { id revision } } }
+				subtitleTracks { id revision } } } }
 	} }`
 )
 
@@ -43,7 +43,7 @@ func TestAssetLifecycle(t *testing.T) {
 				ProjectID, Role, LinkOrigin string
 				Project                     struct{ ID string }
 			}
-			Versions []struct{ ID string }
+			Versions nodes[struct{ ID string }]
 		}
 	}
 	admin.must(t, createAsset, map[string]any{"p": project, "in": in}, &created)
@@ -126,7 +126,7 @@ func TestAssetLifecycle(t *testing.T) {
 	admin.fails(t, "INVALID_INPUT", attachFile, map[string]any{"r": rendition, "f": "FI-00000000000000000000000000", "role": "VIDEO", "pos": 0})
 
 	type treeJSON struct {
-		Versions []struct {
+		Versions nodes[struct {
 			ID         string
 			Number     int
 			Renditions []struct {
@@ -143,7 +143,7 @@ func TestAssetLifecycle(t *testing.T) {
 					}
 				}
 			}
-		}
+		}]
 	}
 	var tree treeJSON
 	admin.must(t, assetTree, map[string]any{"id": a.ID}, &struct{ Asset *treeJSON }{&tree})
@@ -201,14 +201,22 @@ func TestAssetListAndFilters(t *testing.T) {
 	a2 := create(p1, map[string]any{"title": "two " + strings.ToLower(marker), "typeId": 2, "legacyIds": []string{legacy, "x"}})
 	a3 := create(p2, map[string]any{"title": marker + " three", "typeId": 2})
 
-	ids := func(filter map[string]any, limit, offset int) []string {
-		var out struct{ Assets []struct{ ID string } }
-		admin.must(t, `query($f: AssetFilter, $l: Int, $o: Int) { assets(filter: $f, limit: $l, offset: $o) { id } }`,
-			map[string]any{"f": filter, "l": limit, "o": offset}, &out)
-		got := make([]string, len(out.Assets))
-		for i, a := range out.Assets {
+	// ids lists a page; the cursor it leaves in next leads to the page after it.
+	var next *string
+	ids := func(filter map[string]any, first int, after *string) []string {
+		var out struct {
+			Assets struct {
+				Nodes    []struct{ ID string }
+				PageInfo pageInfo
+			}
+		}
+		admin.must(t, `query($f: AssetFilter, $n: Int, $c: String) { assets(filter: $f, first: $n, after: $c) { nodes { id } pageInfo { hasNextPage endCursor } } }`,
+			map[string]any{"f": filter, "n": first, "c": after}, &out)
+		got := make([]string, len(out.Assets.Nodes))
+		for i, a := range out.Assets.Nodes {
 			got[i] = a.ID
 		}
+		next = out.Assets.PageInfo.EndCursor
 		return got
 	}
 	eq := func(name string, got []string, want ...string) {
@@ -217,14 +225,14 @@ func TestAssetListAndFilters(t *testing.T) {
 			t.Errorf("%s = %v, want %v", name, got, want)
 		}
 	}
-	eq("title, newest first", ids(map[string]any{"title": marker}, 50, 0), a3, a2, a1)
-	eq("project", ids(map[string]any{"projectId": p1, "title": marker}, 50, 0), a2, a1)
-	eq("type", ids(map[string]any{"typeId": 2, "title": marker}, 50, 0), a3, a2)
-	eq("legacy id", ids(map[string]any{"legacyId": legacy}, 50, 0), a2)
-	eq("page 1", ids(map[string]any{"title": marker}, 2, 0), a3, a2)
-	eq("page 2", ids(map[string]any{"title": marker}, 2, 2), a1)
-	eq("nothing", ids(map[string]any{"title": "no such title " + unique()}, 50, 0))
-	if len(ids(nil, 1, 0)) != 1 {
+	eq("title, newest first", ids(map[string]any{"title": marker}, 50, nil), a3, a2, a1)
+	eq("project", ids(map[string]any{"projectId": p1, "title": marker}, 50, nil), a2, a1)
+	eq("type", ids(map[string]any{"typeId": 2, "title": marker}, 50, nil), a3, a2)
+	eq("legacy id", ids(map[string]any{"legacyId": legacy}, 50, nil), a2)
+	eq("page 1", ids(map[string]any{"title": marker}, 2, nil), a3, a2)
+	eq("page 2", ids(map[string]any{"title": marker}, 2, next), a1)
+	eq("nothing", ids(map[string]any{"title": "no such title " + unique()}, 50, nil))
+	if len(ids(nil, 1, nil)) != 1 {
 		t.Error("no filter should list assets")
 	}
 
@@ -234,10 +242,10 @@ func TestAssetListAndFilters(t *testing.T) {
 	vars := map[string]any{"a": a1, "p": p2, "r": "REFERENCE"}
 	admin.must(t, link, vars, nil)
 	admin.fails(t, "CONFLICT", link, vars)
-	eq("after link", ids(map[string]any{"projectId": p2, "title": marker}, 50, 0), a3, a1)
+	eq("after link", ids(map[string]any{"projectId": p2, "title": marker}, 50, nil), a3, a1)
 	admin.must(t, unlink, vars, nil)
 	admin.fails(t, "NOT_FOUND", unlink, vars)
-	eq("after unlink", ids(map[string]any{"projectId": p2, "title": marker}, 50, 0), a3)
+	eq("after unlink", ids(map[string]any{"projectId": p2, "title": marker}, 50, nil), a3)
 	admin.fails(t, "NOT_FOUND", link, map[string]any{"a": a1, "p": "PJ-00000000000000000000000000", "r": "SOURCE"})
 	admin.fails(t, "NOT_FOUND", link, map[string]any{"a": "AS-00000000000000000000000000", "p": p2, "r": "SOURCE"})
 
@@ -280,7 +288,7 @@ func TestAssetValidation(t *testing.T) {
 	admin.fails(t, "NOT_FOUND", createAsset, map[string]any{"p": "PJ-00000000000000000000000000", "in": assetVars(f)})
 	admin.fails(t, "INVALID_INPUT", updateAsset, map[string]any{"id": c.asset, "in": map[string]any{"typeId": 1, "title": ""}})
 	admin.fails(t, "NOT_FOUND", updateAsset, map[string]any{"id": "AS-00000000000000000000000000", "in": map[string]any{"typeId": 1, "title": "x"}})
-	admin.fails(t, "INVALID_INPUT", `{ assets(limit: 501) { id } }`, nil)
+	admin.fails(t, "INVALID_INPUT", `{ assets(first: 501) { nodes { id } } }`, nil)
 
 	missing := map[string]any{"id": "AV-00000000000000000000000000"}
 	admin.fails(t, "NOT_FOUND", `mutation($id: ID!) { createAssetVersion(assetId: $id, input: {}) { id } }`, map[string]any{"id": "AS-00000000000000000000000000"})

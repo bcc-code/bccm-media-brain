@@ -9,17 +9,18 @@ authentication: {}
 authenticationType: null
 body:
   query: |
-    query($programId: ID, $status: ProjectStatus, $limit: Int, $offset: Int) {
-      projects(programId: $programId, status: $status, limit: $limit, offset: $offset) {
-        id code name status startsOn endsOn program { id code }
+    query($programId: ID, $status: ProjectStatus, $first: Int, $after: String) {
+      projects(programId: $programId, status: $status, first: $first, after: $after) {
+        nodes { id code name status startsOn endsOn program { id code } }
+        pageInfo { hasNextPage endCursor }
       }
     }
   variables: |-
     {
       "programId": "${[ program_id ]}",
       "status": null,
-      "limit": 50,
-      "offset": 0
+      "first": 50,
+      "after": null
     }
 bodyType: graphql
 description: ''

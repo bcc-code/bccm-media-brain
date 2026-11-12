@@ -106,7 +106,7 @@ extend type Query {
   file(id: ID!): File
   fileByHash(hash: FileHashInput!): File
   "Administrators only."
-  files(limit: Int = 50, offset: Int = 0): [File!]!
+  files(first: Int = 50, after: String): FileConnection!
   "Administrators only."
   storageLocations: [StorageLocation!]!
 }
@@ -129,4 +129,10 @@ extend type Mutation {
   removeFileCopy(id: ID!): Boolean!
   "Fails while the file has copies or is used by a rendition."
   deleteFile(id: ID!): Boolean!
+}
+
+"One page of files."
+type FileConnection {
+  nodes: [File!]!
+  pageInfo: PageInfo!
 }

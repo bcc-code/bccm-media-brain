@@ -10,6 +10,7 @@ import (
 
 	"github.com/bcc-media/mediabrain/internal/access"
 	"github.com/bcc-media/mediabrain/internal/db/sqlc"
+	"github.com/bcc-media/mediabrain/internal/graph/model"
 )
 
 // GrantAccess is the resolver for the grantAccess field.
@@ -63,8 +64,12 @@ func (r *queryResolver) ServiceTokens(ctx context.Context, serviceAccount string
 }
 
 // Users is the resolver for the users field.
-func (r *queryResolver) Users(ctx context.Context, limit *int, offset *int) ([]*sqlc.AppUser, error) {
-	return many(r.AccessSvc.Users(ctx, deref(limit), deref(offset)))
+func (r *queryResolver) Users(ctx context.Context, first *int, after *string) (*model.UserConnection, error) {
+	n, info, err := nodes(r.AccessSvc.Users(ctx, deref(first), after))
+	if err != nil {
+		return nil, err
+	}
+	return &model.UserConnection{Nodes: n, PageInfo: info}, nil
 }
 
 // UserGroups is the resolver for the userGroups field.

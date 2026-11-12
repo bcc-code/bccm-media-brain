@@ -309,7 +309,7 @@ func TestDebugAPI(t *testing.T) {
 		t.Fatalf("users = %d %v", code, users)
 	}
 	seen := func(cookie string) (int, int) {
-		req, _ := http.NewRequest("POST", base+"/query", strings.NewReader(`{"query":"{ assets { id } }"}`))
+		req, _ := http.NewRequest("POST", base+"/query", strings.NewReader(`{"query":"{ assets { nodes { id } } }"}`))
 		req.Header.Set("Content-Type", "application/json")
 		if cookie != "" {
 			req.AddCookie(&http.Cookie{Name: auth.DebugUserCookie, Value: cookie})
@@ -320,7 +320,7 @@ func TestDebugAPI(t *testing.T) {
 		}
 		defer res.Body.Close()
 		var r struct {
-			Data struct{ Assets []struct{ ID string } }
+			Data struct{ Assets nodes[struct{ ID string }] }
 		}
 		_ = json.NewDecoder(res.Body).Decode(&r)
 		return res.StatusCode, len(r.Data.Assets)

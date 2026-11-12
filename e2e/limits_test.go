@@ -58,7 +58,7 @@ func TestQueryDeadline(t *testing.T) {
 		}
 		return s
 	}
-	const list = `{ assets(limit: 1) { id } }`
+	const list = `{ assets(first: 1) { nodes { id } } }`
 	if r, _ := ask(list, nil); len(r.Errors) != 0 {
 		t.Fatalf("before the lock: %+v", r.Errors)
 	}
@@ -118,11 +118,11 @@ func TestQueryDeadline(t *testing.T) {
 func TestComplexityLimit(t *testing.T) {
 	w := newWorld(t, 52)
 	admin := access.Principal{UserID: w.admin.id, Admin: true}
-	const levels = `{ id versions { id renditions { id files { role file { id } } } } }`
-	if r, _ := exec(t, admin, 0, `{ assets(limit: 100) `+levels+` }`, nil); len(r.Errors) != 0 {
+	const levels = `{ nodes { id versions { nodes { id renditions { id files { role file { id } } } } } } }`
+	if r, _ := exec(t, admin, 0, `{ assets(first: 100) `+levels+` }`, nil); len(r.Errors) != 0 {
 		t.Fatalf("a page of 100 assets: %+v", r.Errors)
 	}
-	r, statements := exec(t, admin, 0, `{ assets(limit: 500) `+levels+` }`, nil)
+	r, statements := exec(t, admin, 0, `{ assets(first: 500) `+levels+` }`, nil)
 	if len(r.Errors) != 1 || r.Errors[0].Extensions.Code != "COMPLEXITY_LIMIT_EXCEEDED" || !strings.Contains(r.Errors[0].Message, fmt.Sprint(graph.ComplexityLimit)) {
 		t.Fatalf("500 assets with nested lists: %+v", r.Errors)
 	}
@@ -130,9 +130,20 @@ func TestComplexityLimit(t *testing.T) {
 		t.Fatalf("a refused query ran %d statements", statements)
 	}
 	// The same page is fine once the nested list is short.
-	if r, _ := exec(t, admin, 0, `{ assets(limit: 500) { id versions(limit: 5) { id renditions { id files { role file { id } } } } } }`, nil); len(r.Errors) != 0 {
+	if r, _ := exec(t, admin, 0, `{ assets(first: 500) { nodes { id versions(first: 5) { nodes { id renditions { id files { role file { id } } } } } } } }`, nil); len(r.Errors) != 0 {
 		t.Fatalf("500 assets with 5 versions each: %+v", r.Errors)
 	}
+}
+
+// pageInfo is where a page ends, as every connection reports it.
+type pageInfo struct {
+	HasNextPage bool
+	EndCursor   *string
+}
+
+// after is the arguments for the page that follows the one info ended.
+func after(first int, info pageInfo) string {
+	return fmt.Sprintf(`(first: %d, after: %q)`, first, *info.EndCursor)
 }
 
 func TestNestedListsArePaged(t *testing.T) {
@@ -141,101 +152,201 @@ func TestNestedListsArePaged(t *testing.T) {
 	for range 3 {
 		newVersion(t, w.admin, w.c1.asset)
 	}
-	numbers := func(u user, asset, args string) string {
+	const versionPage = ` { nodes { number } pageInfo { hasNextPage endCursor } } } }`
+	numbers := func(u user, asset, args string) (string, pageInfo) {
 		t.Helper()
 		var out struct {
-			Asset struct{ Versions []struct{ Number int } }
+			Asset struct {
+				Versions struct {
+					Nodes    []struct{ Number int }
+					PageInfo pageInfo
+				}
+			}
 		}
-		u.must(t, `query($id: ID!) { asset(id: $id) { versions`+args+` { number } } }`, map[string]any{"id": asset}, &out)
+		u.must(t, `query($id: ID!) { asset(id: $id) { versions`+args+versionPage, map[string]any{"id": asset}, &out)
 		var got []string
-		for _, v := range out.Asset.Versions {
+		for _, v := range out.Asset.Versions.Nodes {
 			got = append(got, fmt.Sprint(v.Number))
 		}
-		return strings.Join(got, ",")
+		return strings.Join(got, ","), out.Asset.Versions.PageInfo
 	}
-	for args, want := range map[string]string{
-		"":                       "1,2,3,4",
-		"(limit: 2)":             "1,2",
-		"(limit: 2, offset: 1)":  "2,3",
-		"(limit: 2, offset: 3)":  "4",
-		"(offset: 4)":            "",
-		"(limit: 500)":           "1,2,3,4",
-		"(limit: null)":          "1,2,3,4",
-		"(limit: 0, offset: 0)":  "1,2,3,4",
-		"(limit: 1, offset: 99)": "",
-	} {
-		if got := numbers(w.admin, w.c1.asset, args); got != want {
-			t.Errorf("versions%s = %q, want %q", args, got, want)
+	for _, args := range []string{"", "(first: 500)", "(first: null)", "(first: 0)", "(first: 4)", `(after: "")`, "(after: null)"} {
+		if got, info := numbers(w.admin, w.c1.asset, args); got != "1,2,3,4" || info.HasNextPage || info.EndCursor == nil {
+			t.Errorf("versions%s = %q, %+v; want all four and no next page", args, got, info)
 		}
 	}
-	for _, args := range []string{"(limit: 501)", "(limit: -1)", "(offset: -1)"} {
-		w.admin.fails(t, "INVALID_INPUT", `query($id: ID!) { asset(id: $id) { versions`+args+` { number } } }`, map[string]any{"id": w.c1.asset})
-		w.admin.fails(t, "INVALID_INPUT", `query($id: ID!) { program(id: $id) { projects`+args+` { id } } }`, map[string]any{"id": w.prog.ID})
+	// Page by page: each cursor leads to what follows, a full last page has no next one, and
+	// past the end there is an empty page without a cursor.
+	first, info := numbers(w.admin, w.c1.asset, "(first: 2)")
+	if first != "1,2" || !info.HasNextPage {
+		t.Fatalf("the first two = %q, %+v", first, info)
 	}
-
-	// The page is taken within each asset, and two pages of one field are two batches.
-	var page struct {
-		Assets []struct {
-			ID    string
-			First []struct{ Number int }
-			Rest  []struct{ Number int }
-		}
+	second, info := numbers(w.admin, w.c1.asset, after(2, info))
+	if second != "3,4" || info.HasNextPage {
+		t.Fatalf("the next two = %q, %+v", second, info)
 	}
-	w.admin.must(t, `query($t: String) { assets(filter: {title: $t}) { id first: versions(limit: 1) { number } rest: versions(limit: 10, offset: 1) { number } } }`,
-		map[string]any{"t": w.marker}, &page)
-	for _, a := range page.Assets {
-		want := 0
-		if a.ID == w.c1.asset {
-			want = 3
-		}
-		if len(a.First) != 1 || a.First[0].Number != 1 || len(a.Rest) != want {
-			t.Errorf("asset %s: first %v, rest %v", a.ID, a.First, a.Rest)
-		}
+	if past, end := numbers(w.admin, w.c1.asset, after(2, info)); past != "" || end.HasNextPage || end.EndCursor != nil {
+		t.Fatalf("past the end = %q, %+v", past, end)
 	}
-	if len(page.Assets) != 3 {
-		t.Fatalf("%d assets", len(page.Assets))
+	three, info := numbers(w.admin, w.c1.asset, "(first: 3)")
+	if rest, end := numbers(w.admin, w.c1.asset, after(3, info)); three != "1,2,3" || !info.HasNextPage || rest != "4" || end.HasNextPage {
+		t.Fatalf("three and the rest = %q, %q, %+v", three, rest, end)
 	}
 
 	// Projects of a program: by code, and a page counts only what the caller may see.
 	for range 3 {
 		newProject(t, w.admin, w.f, w.prog)
 	}
-	codes := func(u user, args string) []string {
+	codes := func(u user, args string) ([]string, pageInfo) {
 		t.Helper()
 		var out struct {
-			Program struct{ Projects []struct{ ID, Code string } }
+			Program struct {
+				Projects struct {
+					Nodes    []struct{ ID, Code string }
+					PageInfo pageInfo
+				}
+			}
 		}
-		u.must(t, `query($id: ID!) { program(id: $id) { projects`+args+` { id code } } }`, map[string]any{"id": w.prog.ID}, &out)
+		u.must(t, `query($id: ID!) { program(id: $id) { projects`+args+` { nodes { id code } pageInfo { hasNextPage endCursor } } } }`,
+			map[string]any{"id": w.prog.ID}, &out)
 		var got []string
-		for _, p := range out.Program.Projects {
+		for _, p := range out.Program.Projects.Nodes {
 			got = append(got, p.Code)
 		}
-		return got
+		return got, out.Program.Projects.PageInfo
 	}
-	all := codes(w.admin, "")
-	if len(all) != 5 || !sortedStrings(all) {
-		t.Fatalf("projects = %v, want 5 by code", all)
+	all, end := codes(w.admin, "")
+	if len(all) != 5 || !sortedStrings(all) || end.HasNextPage {
+		t.Fatalf("projects = %v, %+v; want 5 by code", all, end)
 	}
-	if got := codes(w.admin, "(limit: 2, offset: 1)"); strings.Join(got, ",") != strings.Join(all[1:3], ",") {
-		t.Errorf("second and third project = %v, want %v", got, all[1:3])
+	var walked []string
+	projectPage, pages := "(first: 2)", 0
+	for {
+		got, info := codes(w.admin, projectPage)
+		walked, pages = append(walked, got...), pages+1
+		if !info.HasNextPage {
+			break
+		}
+		projectPage = after(2, info)
 	}
-	if got := codes(w.admin, "(offset: 5)"); len(got) != 0 {
-		t.Errorf("past the end = %v", got)
+	if strings.Join(walked, ",") != strings.Join(all, ",") || pages != 3 {
+		t.Errorf("walking the projects two at a time gave %v in %d pages, want %v in 3", walked, pages, all)
 	}
+
+	// A cursor is for the list that gave it. One from a list sorted by text is refused by a list
+	// sorted by number, and so is anything that is not a cursor.
+	_, projectsEnd := codes(w.admin, "(first: 1)")
+	for args, field := range map[string]string{
+		"(first: 501)": "first", "(first: -1)": "first", `(after: "not a cursor!")`: "after", after(1, projectsEnd): "after",
+	} {
+		e := w.admin.fails(t, "INVALID_INPUT", `query($id: ID!) { asset(id: $id) { versions`+args+versionPage, map[string]any{"id": w.c1.asset})
+		if e.Extensions.Field != field {
+			t.Errorf("versions%s: the error names the field %q, want %q", args, e.Extensions.Field, field)
+		}
+	}
+	for _, args := range []string{"(first: 501)", "(first: -1)", `(after: "not a cursor!")`} {
+		w.admin.fails(t, "INVALID_INPUT", `query($id: ID!) { program(id: $id) { projects`+args+` { nodes { id } } } }`, map[string]any{"id": w.prog.ID})
+	}
+
+	// The page is taken within each asset, and two pages of one field are two batches.
+	_, firstVersion := numbers(w.admin, w.c1.asset, "(first: 1)")
+	var page struct {
+		Assets struct {
+			Nodes []struct {
+				ID    string
+				First struct{ Nodes []struct{ Number int } }
+				Rest  struct {
+					Nodes    []struct{ Number int }
+					PageInfo pageInfo
+				}
+			}
+		}
+	}
+	w.admin.must(t, `query($t: String, $c: String) { assets(filter: {title: $t}) { nodes { id
+		first: versions(first: 1) { nodes { number } }
+		rest: versions(first: 2, after: $c) { nodes { number } pageInfo { hasNextPage } } } } }`,
+		map[string]any{"t": w.marker, "c": *firstVersion.EndCursor}, &page)
+	for _, a := range page.Assets.Nodes {
+		want, more := 0, false
+		if a.ID == w.c1.asset {
+			want, more = 2, true
+		}
+		if len(a.First.Nodes) != 1 || a.First.Nodes[0].Number != 1 || len(a.Rest.Nodes) != want || a.Rest.PageInfo.HasNextPage != more {
+			t.Errorf("asset %s: first %v, rest %+v", a.ID, a.First, a.Rest)
+		}
+	}
+	if len(page.Assets.Nodes) != 3 {
+		t.Fatalf("%d assets", len(page.Assets.Nodes))
+	}
+
 	// A member of the last project only: it is the first of their page, not the fifth.
 	member := signIn(t)
-	var last struct{ Projects []struct{ ID, Code string } }
-	w.admin.must(t, `query($p: ID) { projects(programId: $p, limit: 500) { id code } }`, map[string]any{"p": w.prog.ID}, &last)
-	lastProject := last.Projects[len(last.Projects)-1]
+	var last struct {
+		Projects struct{ Nodes []struct{ ID, Code string } }
+	}
+	w.admin.must(t, `query($p: ID) { projects(programId: $p, first: 500) { nodes { id code } } }`, map[string]any{"p": w.prog.ID}, &last)
+	lastProject := last.Projects.Nodes[len(last.Projects.Nodes)-1]
 	if lastProject.Code != all[4] {
 		t.Fatalf("root list ends with %s, nested list with %s", lastProject.Code, all[4])
 	}
 	grant(t, w.admin, "PROJECT", lastProject.ID, "VIEW", to(member))
-	if got := codes(member, "(limit: 1)"); len(got) != 1 || got[0] != all[4] {
-		t.Errorf("the member's first project = %v, want %s", got, all[4])
+	if got, info := codes(member, "(first: 1)"); len(got) != 1 || got[0] != all[4] || info.HasNextPage {
+		t.Errorf("the member's page = %v, %+v; want %s and nothing after it", got, info, all[4])
 	}
-	if got := codes(member, "(limit: 1, offset: 1)"); len(got) != 0 {
-		t.Errorf("the member's second project = %v, want none", got)
+}
+
+// Root lists page by cursor. What a cursor leads to does not move when something is added in
+// front: with offsets, a new asset pushed the last one of a page onto the next page as well.
+func TestRootListsArePagedByCursor(t *testing.T) {
+	w := newWorld(t, 54)
+	type assets struct {
+		Assets struct {
+			Nodes    []struct{ ID string }
+			PageInfo pageInfo
+		}
+	}
+	const query = `query($t: String, $n: Int, $c: String) { assets(filter: {title: $t}, first: $n, after: $c) { nodes { id } pageInfo { hasNextPage endCursor } } }`
+	var everything, first, rest assets
+	w.admin.must(t, query, map[string]any{"t": w.marker}, &everything)
+	if len(everything.Assets.Nodes) != 3 || everything.Assets.PageInfo.HasNextPage {
+		t.Fatalf("the world has %+v", everything.Assets)
+	}
+	w.admin.must(t, query, map[string]any{"t": w.marker, "n": 2}, &first)
+	if len(first.Assets.Nodes) != 2 || !first.Assets.PageInfo.HasNextPage {
+		t.Fatalf("the first page = %+v", first.Assets)
+	}
+	// Newest first, so this one goes in front of the page already read.
+	added := newAsset(t, w.admin, w.f, w.projectA)
+	w.admin.must(t, updateAsset, map[string]any{"id": added, "in": map[string]any{"typeId": 1, "title": w.marker + " added"}}, nil)
+	w.admin.must(t, query, map[string]any{"t": w.marker, "n": 2, "c": *first.Assets.PageInfo.EndCursor}, &rest)
+	var got []string
+	for _, a := range append(first.Assets.Nodes, rest.Assets.Nodes...) {
+		got = append(got, a.ID)
+	}
+	var want []string
+	for _, a := range everything.Assets.Nodes {
+		want = append(want, a.ID)
+	}
+	if strings.Join(got, ",") != strings.Join(want, ",") || rest.Assets.PageInfo.HasNextPage || strings.Contains(strings.Join(got, ","), added) {
+		t.Fatalf("two pages gave %v, want %v (the new asset is %s)", got, want, added)
+	}
+
+	// The other root lists take the same arguments; each sorts by its own key.
+	for field, selection := range map[string]string{"files": "id", "users": "id", "programs": "code", "projects": "code"} {
+		var out map[string]struct {
+			Nodes    []map[string]string
+			PageInfo pageInfo
+		}
+		w.admin.must(t, `{ `+field+`(first: 1) { nodes { `+selection+` } pageInfo { hasNextPage endCursor } } }`, nil, &out)
+		one := out[field]
+		if len(one.Nodes) != 1 || !one.PageInfo.HasNextPage {
+			t.Fatalf("%s(first: 1) = %+v", field, one)
+		}
+		w.admin.must(t, `{ `+field+after(1, one.PageInfo)+` { nodes { `+selection+` } pageInfo { hasNextPage endCursor } } }`, nil, &out)
+		if two := out[field]; len(two.Nodes) != 1 || two.Nodes[0][selection] == one.Nodes[0][selection] {
+			t.Errorf("%s: the page after %v is %v", field, one.Nodes, two.Nodes)
+		}
+		w.admin.fails(t, "INVALID_INPUT", `{ `+field+`(after: "not a cursor!") { nodes { `+selection+` } } }`, nil)
 	}
 }
 

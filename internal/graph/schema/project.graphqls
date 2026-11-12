@@ -16,7 +16,7 @@ type Program {
   createdAt: Time!
   updatedAt: Time!
   "The projects the caller may see, by code. At most 500 per page."
-  projects(limit: Int = 200, offset: Int = 0): [Project!]!
+  projects(first: Int = 200, after: String): ProjectConnection!
 }
 
 type Project {
@@ -70,9 +70,9 @@ input UpdateProjectInput {
 
 extend type Query {
   program(id: ID!): Program
-  programs(limit: Int = 50, offset: Int = 0): [Program!]!
+  programs(first: Int = 50, after: String): ProgramConnection!
   project(id: ID!): Project
-  projects(programId: ID, status: ProjectStatus, limit: Int = 50, offset: Int = 0): [Project!]!
+  projects(programId: ID, status: ProjectStatus, first: Int = 50, after: String): ProjectConnection!
 }
 
 extend type Mutation {
@@ -97,4 +97,16 @@ extend type Mutation {
   """
   updateProject(id: ID!, input: UpdateProjectInput!, expectedRevision: Int): Project!
   deleteProject(id: ID!): Boolean!
+}
+
+"One page of programs."
+type ProgramConnection {
+  nodes: [Program!]!
+  pageInfo: PageInfo!
+}
+
+"One page of projects."
+type ProjectConnection {
+  nodes: [Project!]!
+  pageInfo: PageInfo!
 }

@@ -12,3 +12,15 @@ type Query {
 }
 
 type Mutation
+
+"""
+Where a page of a list ends. Every list that can grow without bound is paged the same way:
+ask for `first` items, and for the next page pass `endCursor` as `after`. A cursor belongs to
+the list that returned it, with the same other arguments; treat it as opaque.
+"""
+type PageInfo {
+  "True when the list has more items after this page."
+  hasNextPage: Boolean!
+  "Names the last item of this page. Null when the page is empty."
+  endCursor: String
+}

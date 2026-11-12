@@ -78,7 +78,7 @@ type Asset {
   "The caller's permission level on this asset."
   myLevel: PermissionLevel!
   "By number, oldest first. At most 500 per page."
-  versions(limit: Int = 50, offset: Int = 0): [AssetVersion!]!
+  versions(first: Int = 50, after: String): AssetVersionConnection!
   "Links to projects the caller may see. The others are left out, so an asset does not reveal a project."
   projects: [AssetProjectLink!]!
 }
@@ -180,7 +180,7 @@ extend type Query {
   languages(activeOnly: Boolean! = true): [Language!]!
   asset(id: ID!): Asset
   "Newest first."
-  assets(filter: AssetFilter, limit: Int = 50, offset: Int = 0): [Asset!]!
+  assets(filter: AssetFilter, first: Int = 50, after: String): AssetConnection!
   assetVersion(id: ID!): AssetVersion
   rendition(id: ID!): Rendition
 }
@@ -221,4 +221,16 @@ extend type Mutation {
   "Needs EDIT on the rendition's asset and DOWNLOAD_ORIGINAL on the file: attaching shows where the file is stored to everyone who may download the asset."
   attachFile(renditionId: ID!, fileId: ID!, role: FileRole!, position: Int! = 0): RenditionFile!
   detachFile(renditionId: ID!, fileId: ID!, role: FileRole!): Boolean!
+}
+
+"One page of assets."
+type AssetConnection {
+  nodes: [Asset!]!
+  pageInfo: PageInfo!
+}
+
+"One page of the versions of an asset."
+type AssetVersionConnection {
+  nodes: [AssetVersion!]!
+  pageInfo: PageInfo!
 }

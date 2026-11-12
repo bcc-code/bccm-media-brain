@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strings"
 	"testing"
 
 	"github.com/jackc/pgx/v5"
@@ -41,20 +42,60 @@ func TestFromPG(t *testing.T) {
 	}
 }
 
-func TestPage(t *testing.T) {
-	if l, o, err := Page(0, 0); err != nil || l != DefaultLimit || o != 0 {
-		t.Fatalf("defaults = %d %d %v", l, o, err)
+func TestWindow(t *testing.T) {
+	str := func(s string) *string { return &s }
+	if w, err := NewWindow(0, nil, DefaultLimit, MaxLimit); err != nil || w.Limit != DefaultLimit || w.After != nil || w.Fetch() != DefaultLimit+1 {
+		t.Fatalf("defaults = %+v %v", w, err)
 	}
-	if l, o, err := Page(MaxLimit, 7); err != nil || l != MaxLimit || o != 7 {
-		t.Fatalf("max = %d %d %v", l, o, err)
+	if w, err := NewWindow(MaxLimit, str(""), DefaultLimit, MaxLimit); err != nil || w.Limit != MaxLimit || w.After != nil {
+		t.Fatalf("max, and an empty cursor is none = %+v %v", w, err)
 	}
-	for _, c := range [][2]int{{-1, 0}, {MaxLimit + 1, 0}, {1, -1}} {
-		if _, _, err := Page(c[0], c[1]); !errors.Is(err, ErrInvalidInput) {
-			t.Errorf("Page(%v) err = %v", c, err)
+	w, err := NewWindow(5, str(Cursor("JOSH_S01")), DefaultLimit, MaxLimit)
+	if err != nil || w.After == nil || *w.After != "JOSH_S01" {
+		t.Fatalf("after = %+v %v", w, err)
+	}
+	if _, err := w.AfterInt(); DetailOf(err).Field != "after" {
+		t.Fatalf("a text cursor on a numbered list: %v", err)
+	}
+	w, _ = NewWindow(5, str(Cursor("42")), DefaultLimit, MaxLimit)
+	if n, err := w.AfterInt(); err != nil || n == nil || *n != 42 {
+		t.Fatalf("AfterInt = %v %v", n, err)
+	}
+	if n, err := (Window{}).AfterInt(); n != nil || err != nil {
+		t.Fatalf("no cursor = %v %v", n, err)
+	}
+	for field, c := range map[string]struct {
+		first int
+		after *string
+	}{"first": {-1, nil}, "first ": {MaxLimit + 1, nil}, "after": {1, str("not base64!")}, "after ": {1, str("=")}} {
+		_, err := NewWindow(c.first, c.after, DefaultLimit, MaxLimit)
+		if !errors.Is(err, ErrInvalidInput) || DetailOf(err).Field != strings.TrimSpace(field) {
+			t.Errorf("NewWindow(%d, %v) = %v", c.first, c.after, err)
 		}
 	}
-	if _, _, err := PageMax(5000, 0, 5000); err != nil {
-		t.Fatal(err)
+}
+
+func TestCut(t *testing.T) {
+	w := Window{Limit: 2}
+	self := func(s string) string { return s }
+
+	more := Cut([]string{"a", "b", "c"}, w, self)
+	if len(more.Nodes) != 2 || !more.HasNextPage || more.EndCursor == nil || *more.EndCursor != Cursor("b") {
+		t.Fatalf("one row too many means a next page: %+v", more)
+	}
+	last := Cut([]string{"a", "b"}, w, self)
+	if len(last.Nodes) != 2 || last.HasNextPage || *last.EndCursor != Cursor("b") {
+		t.Fatalf("a full last page: %+v", last)
+	}
+	if empty := Cut(nil, w, self); len(empty.Nodes) != 0 || empty.HasNextPage || empty.EndCursor != nil {
+		t.Fatalf("an empty page: %+v", empty)
+	}
+
+	// Rows of two parents, three of the first and one of the second, each cut on its own.
+	by := CutBy([]string{"x1", "x2", "x3", "y1"}, w, func(s string) string { return s[:1] }, self)
+	if x, y := by["x"], by["y"]; len(by) != 2 || len(x.Nodes) != 2 || !x.HasNextPage || *x.EndCursor != Cursor("x2") ||
+		len(y.Nodes) != 1 || y.HasNextPage || *y.EndCursor != Cursor("y1") {
+		t.Fatalf("CutBy = %+v", by)
 	}
 }
 

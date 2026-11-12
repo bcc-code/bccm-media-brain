@@ -95,13 +95,23 @@ write results to `out` and return `usageErr(...)` for bad command lines. Flags u
   existing value with `domain.Exists`, a stale base with `domain.Stale(current, ...)`: the
   presenter copies `field`, `reason` and `currentRevision` into `extensions`. A custom scalar
   returns `domain.Invalid`, because its error reaches the client without passing a service.
+- **A list that can grow is a connection.** The schema field takes `first` and `after` and
+  returns an `XConnection { nodes pageInfo }`; the service takes the same two, builds a
+  `domain.NewWindow`, reads `w.Fetch()` rows (one more than the page, to know whether more
+  follow) with `key > after` on the list's one sort key, and returns `domain.Cut(rows, w, key)`.
+  The resolver puts `nodes(...)` (`helpers.go`) into the generated connection type. The sort
+  key must be unique within the list, or a page boundary can skip or repeat rows.
 - Nested fields load through `internal/graph/loaders.go`. A nested list with arguments gets one
-  loader per distinct argument value (`keyed`; `versionsFor`, `cuesFor`), over a query that
-  takes the window per parent with `row_number()` (`ListAssetVersions`).
+  loader per distinct argument value (`keyed`, on `page{first, after}`; `versionsFor`,
+  `cuesFor`), over a query that takes the window per parent with `row_number()`
+  (`ListAssetVersions`) and a service that cuts per parent (`domain.CutBy`).
 - **Every list of objects needs a line in `complexity()`** (`internal/graph/complexity.go`):
-  `paged(...)` when it has a `limit`, `assumed(n)` when it does not. `TestEveryListHasACost`
-  fails otherwise. `deepQuery` (e2e) must stay under `ComplexityLimit`, so give new nested
-  lists in it a small `limit`.
+  `paged(...)` on the field that returns a connection, `assumed(n)` for a plain list, and for a
+  new connection type its `Nodes` and `PageInfo` set to `connectionPart`.
+  `TestEveryListHasACost` fails otherwise. `deepQuery` (e2e) must stay under
+  `ComplexityLimit`, so give new nested lists in it a small `first`.
+- In e2e, a result field of type `nodes[T]` decodes a connection as the list of its nodes; use
+  a struct with `Nodes` and `PageInfo pageInfo` when the test is about paging.
 - A statement stopped by the request's deadline becomes `domain.ErrTimeout` in `mask`.
 
 ## Other systems

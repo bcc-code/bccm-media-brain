@@ -443,22 +443,24 @@ func (q *Queries) ListAssetTypes(ctx context.Context) ([]AssetType, error) {
 const listAssetVersions = `-- name: ListAssetVersions :many
 WITH numbered AS (
     SELECT av.id, row_number() OVER (PARTITION BY av.asset_id ORDER BY av.number) AS rn
-    FROM asset_version av WHERE av.asset_id = ANY($3::text[])
+    FROM asset_version av
+    WHERE av.asset_id = ANY($2::text[])
+      AND ($3::int IS NULL OR av.number > $3)
 )
 SELECT v.id, v.asset_id, v.number, v.label, v.status, v.created_by, v.created_at, v.revision, v.updated_at FROM asset_version v JOIN numbered ON numbered.id = v.id
-WHERE numbered.rn > $1::int AND numbered.rn <= $1::int + $2::int
+WHERE numbered.rn <= $1::int
 ORDER BY v.asset_id, v.number
 `
 
 type ListAssetVersionsParams struct {
-	Offset   int32    `json:"offset"`
 	Limit    int32    `json:"limit"`
 	AssetIds []string `json:"asset_ids"`
+	After    *int32   `json:"after"`
 }
 
-// One page per asset: limit and offset count within each asset.
+// One page per asset: the first "limit" versions after number "after", within each asset.
 func (q *Queries) ListAssetVersions(ctx context.Context, arg ListAssetVersionsParams) ([]AssetVersion, error) {
-	rows, err := q.db.Query(ctx, listAssetVersions, arg.Offset, arg.Limit, arg.AssetIds)
+	rows, err := q.db.Query(ctx, listAssetVersions, arg.Limit, arg.AssetIds, arg.After)
 	if err != nil {
 		return nil, err
 	}
@@ -497,7 +499,8 @@ WHERE ($1::smallint IS NULL OR a.type_id = $1)
   AND ($5::bool OR EXISTS (
         SELECT 1 FROM asset_access aa WHERE aa.asset_id = a.id AND aa.principal_id = ANY($6::text[])
           AND (aa.expires_at IS NULL OR aa.expires_at > now())))
-ORDER BY a.id DESC LIMIT $8 OFFSET $7
+  AND ($7::text IS NULL OR a.id < $7)
+ORDER BY a.id DESC LIMIT $8
 `
 
 type ListAssetsParams struct {
@@ -507,7 +510,7 @@ type ListAssetsParams struct {
 	LegacyID   *string  `json:"legacy_id"`
 	IsAdmin    bool     `json:"is_admin"`
 	Principals []string `json:"principals"`
-	Offset     int32    `json:"offset"`
+	After      *string  `json:"after"`
 	Limit      int32    `json:"limit"`
 }
 
@@ -519,7 +522,7 @@ func (q *Queries) ListAssets(ctx context.Context, arg ListAssetsParams) ([]Asset
 		arg.LegacyID,
 		arg.IsAdmin,
 		arg.Principals,
-		arg.Offset,
+		arg.After,
 		arg.Limit,
 	)
 	if err != nil {

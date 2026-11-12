@@ -11,6 +11,7 @@ import (
 	"github.com/bcc-media/mediabrain/internal/asset"
 	"github.com/bcc-media/mediabrain/internal/db/sqlc"
 	"github.com/bcc-media/mediabrain/internal/graph/generated"
+	"github.com/bcc-media/mediabrain/internal/graph/model"
 )
 
 // Type is the resolver for the type field.
@@ -24,8 +25,12 @@ func (r *assetResolver) MyLevel(ctx context.Context, obj *sqlc.Asset) (sqlc.Perm
 }
 
 // Versions is the resolver for the versions field.
-func (r *assetResolver) Versions(ctx context.Context, obj *sqlc.Asset, limit *int, offset *int) ([]*sqlc.AssetVersion, error) {
-	return many(r.load(ctx).versionsFor(page{deref(limit), deref(offset)}).Load(ctx, obj.ID))
+func (r *assetResolver) Versions(ctx context.Context, obj *sqlc.Asset, first *int, after *string) (*model.AssetVersionConnection, error) {
+	n, info, err := nodes(r.load(ctx).versionsFor(window(first, after)).Load(ctx, obj.ID))
+	if err != nil {
+		return nil, err
+	}
+	return &model.AssetVersionConnection{Nodes: n, PageInfo: info}, nil
 }
 
 // Projects is the resolver for the projects field.
@@ -128,12 +133,16 @@ func (r *queryResolver) Asset(ctx context.Context, id string) (*sqlc.Asset, erro
 }
 
 // Assets is the resolver for the assets field.
-func (r *queryResolver) Assets(ctx context.Context, filter *asset.Filter, limit *int, offset *int) ([]*sqlc.Asset, error) {
+func (r *queryResolver) Assets(ctx context.Context, filter *asset.Filter, first *int, after *string) (*model.AssetConnection, error) {
 	var f asset.Filter
 	if filter != nil {
 		f = *filter
 	}
-	return many(r.AssetsSvc.List(ctx, f, deref(limit), deref(offset)))
+	n, info, err := nodes(r.AssetsSvc.List(ctx, f, deref(first), after))
+	if err != nil {
+		return nil, err
+	}
+	return &model.AssetConnection{Nodes: n, PageInfo: info}, nil
 }
 
 // AssetVersion is the resolver for the assetVersion field.

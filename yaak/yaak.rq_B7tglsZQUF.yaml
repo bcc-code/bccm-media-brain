@@ -9,11 +9,14 @@ authentication: {}
 authenticationType: null
 body:
   query: |
-    query($filter: AssetFilter, $limit: Int, $offset: Int) {
-      assets(filter: $filter, limit: $limit, offset: $offset) {
-        id title myLevel capturedAt camera reel originalLanguage
-        type { name }
-        projects { role project { id code } }
+    query($filter: AssetFilter, $first: Int, $after: String) {
+      assets(filter: $filter, first: $first, after: $after) {
+        nodes {
+          id title myLevel capturedAt camera reel originalLanguage
+          type { name }
+          projects { role project { id code } }
+        }
+        pageInfo { hasNextPage endCursor }
       }
     }
   variables: |-
@@ -24,8 +27,8 @@ body:
         "title": null,
         "legacyId": null
       },
-      "limit": 50,
-      "offset": 0
+      "first": 50,
+      "after": null
     }
 bodyType: graphql
 description: ''

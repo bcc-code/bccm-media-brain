@@ -5,6 +5,7 @@ package subtitle
 import (
 	"context"
 	"errors"
+	"strconv"
 
 	"github.com/bcc-media/mediabrain/internal/access"
 	"github.com/bcc-media/mediabrain/internal/db"
@@ -12,8 +13,12 @@ import (
 	"github.com/bcc-media/mediabrain/internal/domain"
 )
 
-// MaxCuePage is the largest page of cues one request can ask for.
-const MaxCuePage = 5000
+// DefaultCuePage and MaxCuePage are how many cues a page holds when the request does not say,
+// and the most it can ask for.
+const (
+	DefaultCuePage = 500
+	MaxCuePage     = 5000
+)
 
 type Service struct {
 	q  sqlc.Querier
@@ -217,16 +222,23 @@ func (s *Service) TracksFor(ctx context.Context, renditionIDs []string, history 
 	return out, err
 }
 
-func (s *Service) CuesFor(ctx context.Context, trackIDs []string, limit, offset int) (map[string][]sqlc.ListSubtitleCuesRow, error) {
-	l, o, err := domain.PageMax(limit, offset, MaxCuePage)
+func (s *Service) CuesFor(ctx context.Context, trackIDs []string, first int, after *string) (map[string]domain.Slice[sqlc.ListSubtitleCuesRow], error) {
+	w, err := domain.NewWindow(first, after, DefaultCuePage, MaxCuePage)
 	if err != nil {
 		return nil, err
 	}
-	return s.cues(ctx, trackIDs, l, o)
+	seq, err := w.AfterInt()
+	if err != nil {
+		return nil, err
+	}
+	rows, err := s.q.ListSubtitleCues(ctx, sqlc.ListSubtitleCuesParams{TrackIds: trackIDs, Limit: w.Fetch(), After: seq})
+	return domain.CutBy(rows, w, func(c sqlc.ListSubtitleCuesRow) string { return c.TrackID },
+		func(c sqlc.ListSubtitleCuesRow) string { return strconv.Itoa(int(c.Seq)) }), err
 }
 
-func (s *Service) cues(ctx context.Context, trackIDs []string, limit, offset int32) (map[string][]sqlc.ListSubtitleCuesRow, error) {
-	rows, err := s.q.ListSubtitleCues(ctx, sqlc.ListSubtitleCuesParams{TrackIds: trackIDs, Limit: limit, Offset: offset})
+// cues reads up to limit cues of each track from its start.
+func (s *Service) cues(ctx context.Context, trackIDs []string, limit int32) (map[string][]sqlc.ListSubtitleCuesRow, error) {
+	rows, err := s.q.ListSubtitleCues(ctx, sqlc.ListSubtitleCuesParams{TrackIds: trackIDs, Limit: limit})
 	out := map[string][]sqlc.ListSubtitleCuesRow{}
 	for _, r := range rows {
 		out[r.TrackID] = append(out[r.TrackID], r)
@@ -236,7 +248,7 @@ func (s *Service) cues(ctx context.Context, trackIDs []string, limit, offset int
 
 // ExportFor renders whole tracks as SRT or WebVTT text.
 func (s *Service) ExportFor(ctx context.Context, trackIDs []string, format Format) (map[string]string, error) {
-	rows, err := s.cues(ctx, trackIDs, MaxCues, 0)
+	rows, err := s.cues(ctx, trackIDs, MaxCues)
 	if err != nil {
 		return nil, err
 	}

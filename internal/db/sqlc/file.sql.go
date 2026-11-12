@@ -428,16 +428,17 @@ func (q *Queries) ListFileHashes(ctx context.Context, fileIds []string) ([]FileH
 }
 
 const listFiles = `-- name: ListFiles :many
-SELECT id, size_bytes, mime_type, duration_ms, codec, width, height, probe, created_at FROM file ORDER BY id DESC LIMIT $2 OFFSET $1
+SELECT id, size_bytes, mime_type, duration_ms, codec, width, height, probe, created_at FROM file WHERE ($1::text IS NULL OR id < $1)
+ORDER BY id DESC LIMIT $2
 `
 
 type ListFilesParams struct {
-	Offset int32 `json:"offset"`
-	Limit  int32 `json:"limit"`
+	After *string `json:"after"`
+	Limit int32   `json:"limit"`
 }
 
 func (q *Queries) ListFiles(ctx context.Context, arg ListFilesParams) ([]File, error) {
-	rows, err := q.db.Query(ctx, listFiles, arg.Offset, arg.Limit)
+	rows, err := q.db.Query(ctx, listFiles, arg.After, arg.Limit)
 	if err != nil {
 		return nil, err
 	}

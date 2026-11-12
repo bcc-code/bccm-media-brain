@@ -38,7 +38,7 @@ func TestEveryErrorHasACode(t *testing.T) {
 		"a field that does not exist":  {`{ nothing }`, nil, "GRAPHQL_VALIDATION_FAILED"},
 		"a query that does not parse":  {`{ ping `, nil, "GRAPHQL_PARSE_FAILED"},
 		"a query that asks for too much": {
-			`{ assets(limit: 500) { versions(limit: 100) { renditions { files { file { copies { id } } } } } } }`, nil, "COMPLEXITY_LIMIT_EXCEEDED"},
+			`{ assets(first: 500) { nodes { versions(first: 100) { nodes { renditions { files { file { copies { id } } } } } } } } }`, nil, "COMPLEXITY_LIMIT_EXCEEDED"},
 	}
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {

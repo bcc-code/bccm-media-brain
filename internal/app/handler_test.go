@@ -110,7 +110,7 @@ func TestQueryEndpoint(t *testing.T) {
 		t.Fatalf("oversized body was accepted: %d", rec.Code)
 	}
 	// 500 assets x 500 versions x 10 assumed renditions is far over graph.ComplexityLimit.
-	deep := `{ assets(limit: 500) { versions(limit: 500) { renditions { id } } } }`
+	deep := `{ assets(first: 500) { nodes { versions(first: 500) { nodes { renditions { id } } } } } }`
 	if rec := query(h, `{"query":"`+deep+`"}`, true); !strings.Contains(rec.Body.String(), "complexity") {
 		t.Fatalf("complexity limit = %s", rec.Body)
 	}

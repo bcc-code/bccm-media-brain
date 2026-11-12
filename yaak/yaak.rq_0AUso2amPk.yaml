@@ -10,7 +10,7 @@ authenticationType: null
 body:
   query: |
     query($id: ID!) {
-      program(id: $id) { id code name description metadata createdAt updatedAt projects { id code name status startsOn endsOn } }
+      program(id: $id) { id code name description metadata createdAt updatedAt projects { nodes { id code name status startsOn endsOn } pageInfo { hasNextPage endCursor } } }
     }
   variables: |-
     {

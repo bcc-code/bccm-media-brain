@@ -15,7 +15,7 @@ const (
 		id renditionId assetId sourceFileId language kind origin revision parentId createdBy
 	} }`
 	editSubtitles = `mutation($id: ID!, $cues: [SubtitleCueInput!]!) { editSubtitles(trackId: $id, cues: $cues) { id revision parentId origin language kind } }`
-	trackCues     = `query($id: ID!, $l: Int, $o: Int) { subtitleTrack(id: $id) { id revision cues(limit: $l, offset: $o) { seq startMs endMs text speaker } } }`
+	trackCues     = `query($id: ID!, $n: Int, $c: String) { subtitleTrack(id: $id) { id revision cues(first: $n, after: $c) { nodes { seq startMs endMs text speaker } pageInfo { hasNextPage endCursor } } } }`
 )
 
 type trackJSON struct {
@@ -54,7 +54,7 @@ func TestSubtitleImportEditExport(t *testing.T) {
 
 	var got struct {
 		SubtitleTrack struct {
-			Cues []cueJSON
+			Cues nodes[cueJSON]
 		}
 	}
 	admin.must(t, trackCues, map[string]any{"id": first.ID}, &got)
@@ -68,9 +68,23 @@ func TestSubtitleImportEditExport(t *testing.T) {
 			t.Fatalf("cue %d = %+v, want %+v", i, cue, w)
 		}
 	}
-	admin.must(t, trackCues, map[string]any{"id": first.ID, "l": 5, "o": 10}, &got)
-	if len(got.SubtitleTrack.Cues) != 2 || got.SubtitleTrack.Cues[0].Seq != 11 {
-		t.Fatalf("paged cues = %+v", got.SubtitleTrack.Cues)
+	// Ten cues, then what follows them: a page that is cut says so, which is what keeps an
+	// editor from saving part of a track as the whole.
+	var paged struct {
+		SubtitleTrack struct {
+			Cues struct {
+				Nodes    []cueJSON
+				PageInfo pageInfo
+			}
+		}
+	}
+	admin.must(t, trackCues, map[string]any{"id": first.ID, "n": 10}, &paged)
+	if c := paged.SubtitleTrack.Cues; len(c.Nodes) != 10 || !c.PageInfo.HasNextPage {
+		t.Fatalf("the first ten cues = %+v", c)
+	}
+	admin.must(t, trackCues, map[string]any{"id": first.ID, "n": 5, "c": paged.SubtitleTrack.Cues.PageInfo.EndCursor}, &paged)
+	if c := paged.SubtitleTrack.Cues; len(c.Nodes) != 2 || c.Nodes[0].Seq != 11 || c.PageInfo.HasNextPage {
+		t.Fatalf("the cues after the tenth = %+v", c)
 	}
 
 	// Importing the same language again adds revision 2 on the same rendition; the source
@@ -128,20 +142,20 @@ func TestSubtitleImportEditExport(t *testing.T) {
 	var list struct {
 		Latest, History []trackJSON
 		Asset           struct {
-			Versions []struct {
+			Versions nodes[struct {
 				Renditions []struct {
 					ID, Kind       string
 					Files          []struct{ Role string }
 					SubtitleTracks []trackJSON
 					All            []trackJSON
 				}
-			}
+			}]
 		}
 	}
 	admin.must(t, `query($a: ID!) {
 		latest: subtitleTracks(assetId: $a) { id revision }
 		history: subtitleTracks(assetId: $a, history: true) { id revision }
-		asset(id: $a) { versions { renditions { id kind files { role } subtitleTracks { id revision } all: subtitleTracks(history: true) { id } } } }
+		asset(id: $a) { versions { nodes { renditions { id kind files { role } subtitleTracks { id revision } all: subtitleTracks(history: true) { id } } } } }
 	}`, map[string]any{"a": c.asset}, &list)
 	if len(list.Latest) != 2 || len(list.History) != 4 {
 		t.Fatalf("latest %d, history %d", len(list.Latest), len(list.History))
@@ -206,10 +220,10 @@ func TestSubtitleValidation(t *testing.T) {
 		})
 	}
 	admin.fails(t, "NOT_FOUND", editSubtitles, map[string]any{"id": "ST-00000000000000000000000000", "cues": []map[string]any{{"startMs": 0, "endMs": 1, "text": "x"}}})
-	admin.fails(t, "INVALID_INPUT", trackCues, map[string]any{"id": track, "l": 5001})
+	admin.fails(t, "INVALID_INPUT", trackCues, map[string]any{"id": track, "n": 5001})
 	admin.fails(t, "NOT_FOUND", `{ subtitleTracks(assetId: "AS-00000000000000000000000000") { id } }`, nil)
 	var rev struct{ SubtitleTrack struct{ Revision int } }
-	admin.must(t, trackCues, map[string]any{"id": track, "l": 5000}, &rev)
+	admin.must(t, trackCues, map[string]any{"id": track, "n": 5000}, &rev)
 	if rev.SubtitleTrack.Revision != 1 {
 		t.Fatal("failed edits must not add revisions")
 	}

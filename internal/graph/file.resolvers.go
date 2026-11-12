@@ -12,6 +12,7 @@ import (
 	"github.com/bcc-media/mediabrain/internal/db/sqlc"
 	"github.com/bcc-media/mediabrain/internal/file"
 	"github.com/bcc-media/mediabrain/internal/graph/generated"
+	"github.com/bcc-media/mediabrain/internal/graph/model"
 )
 
 // Hashes is the resolver for the hashes field.
@@ -85,8 +86,12 @@ func (r *queryResolver) FileByHash(ctx context.Context, hash file.HashInput) (*s
 }
 
 // Files is the resolver for the files field.
-func (r *queryResolver) Files(ctx context.Context, limit *int, offset *int) ([]*sqlc.File, error) {
-	return many(r.FilesSvc.List(ctx, deref(limit), deref(offset)))
+func (r *queryResolver) Files(ctx context.Context, first *int, after *string) (*model.FileConnection, error) {
+	n, info, err := nodes(r.FilesSvc.List(ctx, deref(first), after))
+	if err != nil {
+		return nil, err
+	}
+	return &model.FileConnection{Nodes: n, PageInfo: info}, nil
 }
 
 // StorageLocations is the resolver for the storageLocations field.

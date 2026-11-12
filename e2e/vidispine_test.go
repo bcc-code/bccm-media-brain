@@ -30,9 +30,9 @@ import (
 
 const (
 	importedFields = `id title description legacyIds metadata
-		versions { label renditions { kind metadata files { role file {
+		versions { nodes { label renditions { kind metadata files { role file {
 			sizeBytes mimeType durationMs codec width height hashes { algo value }
-			copies { path location { name kind baseUri online } } } } } }`
+			copies { path location { name kind baseUri online } } } } } } }`
 	importFromVidispine  = `mutation($in: VidispineImportInput!) { importFromVidispine(input: $in) { ` + importedFields + ` } }`
 	refreshFromVidispine = `mutation($id: ID!) { refreshFromVidispine(assetId: $id) { ` + importedFields + ` } }`
 )
@@ -43,7 +43,7 @@ type importedAsset struct {
 	Description *string
 	LegacyIds   []string
 	Metadata    map[string]json.RawMessage
-	Versions    []struct {
+	Versions    nodes[struct {
 		Label      string
 		Renditions []struct {
 			Kind     string
@@ -65,7 +65,7 @@ type importedAsset struct {
 				}
 			}
 		}
-	}
+	}]
 }
 
 func (a importedAsset) vidispine(t *testing.T) vidispineimport.Metadata {
@@ -171,8 +171,8 @@ func TestVidispineImport(t *testing.T) {
 
 	t.Run("project members see it", func(t *testing.T) {
 		viewer.sees(t, "asset", a.ID)
-		byLegacy := `query($id: String!) { assets(filter: {legacyId: $id}) { id } }`
-		var out struct{ Assets []struct{ ID string } }
+		byLegacy := `query($id: String!) { assets(filter: {legacyId: $id}) { nodes { id } } }`
+		var out struct{ Assets nodes[struct{ ID string }] }
 		viewer.must(t, byLegacy, map[string]any{"id": item.ID}, &out)
 		if len(out.Assets) != 1 || out.Assets[0].ID != a.ID {
 			t.Fatalf("by legacy id = %+v", out.Assets)

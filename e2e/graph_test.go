@@ -120,15 +120,15 @@ func exec(t *testing.T, as access.Principal, failAt int64, query string, vars ma
 
 // deepQuery touches every nested field. Its lists are short to keep its cost well under
 // graph.ComplexityLimit: what costs most is 15 assets x 10 assumed renditions x 2 exports at 500.
-const deepQuery = `query($t: String) { assets(filter: {title: $t}, limit: 15) {
+const deepQuery = `query($t: String) { assets(filter: {title: $t}, first: 15) { pageInfo { hasNextPage endCursor } nodes {
 	id myLevel type { name }
-	projects { role project { id program { code projects(limit: 5) { id } all: projects { id } } } }
-	later: versions(limit: 2, offset: 1) { number }
-	versions(limit: 1) { number renditions { kind
+	projects { role project { id program { code projects(first: 5) { nodes { id } } all: projects { nodes { id } pageInfo { hasNextPage } } } } }
+	later: versions(first: 2, after: "MQ") { nodes { number } }
+	versions(first: 1) { pageInfo { endCursor } nodes { number renditions { kind
 		files { role file { id hashes { algo value } copies { path location { name } } } }
-		subtitleTracks { revision cues(limit: 10) { text } srt: export(format: SRT) }
-		history: subtitleTracks(history: true) { revision cues(limit: 1) { text } } } }
-} }`
+		subtitleTracks { revision cues(first: 10) { nodes { text } } srt: export(format: SRT) }
+		history: subtitleTracks(history: true) { revision cues(first: 1) { nodes { text } pageInfo { hasNextPage } } } } } }
+} } }`
 
 // TestNestedQueriesAreBatched proves there is no N+1: the number of database statements for
 // a deeply nested query does not grow with the number of assets.
@@ -148,15 +148,15 @@ func TestNestedQueriesAreBatched(t *testing.T) {
 			t.Fatalf("errors: %+v", r.Errors)
 		}
 		var data struct {
-			Assets []struct {
-				Versions []struct {
+			Assets nodes[struct {
+				Versions nodes[struct {
 					Renditions []struct {
 						Files []struct {
 							File struct{ Copies []struct{ Path string } }
 						}
 					}
-				}
-			}
+				}]
+			}]
 		}
 		if err := json.Unmarshal(r.Data, &data); err != nil || len(data.Assets) != wantAssets {
 			t.Fatalf("%d assets, want %d (%v)", len(data.Assets), wantAssets, err)
@@ -221,13 +221,13 @@ func TestDatabaseFailuresAreContained(t *testing.T) {
 	asOwner := []operation{
 		{"deep query", deepQuery, fixed(map[string]any{"t": w.marker})},
 		{"me", `{ me { id } }`, fixed(nil)},
-		{"lists", `query($p: ID) { programs { id } projects(programId: $p, status: PLANNED) { id } assetTypes { id } languages { code } }`, fixed(map[string]any{"p": w.prog.ID})},
-		{"program", `query($id: ID!) { program(id: $id) { id projects { id } } }`, id(w.prog.ID)},
+		{"lists", `query($p: ID) { programs { nodes { id } } projects(programId: $p, status: PLANNED) { nodes { id } } assetTypes { id } languages { code } }`, fixed(map[string]any{"p": w.prog.ID})},
+		{"program", `query($id: ID!) { program(id: $id) { id projects { nodes { id } } } }`, id(w.prog.ID)},
 		{"project", `query($id: ID!) { project(id: $id) { id program { id } } }`, id(w.projectA)},
 		{"asset", `query($id: ID!) { asset(id: $id) { id myLevel } assetVersion(id: "` + w.c1.version + `") { id } rendition(id: "` + w.c1.rendition + `") { id } }`, id(w.c1.asset)},
 		{"file", `query($id: ID!) { file(id: $id) { id hashes { algo } copies { id location { id } } } }`, id(w.c1.file)},
 		{"file by hash", `query($v: String!) { fileByHash(hash: {algo: SHA256, value: $v}) { id } }`, fixed(map[string]any{"v": sha})},
-		{"tracks", `query($id: ID!) { subtitleTracks(assetId: $id, history: true) { id } subtitleTrack(id: "` + w.track + `") { id cues { seq } export(format: VTT) } }`, id(w.c1.asset)},
+		{"tracks", `query($id: ID!) { subtitleTracks(assetId: $id, history: true) { id } subtitleTrack(id: "` + w.track + `") { id cues { nodes { seq } } export(format: VTT) } }`, id(w.c1.asset)},
 		{"grants", `query($id: ID!) { a: grants(scope: PROGRAM, scopeId: $id) { id } b: grants(scope: PROJECT, scopeId: "` + w.projectA + `") { id } c: grants(scope: ASSET, scopeId: "` + w.c1.asset + `") { id } }`, id(w.prog.ID)},
 		{"update program", `mutation($id: ID!) { updateProgram(id: $id, input: {name: "Renamed"}) { id } }`, id(w.prog.ID)},
 		{"create project", createProject, func() map[string]any { return map[string]any{"in": projectVars(w.f, w.prog)} }},
@@ -294,7 +294,7 @@ func TestDatabaseFailuresAreContained(t *testing.T) {
 	imported := imp.ImportFromVidispine.ID
 	machine := signInService(t, false)
 	asAdmin := []operation{
-		{"admin lists", `{ users { id } userGroups { id } files { id } storageLocations { id } }`, fixed(nil)},
+		{"admin lists", `{ users { nodes { id } } userGroups { id } files { nodes { id } } storageLocations { id } }`, fixed(nil)},
 		{"create program", createProgram, func() map[string]any {
 			in := w.f.Program()
 			return map[string]any{"in": map[string]any{"code": in.Code, "name": in.Name}}

@@ -10,6 +10,7 @@ import (
 
 	"github.com/bcc-media/mediabrain/internal/db/sqlc"
 	"github.com/bcc-media/mediabrain/internal/graph/generated"
+	"github.com/bcc-media/mediabrain/internal/graph/model"
 	"github.com/bcc-media/mediabrain/internal/project"
 )
 
@@ -44,8 +45,12 @@ func (r *mutationResolver) DeleteProject(ctx context.Context, id string) (bool, 
 }
 
 // Projects is the resolver for the projects field.
-func (r *programResolver) Projects(ctx context.Context, obj *sqlc.Program, limit *int, offset *int) ([]*sqlc.Project, error) {
-	return many(r.load(ctx).programProjectsFor(page{deref(limit), deref(offset)}).Load(ctx, obj.ID))
+func (r *programResolver) Projects(ctx context.Context, obj *sqlc.Program, first *int, after *string) (*model.ProjectConnection, error) {
+	n, info, err := nodes(r.load(ctx).programProjectsFor(window(first, after)).Load(ctx, obj.ID))
+	if err != nil {
+		return nil, err
+	}
+	return &model.ProjectConnection{Nodes: n, PageInfo: info}, nil
 }
 
 // Program is the resolver for the program field.
@@ -59,8 +64,12 @@ func (r *queryResolver) Program(ctx context.Context, id string) (*sqlc.Program, 
 }
 
 // Programs is the resolver for the programs field.
-func (r *queryResolver) Programs(ctx context.Context, limit *int, offset *int) ([]*sqlc.Program, error) {
-	return many(r.ProjectsSvc.Programs(ctx, deref(limit), deref(offset)))
+func (r *queryResolver) Programs(ctx context.Context, first *int, after *string) (*model.ProgramConnection, error) {
+	n, info, err := nodes(r.ProjectsSvc.Programs(ctx, deref(first), after))
+	if err != nil {
+		return nil, err
+	}
+	return &model.ProgramConnection{Nodes: n, PageInfo: info}, nil
 }
 
 // Project is the resolver for the project field.
@@ -69,8 +78,12 @@ func (r *queryResolver) Project(ctx context.Context, id string) (*sqlc.Project, 
 }
 
 // Projects is the resolver for the projects field.
-func (r *queryResolver) Projects(ctx context.Context, programID *string, status *sqlc.ProjectStatus, limit *int, offset *int) ([]*sqlc.Project, error) {
-	return many(r.ProjectsSvc.Projects(ctx, project.ProjectFilter{ProgramID: programID, Status: status}, deref(limit), deref(offset)))
+func (r *queryResolver) Projects(ctx context.Context, programID *string, status *sqlc.ProjectStatus, first *int, after *string) (*model.ProjectConnection, error) {
+	n, info, err := nodes(r.ProjectsSvc.Projects(ctx, project.ProjectFilter{ProgramID: programID, Status: status}, deref(first), after))
+	if err != nil {
+		return nil, err
+	}
+	return &model.ProjectConnection{Nodes: n, PageInfo: info}, nil
 }
 
 // Program returns generated.ProgramResolver implementation.

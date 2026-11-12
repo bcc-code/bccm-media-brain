@@ -18,7 +18,8 @@ HTTP  ->  auth middleware  ->  GraphQL resolvers  ->  domain services  ->  sqlc 
   `internal/`.
 - **`internal/access` answers "may this caller do that?"** Services call it; resolvers never do.
   See [security.md](security.md).
-- **`internal/domain`** has the shared error values, paging rule and small input helpers.
+- **`internal/domain`** has the shared error values, the paging rule (`Window`, `Cut`,
+  `Cursor`) and small input helpers.
 
 ## Transactions
 
@@ -130,5 +131,6 @@ proxy joins (that subnet is the default `AUTH_TRUSTED_PROXIES`). No host port is
 
 ## Known limits
 
-- Paging is `limit`/`offset`. Ids are time-ordered, so cursor paging can be added later.
+- A cursor is the sort key of the page's last item (an id, a code, a number), so a list can be
+  walked forward only, in its one order. There is no total count and no way to jump to a page.
 - Subscriptions and file upload/download are not implemented.

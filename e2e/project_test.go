@@ -72,14 +72,14 @@ func TestProgramsAndProjects(t *testing.T) {
 	}
 
 	var list struct {
-		Program  struct{ Projects []struct{ ID string } }
-		Projects []struct{ ID string }
-		Programs []struct{ ID string }
+		Program  struct{ Projects nodes[struct{ ID string }] }
+		Projects nodes[struct{ ID string }]
+		Programs nodes[struct{ ID string }]
 	}
 	admin.must(t, `query($p: ID!) {
-		program(id: $p) { projects { id } }
-		projects(programId: $p, status: DELIVERED) { id }
-		programs(limit: 500) { id }
+		program(id: $p) { projects { nodes { id } } }
+		projects(programId: $p, status: DELIVERED) { nodes { id } }
+		programs(first: 500) { nodes { id } }
 	}`, map[string]any{"p": prog.ID}, &list)
 	if len(list.Program.Projects) != 2 || len(list.Projects) != 1 || list.Projects[0].ID != second || len(list.Programs) == 0 {
 		t.Fatalf("lists = %+v", list)
@@ -142,8 +142,8 @@ func TestProgramAndProjectValidation(t *testing.T) {
 	admin.fails(t, "INVALID_INPUT", updateProject, map[string]any{"id": project, "in": map[string]any{"name": "x", "metadata": 5}})
 	admin.fails(t, "NOT_FOUND", updateProject, map[string]any{"id": "PJ-00000000000000000000000000", "in": map[string]any{"name": "x"}})
 	admin.fails(t, "INVALID_INPUT", `mutation($id: ID!) { updateProgram(id: $id, input: {name: ""}) { id } }`, map[string]any{"id": p.ID})
-	admin.fails(t, "INVALID_INPUT", `{ programs(limit: -1) { id } }`, nil)
-	admin.fails(t, "INVALID_INPUT", `{ projects(offset: -1) { id } }`, nil)
+	admin.fails(t, "INVALID_INPUT", `{ programs(first: -1) { nodes { id } } }`, nil)
+	admin.fails(t, "INVALID_INPUT", `{ projects(after: "not a cursor!") { nodes { id } } }`, nil)
 
 	// A date that is not a date is refused before it reaches the service.
 	if errs := admin.gql(t, createProject, withProject(map[string]any{"startsOn": "01.02.2026"}), nil); len(errs) == 0 || !contains(errs[0].Message, "Date") {

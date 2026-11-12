@@ -2,8 +2,64 @@
 
 package model
 
+import (
+	"github.com/bcc-media/mediabrain/internal/db/sqlc"
+)
+
+// One page of assets.
+type AssetConnection struct {
+	Nodes    []*sqlc.Asset `json:"nodes"`
+	PageInfo *PageInfo     `json:"pageInfo"`
+}
+
+// One page of the versions of an asset.
+type AssetVersionConnection struct {
+	Nodes    []*sqlc.AssetVersion `json:"nodes"`
+	PageInfo *PageInfo            `json:"pageInfo"`
+}
+
+// One page of files.
+type FileConnection struct {
+	Nodes    []*sqlc.File `json:"nodes"`
+	PageInfo *PageInfo    `json:"pageInfo"`
+}
+
 type Mutation struct {
 }
 
+// Where a page of a list ends. Every list that can grow without bound is paged the same way:
+// ask for `first` items, and for the next page pass `endCursor` as `after`. A cursor belongs to
+// the list that returned it, with the same other arguments; treat it as opaque.
+type PageInfo struct {
+	// True when the list has more items after this page.
+	HasNextPage bool `json:"hasNextPage"`
+	// Names the last item of this page. Null when the page is empty.
+	EndCursor *string `json:"endCursor,omitempty"`
+}
+
+// One page of programs.
+type ProgramConnection struct {
+	Nodes    []*sqlc.Program `json:"nodes"`
+	PageInfo *PageInfo       `json:"pageInfo"`
+}
+
+// One page of projects.
+type ProjectConnection struct {
+	Nodes    []*sqlc.Project `json:"nodes"`
+	PageInfo *PageInfo       `json:"pageInfo"`
+}
+
 type Query struct {
+}
+
+// One page of the cues of a subtitle track.
+type SubtitleCueConnection struct {
+	Nodes    []*sqlc.ListSubtitleCuesRow `json:"nodes"`
+	PageInfo *PageInfo                   `json:"pageInfo"`
+}
+
+// One page of users.
+type UserConnection struct {
+	Nodes    []*sqlc.AppUser `json:"nodes"`
+	PageInfo *PageInfo       `json:"pageInfo"`
 }

@@ -5,11 +5,25 @@ import (
 	"sync"
 
 	"github.com/bcc-media/mediabrain/internal/db/sqlc"
+	"github.com/bcc-media/mediabrain/internal/domain"
 	"github.com/bcc-media/mediabrain/internal/graph/loader"
 	"github.com/bcc-media/mediabrain/internal/subtitle"
 )
 
-type page struct{ limit, offset int }
+// page is the first and after arguments of a nested list, as a map key: parents asked for the
+// same page share one loader, and so one statement.
+type page struct {
+	first int
+	after string
+}
+
+func window(first *int, after *string) page {
+	p := page{first: deref(first)}
+	if after != nil {
+		p.after = *after
+	}
+	return p
+}
 
 // loaders batch the child lookups of one request. Every nested field goes through one of
 // them, so resolving a list never runs a query per item.
@@ -30,10 +44,10 @@ type loaders struct {
 	mu              sync.Mutex
 	r               *Resolver
 	subs            *subtitle.Service
-	versions        map[page]*loader.Loader[string, []sqlc.AssetVersion]
-	programProjects map[page]*loader.Loader[string, []sqlc.Project]
+	versions        map[page]*loader.Loader[string, domain.Slice[sqlc.AssetVersion]]
+	programProjects map[page]*loader.Loader[string, domain.Slice[sqlc.Project]]
 	tracks          map[bool]*loader.Loader[string, []sqlc.SubtitleTrack]
-	cues            map[page]*loader.Loader[string, []sqlc.ListSubtitleCuesRow]
+	cues            map[page]*loader.Loader[string, domain.Slice[sqlc.ListSubtitleCuesRow]]
 	exports         map[subtitle.Format]*loader.Loader[string, string]
 }
 
@@ -60,10 +74,10 @@ func newLoaders(r *Resolver) *loaders {
 
 		r:               r,
 		subs:            r.SubtitlesSvc,
-		versions:        map[page]*loader.Loader[string, []sqlc.AssetVersion]{},
-		programProjects: map[page]*loader.Loader[string, []sqlc.Project]{},
+		versions:        map[page]*loader.Loader[string, domain.Slice[sqlc.AssetVersion]]{},
+		programProjects: map[page]*loader.Loader[string, domain.Slice[sqlc.Project]]{},
 		tracks:          map[bool]*loader.Loader[string, []sqlc.SubtitleTrack]{},
-		cues:            map[page]*loader.Loader[string, []sqlc.ListSubtitleCuesRow]{},
+		cues:            map[page]*loader.Loader[string, domain.Slice[sqlc.ListSubtitleCuesRow]]{},
 		exports:         map[subtitle.Format]*loader.Loader[string, string]{},
 	}
 }
@@ -77,15 +91,15 @@ func keyed[A comparable, V any](l *loaders, m map[A]*loader.Loader[string, V], a
 	return m[arg]
 }
 
-func (l *loaders) versionsFor(p page) *loader.Loader[string, []sqlc.AssetVersion] {
-	return keyed(l, l.versions, p, func(ctx context.Context, ids []string) (map[string][]sqlc.AssetVersion, error) {
-		return l.r.AssetsSvc.VersionsFor(ctx, ids, p.limit, p.offset)
+func (l *loaders) versionsFor(p page) *loader.Loader[string, domain.Slice[sqlc.AssetVersion]] {
+	return keyed(l, l.versions, p, func(ctx context.Context, ids []string) (map[string]domain.Slice[sqlc.AssetVersion], error) {
+		return l.r.AssetsSvc.VersionsFor(ctx, ids, p.first, &p.after)
 	})
 }
 
-func (l *loaders) programProjectsFor(p page) *loader.Loader[string, []sqlc.Project] {
-	return keyed(l, l.programProjects, p, func(ctx context.Context, ids []string) (map[string][]sqlc.Project, error) {
-		return l.r.ProjectsSvc.ProjectsFor(ctx, ids, p.limit, p.offset)
+func (l *loaders) programProjectsFor(p page) *loader.Loader[string, domain.Slice[sqlc.Project]] {
+	return keyed(l, l.programProjects, p, func(ctx context.Context, ids []string) (map[string]domain.Slice[sqlc.Project], error) {
+		return l.r.ProjectsSvc.ProjectsFor(ctx, ids, p.first, &p.after)
 	})
 }
 
@@ -95,9 +109,9 @@ func (l *loaders) tracksFor(history bool) *loader.Loader[string, []sqlc.Subtitle
 	})
 }
 
-func (l *loaders) cuesFor(p page) *loader.Loader[string, []sqlc.ListSubtitleCuesRow] {
-	return keyed(l, l.cues, p, func(ctx context.Context, ids []string) (map[string][]sqlc.ListSubtitleCuesRow, error) {
-		return l.subs.CuesFor(ctx, ids, p.limit, p.offset)
+func (l *loaders) cuesFor(p page) *loader.Loader[string, domain.Slice[sqlc.ListSubtitleCuesRow]] {
+	return keyed(l, l.cues, p, func(ctx context.Context, ids []string) (map[string]domain.Slice[sqlc.ListSubtitleCuesRow], error) {
+		return l.subs.CuesFor(ctx, ids, p.first, &p.after)
 	})
 }
 

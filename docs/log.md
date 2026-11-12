@@ -2,6 +2,30 @@
 
 Newest first. Each entry: what changed, why, and what was left out on purpose.
 
+## 2026-11-12 — Paged lists are connections with cursors
+
+- Every list that can grow returned a bare array with `limit` and `offset`. Nothing said that
+  a list was cut: an editor that read 500 of 800 cues and saved would have replaced the track
+  with those 500. Offsets also shifted when rows were added, so the last asset of one page came
+  back as the first of the next (system review, finding GQL-11). The eight paged fields now
+  return `{ nodes pageInfo { hasNextPage endCursor } }` and take `first` and `after`:
+  `assets`, `files`, `users`, `programs`, `projects`, `Asset.versions`, `Program.projects`,
+  `SubtitleTrack.cues`.
+- **Breaking API change**, made now because nothing outside this repository uses the API:
+  `limit` and `offset` are gone, and each of those fields has a new return type. The Yaak
+  requests and the examples in `api.md` are updated.
+- A cursor is the sort key of the last item (id, code, version number, cue sequence), encoded
+  so that clients treat it as opaque. Each list already sorted by a unique key, so no query
+  changed its order; `OFFSET` became `key > after`, and one extra row is read to know whether
+  a next page exists. Nested lists still load in one statement per batch.
+- Cost is unchanged for the same data: the connection field counts its selection once per
+  item, `nodes` adds nothing. `pageInfo` adds its fields once per item, not once per page:
+  gqlgen ignores a cost lower than the selection's.
+- Left out: a total count, paging backwards, and choosing the order. The short nested lists
+  (renditions, files, hashes, copies, links, subtitle tracks) stay plain lists; subtitle track
+  history is still unpaged and can grow with every edit. `editSubtitles` does not check that
+  the caller had read the whole track: a client must page until `hasNextPage` is false.
+
 ## 2026-11-12 — Audit records name the request and the client
 
 - An audit record said who changed what, but not with which request or from where, and the

@@ -15,14 +15,15 @@ DELETE FROM program WHERE id = $1;
 
 -- name: ListPrograms :many
 SELECT p.* FROM program p
-WHERE @is_admin::bool
+WHERE (sqlc.narg('after')::text IS NULL OR p.code > sqlc.narg('after'))
+  AND (@is_admin::bool
    OR EXISTS (
         SELECT 1 FROM permission_grant g
         LEFT JOIN project pj ON g.scope = 'project' AND pj.id = g.scope_id
         WHERE ((g.scope = 'program' AND g.scope_id = p.id) OR pj.program_id = p.id)
           AND (g.user_id = ANY(@principals::text[]) OR g.group_id = ANY(@principals::text[]))
-          AND (g.expires_at IS NULL OR g.expires_at > now()))
-ORDER BY p.code LIMIT sqlc.arg('limit') OFFSET sqlc.arg('offset');
+          AND (g.expires_at IS NULL OR g.expires_at > now())))
+ORDER BY p.code LIMIT sqlc.arg('limit');
 
 -- name: CreateProject :one
 INSERT INTO project (program_id, code, name, status, starts_on, ends_on, metadata)
@@ -49,17 +50,19 @@ WHERE (sqlc.narg('program_id')::text IS NULL OR p.program_id = sqlc.narg('progra
         WHERE ((g.scope = 'project' AND g.scope_id = p.id) OR (g.scope = 'program' AND g.scope_id = p.program_id))
           AND (g.user_id = ANY(@principals::text[]) OR g.group_id = ANY(@principals::text[]))
           AND (g.expires_at IS NULL OR g.expires_at > now())))
-ORDER BY p.code LIMIT sqlc.arg('limit') OFFSET sqlc.arg('offset');
+  AND (sqlc.narg('after')::text IS NULL OR p.code > sqlc.narg('after'))
+ORDER BY p.code LIMIT sqlc.arg('limit');
 
 -- name: GetPrograms :many
 SELECT * FROM program WHERE id = ANY(@ids::text[]);
 
 -- name: ListVisibleProjects :many
--- per_program and skip page the visible projects within each program, by code.
+-- The first per_program visible projects of each program after code "after", by code.
 WITH visible AS (
     SELECT c.id, row_number() OVER (PARTITION BY c.program_id ORDER BY c.code) AS rn
     FROM project c
     WHERE (c.id = ANY(@ids::text[]) OR c.program_id = ANY(@program_ids::text[]))
+      AND (sqlc.narg('after')::text IS NULL OR c.code > sqlc.narg('after'))
       AND (@is_admin::bool OR EXISTS (
             SELECT 1 FROM permission_grant g
             WHERE ((g.scope = 'project' AND g.scope_id = c.id) OR (g.scope = 'program' AND g.scope_id = c.program_id))
@@ -67,5 +70,5 @@ WITH visible AS (
               AND (g.expires_at IS NULL OR g.expires_at > now())))
 )
 SELECT p.* FROM project p JOIN visible ON visible.id = p.id
-WHERE visible.rn > sqlc.arg('skip')::int AND visible.rn <= sqlc.arg('skip')::int + sqlc.arg('per_program')::int
+WHERE visible.rn <= sqlc.arg('per_program')::int
 ORDER BY p.code;

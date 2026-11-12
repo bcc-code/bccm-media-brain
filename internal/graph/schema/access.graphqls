@@ -106,7 +106,7 @@ extend type Query {
   "Administrators only, not service accounts. serviceAccount is an id or name."
   serviceTokens(serviceAccount: String!): [ServiceToken!]!
   "Administrators only."
-  users(limit: Int = 50, offset: Int = 0): [User!]!
+  users(first: Int = 50, after: String): UserConnection!
   "Administrators only."
   userGroups: [UserGroup!]!
   "Needs ADMIN on the object."
@@ -127,4 +127,10 @@ extend type Mutation {
   createServiceToken(input: ServiceTokenInput!): NewServiceToken!
   "Administrators only, not service accounts. Takes up to a minute to apply."
   revokeServiceToken(id: ID!): ServiceToken!
+}
+
+"One page of users."
+type UserConnection {
+  nodes: [User!]!
+  pageInfo: PageInfo!
 }

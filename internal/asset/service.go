@@ -5,6 +5,7 @@ package asset
 import (
 	"context"
 	"encoding/json"
+	"strconv"
 	"time"
 
 	"github.com/bcc-media/mediabrain/internal/access"
@@ -123,19 +124,21 @@ type Filter struct {
 	LegacyID  *string
 }
 
-func (s *Service) List(ctx context.Context, f Filter, limit, offset int) ([]sqlc.Asset, error) {
+// List returns one page of the assets the caller may see, newest first.
+func (s *Service) List(ctx context.Context, f Filter, first int, after *string) (domain.Slice[sqlc.Asset], error) {
 	p, err := access.From(ctx)
 	if err != nil {
-		return nil, err
+		return domain.Slice[sqlc.Asset]{}, err
 	}
-	l, o, err := domain.Page(limit, offset)
+	w, err := domain.NewWindow(first, after, domain.DefaultLimit, domain.MaxLimit)
 	if err != nil {
-		return nil, err
+		return domain.Slice[sqlc.Asset]{}, err
 	}
-	return s.q.ListAssets(ctx, sqlc.ListAssetsParams{
+	rows, err := s.q.ListAssets(ctx, sqlc.ListAssetsParams{
 		TypeID: f.TypeID, ProjectID: f.ProjectID, Title: domain.Blank(f.Title), LegacyID: f.LegacyID,
-		IsAdmin: p.Admin, Principals: p.IDs(), Limit: l, Offset: o,
+		IsAdmin: p.Admin, Principals: p.IDs(), Limit: w.Fetch(), After: w.After,
 	})
+	return domain.Cut(rows, w, func(a sqlc.Asset) string { return a.ID }), err
 }
 
 // Update replaces every editable field. With expected, it is refused as a conflict when the
@@ -411,17 +414,18 @@ func (s *Service) LevelsFor(ctx context.Context, assetIDs []string) (map[string]
 }
 
 // VersionsFor returns one page of versions per asset, by number.
-func (s *Service) VersionsFor(ctx context.Context, assetIDs []string, limit, offset int) (map[string][]sqlc.AssetVersion, error) {
-	l, o, err := domain.Page(limit, offset)
+func (s *Service) VersionsFor(ctx context.Context, assetIDs []string, first int, after *string) (map[string]domain.Slice[sqlc.AssetVersion], error) {
+	w, err := domain.NewWindow(first, after, domain.DefaultLimit, domain.MaxLimit)
 	if err != nil {
 		return nil, err
 	}
-	rows, err := s.q.ListAssetVersions(ctx, sqlc.ListAssetVersionsParams{AssetIds: assetIDs, Limit: l, Offset: o})
-	out := map[string][]sqlc.AssetVersion{}
-	for _, r := range rows {
-		out[r.AssetID] = append(out[r.AssetID], r)
+	number, err := w.AfterInt()
+	if err != nil {
+		return nil, err
 	}
-	return out, err
+	rows, err := s.q.ListAssetVersions(ctx, sqlc.ListAssetVersionsParams{AssetIds: assetIDs, Limit: w.Fetch(), After: number})
+	return domain.CutBy(rows, w, func(v sqlc.AssetVersion) string { return v.AssetID },
+		func(v sqlc.AssetVersion) string { return strconv.Itoa(int(v.Number)) }), err
 }
 
 // LinksFor leaves out links to projects the caller may not see: the link itself (project id,

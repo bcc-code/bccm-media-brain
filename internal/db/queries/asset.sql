@@ -31,7 +31,8 @@ WHERE (sqlc.narg('type_id')::smallint IS NULL OR a.type_id = sqlc.narg('type_id'
   AND (@is_admin::bool OR EXISTS (
         SELECT 1 FROM asset_access aa WHERE aa.asset_id = a.id AND aa.principal_id = ANY(@principals::text[])
           AND (aa.expires_at IS NULL OR aa.expires_at > now())))
-ORDER BY a.id DESC LIMIT sqlc.arg('limit') OFFSET sqlc.arg('offset');
+  AND (sqlc.narg('after')::text IS NULL OR a.id < sqlc.narg('after'))
+ORDER BY a.id DESC LIMIT sqlc.arg('limit');
 
 -- name: LinkAssetProject :one
 INSERT INTO asset_project (asset_id, project_id, role, link_origin) VALUES ($1, $2, $3, $4) RETURNING *;
@@ -94,13 +95,15 @@ DELETE FROM rendition_file WHERE rendition_id = $1 AND file_id = $2 AND role = $
 SELECT * FROM asset_project WHERE asset_id = ANY(@asset_ids::text[]) ORDER BY asset_id, created_at, project_id, role;
 
 -- name: ListAssetVersions :many
--- One page per asset: limit and offset count within each asset.
+-- One page per asset: the first "limit" versions after number "after", within each asset.
 WITH numbered AS (
     SELECT av.id, row_number() OVER (PARTITION BY av.asset_id ORDER BY av.number) AS rn
-    FROM asset_version av WHERE av.asset_id = ANY(@asset_ids::text[])
+    FROM asset_version av
+    WHERE av.asset_id = ANY(@asset_ids::text[])
+      AND (sqlc.narg('after')::int IS NULL OR av.number > sqlc.narg('after'))
 )
 SELECT v.* FROM asset_version v JOIN numbered ON numbered.id = v.id
-WHERE numbered.rn > sqlc.arg('offset')::int AND numbered.rn <= sqlc.arg('offset')::int + sqlc.arg('limit')::int
+WHERE numbered.rn <= sqlc.arg('limit')::int
 ORDER BY v.asset_id, v.number;
 
 -- name: ListRenditions :many

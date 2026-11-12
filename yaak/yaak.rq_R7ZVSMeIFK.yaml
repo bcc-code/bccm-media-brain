@@ -9,13 +9,13 @@ authentication: {}
 authenticationType: null
 body:
   query: |
-    query($limit: Int, $offset: Int) {
-      users(limit: $limit, offset: $offset) { id email name active isAdmin }
+    query($first: Int, $after: String) {
+      users(first: $first, after: $after) { nodes { id email name active isAdmin } pageInfo { hasNextPage endCursor } }
     }
   variables: |-
     {
-      "limit": 50,
-      "offset": 0
+      "first": 50,
+      "after": null
     }
 bodyType: graphql
 description: ''

@@ -187,28 +187,29 @@ func (q *Queries) GetProject(ctx context.Context, id string) (Project, error) {
 
 const listPrograms = `-- name: ListPrograms :many
 SELECT p.id, p.code, p.name, p.description, p.metadata, p.created_at, p.updated_at, p.revision FROM program p
-WHERE $1::bool
+WHERE ($1::text IS NULL OR p.code > $1)
+  AND ($2::bool
    OR EXISTS (
         SELECT 1 FROM permission_grant g
         LEFT JOIN project pj ON g.scope = 'project' AND pj.id = g.scope_id
         WHERE ((g.scope = 'program' AND g.scope_id = p.id) OR pj.program_id = p.id)
-          AND (g.user_id = ANY($2::text[]) OR g.group_id = ANY($2::text[]))
-          AND (g.expires_at IS NULL OR g.expires_at > now()))
-ORDER BY p.code LIMIT $4 OFFSET $3
+          AND (g.user_id = ANY($3::text[]) OR g.group_id = ANY($3::text[]))
+          AND (g.expires_at IS NULL OR g.expires_at > now())))
+ORDER BY p.code LIMIT $4
 `
 
 type ListProgramsParams struct {
+	After      *string  `json:"after"`
 	IsAdmin    bool     `json:"is_admin"`
 	Principals []string `json:"principals"`
-	Offset     int32    `json:"offset"`
 	Limit      int32    `json:"limit"`
 }
 
 func (q *Queries) ListPrograms(ctx context.Context, arg ListProgramsParams) ([]Program, error) {
 	rows, err := q.db.Query(ctx, listPrograms,
+		arg.After,
 		arg.IsAdmin,
 		arg.Principals,
-		arg.Offset,
 		arg.Limit,
 	)
 	if err != nil {
@@ -247,7 +248,8 @@ WHERE ($1::text IS NULL OR p.program_id = $1)
         WHERE ((g.scope = 'project' AND g.scope_id = p.id) OR (g.scope = 'program' AND g.scope_id = p.program_id))
           AND (g.user_id = ANY($4::text[]) OR g.group_id = ANY($4::text[]))
           AND (g.expires_at IS NULL OR g.expires_at > now())))
-ORDER BY p.code LIMIT $6 OFFSET $5
+  AND ($5::text IS NULL OR p.code > $5)
+ORDER BY p.code LIMIT $6
 `
 
 type ListProjectsParams struct {
@@ -255,7 +257,7 @@ type ListProjectsParams struct {
 	Status     *string  `json:"status"`
 	IsAdmin    bool     `json:"is_admin"`
 	Principals []string `json:"principals"`
-	Offset     int32    `json:"offset"`
+	After      *string  `json:"after"`
 	Limit      int32    `json:"limit"`
 }
 
@@ -265,7 +267,7 @@ func (q *Queries) ListProjects(ctx context.Context, arg ListProjectsParams) ([]P
 		arg.Status,
 		arg.IsAdmin,
 		arg.Principals,
-		arg.Offset,
+		arg.After,
 		arg.Limit,
 	)
 	if err != nil {
@@ -302,7 +304,8 @@ const listVisibleProjects = `-- name: ListVisibleProjects :many
 WITH visible AS (
     SELECT c.id, row_number() OVER (PARTITION BY c.program_id ORDER BY c.code) AS rn
     FROM project c
-    WHERE (c.id = ANY($3::text[]) OR c.program_id = ANY($4::text[]))
+    WHERE (c.id = ANY($2::text[]) OR c.program_id = ANY($3::text[]))
+      AND ($4::text IS NULL OR c.code > $4)
       AND ($5::bool OR EXISTS (
             SELECT 1 FROM permission_grant g
             WHERE ((g.scope = 'project' AND g.scope_id = c.id) OR (g.scope = 'program' AND g.scope_id = c.program_id))
@@ -310,26 +313,26 @@ WITH visible AS (
               AND (g.expires_at IS NULL OR g.expires_at > now())))
 )
 SELECT p.id, p.program_id, p.code, p.name, p.status, p.starts_on, p.ends_on, p.metadata, p.created_at, p.updated_at, p.revision FROM project p JOIN visible ON visible.id = p.id
-WHERE visible.rn > $1::int AND visible.rn <= $1::int + $2::int
+WHERE visible.rn <= $1::int
 ORDER BY p.code
 `
 
 type ListVisibleProjectsParams struct {
-	Skip       int32    `json:"skip"`
 	PerProgram int32    `json:"per_program"`
 	Ids        []string `json:"ids"`
 	ProgramIds []string `json:"program_ids"`
+	After      *string  `json:"after"`
 	IsAdmin    bool     `json:"is_admin"`
 	Principals []string `json:"principals"`
 }
 
-// per_program and skip page the visible projects within each program, by code.
+// The first per_program visible projects of each program after code "after", by code.
 func (q *Queries) ListVisibleProjects(ctx context.Context, arg ListVisibleProjectsParams) ([]Project, error) {
 	rows, err := q.db.Query(ctx, listVisibleProjects,
-		arg.Skip,
 		arg.PerProgram,
 		arg.Ids,
 		arg.ProgramIds,
+		arg.After,
 		arg.IsAdmin,
 		arg.Principals,
 	)

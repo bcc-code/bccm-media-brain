@@ -127,7 +127,7 @@ func TestAdministrators(t *testing.T) {
 	const setAdmin = `mutation($u: String!, $a: Boolean!) { setUserAdmin(user: $u, admin: $a) { id isAdmin } }`
 
 	u.fails(t, "FORBIDDEN", setAdmin, map[string]any{"u": u.id, "a": true})
-	u.fails(t, "FORBIDDEN", `{ users { id } }`, nil)
+	u.fails(t, "FORBIDDEN", `{ users { nodes { id } } }`, nil)
 	u.fails(t, "FORBIDDEN", `{ userGroups { id } }`, nil)
 	admin.fails(t, "NOT_FOUND", setAdmin, map[string]any{"u": "ghost@example.test", "a": true})
 
@@ -138,14 +138,14 @@ func TestAdministrators(t *testing.T) {
 	}
 	u.token = tokenFor(u.sub, u.email)
 	var list struct {
-		Users      []struct{ ID string }
+		Users      nodes[struct{ ID string }]
 		UserGroups []struct{ ID string }
 	}
-	u.must(t, `{ users(limit: 500) { id } userGroups { id } }`, nil, &list)
+	u.must(t, `{ users(first: 500) { nodes { id } } userGroups { id } }`, nil, &list)
 	if len(list.Users) < 2 {
 		t.Fatalf("users = %v", list.Users)
 	}
-	u.fails(t, "INVALID_INPUT", `{ users(limit: 501) { id } }`, nil)
+	u.fails(t, "INVALID_INPUT", `{ users(first: 501) { nodes { id } } }`, nil)
 }
 
 func TestAdminCLI(t *testing.T) {

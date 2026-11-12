@@ -206,14 +206,14 @@ func TestTheDatabaseCountsRevisions(t *testing.T) {
 
 	var read struct {
 		Asset struct {
-			Versions []struct {
+			Versions nodes[struct {
 				UpdatedAt  string
 				Renditions []struct{ UpdatedAt string }
-			}
+			}]
 		}
 		StorageLocations []struct{ UpdatedAt string }
 	}
-	w.admin.must(t, `query($id: ID!) { asset(id: $id) { versions { updatedAt renditions { updatedAt } } } storageLocations { updatedAt } }`,
+	w.admin.must(t, `query($id: ID!) { asset(id: $id) { versions { nodes { updatedAt renditions { updatedAt } } } } storageLocations { updatedAt } }`,
 		map[string]any{"id": w.c1.asset}, &read)
 	if len(read.StorageLocations) == 0 || read.StorageLocations[0].UpdatedAt == "" ||
 		len(read.Asset.Versions) == 0 || read.Asset.Versions[0].UpdatedAt == "" ||

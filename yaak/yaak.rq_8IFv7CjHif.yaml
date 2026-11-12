@@ -9,13 +9,13 @@ authentication: {}
 authenticationType: null
 body:
   query: |
-    query($limit: Int, $offset: Int) {
-      files(limit: $limit, offset: $offset) { id sizeBytes mimeType codec createdAt }
+    query($first: Int, $after: String) {
+      files(first: $first, after: $after) { nodes { id sizeBytes mimeType codec createdAt } pageInfo { hasNextPage endCursor } }
     }
   variables: |-
     {
-      "limit": 50,
-      "offset": 0
+      "first": 50,
+      "after": null
     }
 bodyType: graphql
 description: ''

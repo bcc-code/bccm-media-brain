@@ -19,7 +19,8 @@ VALUES (@external_id, sqlc.narg('email'), sqlc.narg('name'), @is_admin, @active)
 RETURNING *;
 
 -- name: ListUsers :many
-SELECT * FROM app_user ORDER BY id LIMIT sqlc.arg('limit') OFFSET sqlc.arg('offset');
+SELECT * FROM app_user WHERE (sqlc.narg('after')::text IS NULL OR id > sqlc.narg('after'))
+ORDER BY id LIMIT sqlc.arg('limit');
 
 -- name: SetUserAdmin :one
 UPDATE app_user SET is_admin = $2 WHERE id = $1 RETURNING *;

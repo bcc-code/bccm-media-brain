@@ -9,16 +9,19 @@ authentication: {}
 authenticationType: null
 body:
   query: |
-    query($limit: Int, $offset: Int) {
-      programs(limit: $limit, offset: $offset) {
-        id code name description metadata
-        projects { id code name status }
+    query($first: Int, $after: String) {
+      programs(first: $first, after: $after) {
+        nodes {
+          id code name description metadata
+          projects { nodes { id code name status } pageInfo { hasNextPage endCursor } }
+        }
+        pageInfo { hasNextPage endCursor }
       }
     }
   variables: |-
     {
-      "limit": 50,
-      "offset": 0
+      "first": 50,
+      "after": null
     }
 bodyType: graphql
 description: ''

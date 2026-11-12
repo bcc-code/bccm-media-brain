@@ -633,16 +633,17 @@ func (q *Queries) ListUserGroups(ctx context.Context) ([]UserGroup, error) {
 }
 
 const listUsers = `-- name: ListUsers :many
-SELECT id, external_id, email, name, person_id, active, created_at, is_admin, kind FROM app_user ORDER BY id LIMIT $2 OFFSET $1
+SELECT id, external_id, email, name, person_id, active, created_at, is_admin, kind FROM app_user WHERE ($1::text IS NULL OR id > $1)
+ORDER BY id LIMIT $2
 `
 
 type ListUsersParams struct {
-	Offset int32 `json:"offset"`
-	Limit  int32 `json:"limit"`
+	After *string `json:"after"`
+	Limit int32   `json:"limit"`
 }
 
 func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]AppUser, error) {
-	rows, err := q.db.Query(ctx, listUsers, arg.Offset, arg.Limit)
+	rows, err := q.db.Query(ctx, listUsers, arg.After, arg.Limit)
 	if err != nil {
 		return nil, err
 	}

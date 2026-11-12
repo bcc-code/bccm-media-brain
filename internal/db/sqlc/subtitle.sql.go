@@ -200,15 +200,17 @@ SELECT c.track_id, c.seq, c.start_ms, c.end_ms, c.text, c.speaker
 FROM (
     SELECT sc.track_id, sc.seq, sc.start_ms, sc.end_ms, sc.text, sc.speaker,
            row_number() OVER (PARTITION BY sc.track_id ORDER BY sc.seq) AS rn
-    FROM subtitle_cue sc WHERE sc.track_id = ANY($1::text[])
+    FROM subtitle_cue sc
+    WHERE sc.track_id = ANY($1::text[])
+      AND ($2::int IS NULL OR sc.seq > $2)
 ) c
-WHERE c.rn > $2::int AND c.rn <= $2::int + $3::int
+WHERE c.rn <= $3::int
 ORDER BY c.track_id, c.seq
 `
 
 type ListSubtitleCuesParams struct {
 	TrackIds []string `json:"track_ids"`
-	Offset   int32    `json:"offset"`
+	After    *int32   `json:"after"`
 	Limit    int32    `json:"limit"`
 }
 
@@ -222,7 +224,7 @@ type ListSubtitleCuesRow struct {
 }
 
 func (q *Queries) ListSubtitleCues(ctx context.Context, arg ListSubtitleCuesParams) ([]ListSubtitleCuesRow, error) {
-	rows, err := q.db.Query(ctx, listSubtitleCues, arg.TrackIds, arg.Offset, arg.Limit)
+	rows, err := q.db.Query(ctx, listSubtitleCues, arg.TrackIds, arg.After, arg.Limit)
 	if err != nil {
 		return nil, err
 	}

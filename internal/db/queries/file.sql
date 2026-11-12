@@ -24,7 +24,8 @@ VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *;
 SELECT * FROM file WHERE id = $1;
 
 -- name: ListFiles :many
-SELECT * FROM file ORDER BY id DESC LIMIT sqlc.arg('limit') OFFSET sqlc.arg('offset');
+SELECT * FROM file WHERE (sqlc.narg('after')::text IS NULL OR id < sqlc.narg('after'))
+ORDER BY id DESC LIMIT sqlc.arg('limit');
 
 -- name: DeleteFile :execrows
 DELETE FROM file WHERE id = $1;

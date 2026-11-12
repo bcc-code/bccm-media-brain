@@ -12,7 +12,7 @@ body:
     mutation($in: VidispineImportInput!) {
       importFromVidispine(input: $in) {
         id title legacyIds metadata
-        versions { label renditions { kind files { role file { sizeBytes codec hashes { algo value } copies { path location { name baseUri } } } } } }
+        versions { nodes { label renditions { kind files { role file { sizeBytes codec hashes { algo value } copies { path location { name baseUri } } } } } } }
       }
     }
   variables: |-

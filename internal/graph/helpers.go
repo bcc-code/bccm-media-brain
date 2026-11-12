@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/bcc-media/mediabrain/internal/domain"
+	"github.com/bcc-media/mediabrain/internal/graph/model"
 )
 
 // internalError hides the cause of an unexpected failure from the client; the error presenter
@@ -59,6 +60,19 @@ func many[T any](rows []T, err error) ([]*T, error) {
 }
 
 func done(err error) (bool, error) { return err == nil, mask(err) }
+
+// nodes is many for a page: the items as the generated connection types hold them, and where
+// the page ends. A resolver puts the two into its connection type.
+func nodes[T any](s domain.Slice[T], err error) ([]*T, *model.PageInfo, error) {
+	if err != nil {
+		return nil, nil, mask(err)
+	}
+	out := make([]*T, len(s.Nodes))
+	for i := range s.Nodes {
+		out[i] = &s.Nodes[i]
+	}
+	return out, &model.PageInfo{HasNextPage: s.HasNextPage, EndCursor: s.EndCursor}, nil
+}
 
 func deref(p *int) int {
 	if p == nil {

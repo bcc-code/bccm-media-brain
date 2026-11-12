@@ -9,17 +9,17 @@ authentication: {}
 authenticationType: null
 body:
   query: |
-    query($id: ID!, $limit: Int, $offset: Int) {
+    query($id: ID!, $first: Int, $after: String) {
       subtitleTrack(id: $id) {
         id language revision
-        cues(limit: $limit, offset: $offset) { seq startMs endMs text speaker }
+        cues(first: $first, after: $after) { nodes { seq startMs endMs text speaker } pageInfo { hasNextPage endCursor } }
       }
     }
   variables: |-
     {
       "id": "${[ track_id ]}",
-      "limit": 500,
-      "offset": 0
+      "first": 500,
+      "after": null
     }
 bodyType: graphql
 description: ''

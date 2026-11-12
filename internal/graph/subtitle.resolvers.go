@@ -10,6 +10,7 @@ import (
 
 	"github.com/bcc-media/mediabrain/internal/db/sqlc"
 	"github.com/bcc-media/mediabrain/internal/graph/generated"
+	"github.com/bcc-media/mediabrain/internal/graph/model"
 	"github.com/bcc-media/mediabrain/internal/subtitle"
 )
 
@@ -43,8 +44,12 @@ func (r *queryResolver) SubtitleTracks(ctx context.Context, assetID string, hist
 }
 
 // Cues is the resolver for the cues field.
-func (r *subtitleTrackResolver) Cues(ctx context.Context, obj *sqlc.SubtitleTrack, limit *int, offset *int) ([]*sqlc.ListSubtitleCuesRow, error) {
-	return many(r.load(ctx).cuesFor(page{deref(limit), deref(offset)}).Load(ctx, obj.ID))
+func (r *subtitleTrackResolver) Cues(ctx context.Context, obj *sqlc.SubtitleTrack, first *int, after *string) (*model.SubtitleCueConnection, error) {
+	n, info, err := nodes(r.load(ctx).cuesFor(window(first, after)).Load(ctx, obj.ID))
+	if err != nil {
+		return nil, err
+	}
+	return &model.SubtitleCueConnection{Nodes: n, PageInfo: info}, nil
 }
 
 // Export is the resolver for the export field.

@@ -297,15 +297,16 @@ func (s *Service) ByHash(ctx context.Context, h HashInput) (sqlc.File, error) {
 	return s.visible(ctx, f, err)
 }
 
-func (s *Service) List(ctx context.Context, limit, offset int) ([]sqlc.File, error) {
+func (s *Service) List(ctx context.Context, first int, after *string) (domain.Slice[sqlc.File], error) {
 	if err := access.RequireAdmin(ctx); err != nil {
-		return nil, err
+		return domain.Slice[sqlc.File]{}, err
 	}
-	l, o, err := domain.Page(limit, offset)
+	w, err := domain.NewWindow(first, after, domain.DefaultLimit, domain.MaxLimit)
 	if err != nil {
-		return nil, err
+		return domain.Slice[sqlc.File]{}, err
 	}
-	return s.q.ListFiles(ctx, sqlc.ListFilesParams{Limit: l, Offset: o})
+	rows, err := s.q.ListFiles(ctx, sqlc.ListFilesParams{Limit: w.Fetch(), After: w.After})
+	return domain.Cut(rows, w, func(f sqlc.File) string { return f.ID }), err
 }
 
 // HashesFor, CopiesFor and LocationsByID load children for files the caller was already

@@ -19,6 +19,7 @@ import (
 	"github.com/bcc-media/mediabrain/internal/asset"
 	"github.com/bcc-media/mediabrain/internal/db/sqlc"
 	"github.com/bcc-media/mediabrain/internal/file"
+	"github.com/bcc-media/mediabrain/internal/graph/model"
 	"github.com/bcc-media/mediabrain/internal/graph/scalar"
 	"github.com/bcc-media/mediabrain/internal/project"
 	"github.com/bcc-media/mediabrain/internal/subtitle"
@@ -73,7 +74,12 @@ type ComplexityRoot struct {
 		Type             func(childComplexity int) int
 		TypeID           func(childComplexity int) int
 		UpdatedAt        func(childComplexity int) int
-		Versions         func(childComplexity int, limit *int, offset *int) int
+		Versions         func(childComplexity int, first *int, after *string) int
+	}
+
+	AssetConnection struct {
+		Nodes    func(childComplexity int) int
+		PageInfo func(childComplexity int) int
 	}
 
 	AssetProjectLink struct {
@@ -104,6 +110,11 @@ type ComplexityRoot struct {
 		UpdatedAt  func(childComplexity int) int
 	}
 
+	AssetVersionConnection struct {
+		Nodes    func(childComplexity int) int
+		PageInfo func(childComplexity int) int
+	}
+
 	File struct {
 		Codec      func(childComplexity int) int
 		Copies     func(childComplexity int) int
@@ -116,6 +127,11 @@ type ComplexityRoot struct {
 		Probe      func(childComplexity int) int
 		SizeBytes  func(childComplexity int) int
 		Width      func(childComplexity int) int
+	}
+
+	FileConnection struct {
+		Nodes    func(childComplexity int) int
+		PageInfo func(childComplexity int) int
 	}
 
 	FileCopy struct {
@@ -205,6 +221,11 @@ type ComplexityRoot struct {
 		Token        func(childComplexity int) int
 	}
 
+	PageInfo struct {
+		EndCursor   func(childComplexity int) int
+		HasNextPage func(childComplexity int) int
+	}
+
 	Program struct {
 		Code        func(childComplexity int) int
 		CreatedAt   func(childComplexity int) int
@@ -212,9 +233,14 @@ type ComplexityRoot struct {
 		ID          func(childComplexity int) int
 		Metadata    func(childComplexity int) int
 		Name        func(childComplexity int) int
-		Projects    func(childComplexity int, limit *int, offset *int) int
+		Projects    func(childComplexity int, first *int, after *string) int
 		Revision    func(childComplexity int) int
 		UpdatedAt   func(childComplexity int) int
+	}
+
+	ProgramConnection struct {
+		Nodes    func(childComplexity int) int
+		PageInfo func(childComplexity int) int
 	}
 
 	Project struct {
@@ -232,22 +258,27 @@ type ComplexityRoot struct {
 		UpdatedAt func(childComplexity int) int
 	}
 
+	ProjectConnection struct {
+		Nodes    func(childComplexity int) int
+		PageInfo func(childComplexity int) int
+	}
+
 	Query struct {
 		Asset            func(childComplexity int, id string) int
 		AssetTypes       func(childComplexity int) int
 		AssetVersion     func(childComplexity int, id string) int
-		Assets           func(childComplexity int, filter *asset.Filter, limit *int, offset *int) int
+		Assets           func(childComplexity int, filter *asset.Filter, first *int, after *string) int
 		File             func(childComplexity int, id string) int
 		FileByHash       func(childComplexity int, hash file.HashInput) int
-		Files            func(childComplexity int, limit *int, offset *int) int
+		Files            func(childComplexity int, first *int, after *string) int
 		Grants           func(childComplexity int, scope sqlc.GrantScope, scopeID string) int
 		Languages        func(childComplexity int, activeOnly bool) int
 		Me               func(childComplexity int) int
 		Ping             func(childComplexity int) int
 		Program          func(childComplexity int, id string) int
-		Programs         func(childComplexity int, limit *int, offset *int) int
+		Programs         func(childComplexity int, first *int, after *string) int
 		Project          func(childComplexity int, id string) int
-		Projects         func(childComplexity int, programID *string, status *sqlc.ProjectStatus, limit *int, offset *int) int
+		Projects         func(childComplexity int, programID *string, status *sqlc.ProjectStatus, first *int, after *string) int
 		Rendition        func(childComplexity int, id string) int
 		ServiceAccounts  func(childComplexity int) int
 		ServiceTokens    func(childComplexity int, serviceAccount string) int
@@ -255,7 +286,7 @@ type ComplexityRoot struct {
 		SubtitleTrack    func(childComplexity int, id string) int
 		SubtitleTracks   func(childComplexity int, assetID string, history bool) int
 		UserGroups       func(childComplexity int) int
-		Users            func(childComplexity int, limit *int, offset *int) int
+		Users            func(childComplexity int, first *int, after *string) int
 	}
 
 	Rendition struct {
@@ -311,11 +342,16 @@ type ComplexityRoot struct {
 		Text    func(childComplexity int) int
 	}
 
+	SubtitleCueConnection struct {
+		Nodes    func(childComplexity int) int
+		PageInfo func(childComplexity int) int
+	}
+
 	SubtitleTrack struct {
 		AssetID      func(childComplexity int) int
 		CreatedAt    func(childComplexity int) int
 		CreatedBy    func(childComplexity int) int
-		Cues         func(childComplexity int, limit *int, offset *int) int
+		Cues         func(childComplexity int, first *int, after *string) int
 		Export       func(childComplexity int, format subtitle.Format) int
 		ID           func(childComplexity int) int
 		Kind         func(childComplexity int) int
@@ -338,6 +374,11 @@ type ComplexityRoot struct {
 		Name       func(childComplexity int) int
 	}
 
+	UserConnection struct {
+		Nodes    func(childComplexity int) int
+		PageInfo func(childComplexity int) int
+	}
+
 	UserGroup struct {
 		Description func(childComplexity int) int
 		ExternalID  func(childComplexity int) int
@@ -353,7 +394,7 @@ type ComplexityRoot struct {
 type AssetResolver interface {
 	Type(ctx context.Context, obj *sqlc.Asset) (*sqlc.AssetType, error)
 	MyLevel(ctx context.Context, obj *sqlc.Asset) (sqlc.PermissionLevel, error)
-	Versions(ctx context.Context, obj *sqlc.Asset, limit *int, offset *int) ([]*sqlc.AssetVersion, error)
+	Versions(ctx context.Context, obj *sqlc.Asset, first *int, after *string) (*model.AssetVersionConnection, error)
 	Projects(ctx context.Context, obj *sqlc.Asset) ([]*sqlc.AssetProject, error)
 }
 type AssetProjectLinkResolver interface {
@@ -414,7 +455,7 @@ type MutationResolver interface {
 	RefreshFromVidispine(ctx context.Context, assetID string) (*sqlc.Asset, error)
 }
 type ProgramResolver interface {
-	Projects(ctx context.Context, obj *sqlc.Program, limit *int, offset *int) ([]*sqlc.Project, error)
+	Projects(ctx context.Context, obj *sqlc.Program, first *int, after *string) (*model.ProjectConnection, error)
 }
 type ProjectResolver interface {
 	Program(ctx context.Context, obj *sqlc.Project) (*sqlc.Program, error)
@@ -424,23 +465,23 @@ type QueryResolver interface {
 	Me(ctx context.Context) (*sqlc.AppUser, error)
 	ServiceAccounts(ctx context.Context) ([]*sqlc.AppUser, error)
 	ServiceTokens(ctx context.Context, serviceAccount string) ([]*sqlc.ServiceToken, error)
-	Users(ctx context.Context, limit *int, offset *int) ([]*sqlc.AppUser, error)
+	Users(ctx context.Context, first *int, after *string) (*model.UserConnection, error)
 	UserGroups(ctx context.Context) ([]*sqlc.UserGroup, error)
 	Grants(ctx context.Context, scope sqlc.GrantScope, scopeID string) ([]*sqlc.PermissionGrant, error)
 	AssetTypes(ctx context.Context) ([]*sqlc.AssetType, error)
 	Languages(ctx context.Context, activeOnly bool) ([]*sqlc.Language, error)
 	Asset(ctx context.Context, id string) (*sqlc.Asset, error)
-	Assets(ctx context.Context, filter *asset.Filter, limit *int, offset *int) ([]*sqlc.Asset, error)
+	Assets(ctx context.Context, filter *asset.Filter, first *int, after *string) (*model.AssetConnection, error)
 	AssetVersion(ctx context.Context, id string) (*sqlc.AssetVersion, error)
 	Rendition(ctx context.Context, id string) (*sqlc.Rendition, error)
 	File(ctx context.Context, id string) (*sqlc.File, error)
 	FileByHash(ctx context.Context, hash file.HashInput) (*sqlc.File, error)
-	Files(ctx context.Context, limit *int, offset *int) ([]*sqlc.File, error)
+	Files(ctx context.Context, first *int, after *string) (*model.FileConnection, error)
 	StorageLocations(ctx context.Context) ([]*sqlc.StorageLocation, error)
 	Program(ctx context.Context, id string) (*sqlc.Program, error)
-	Programs(ctx context.Context, limit *int, offset *int) ([]*sqlc.Program, error)
+	Programs(ctx context.Context, first *int, after *string) (*model.ProgramConnection, error)
 	Project(ctx context.Context, id string) (*sqlc.Project, error)
-	Projects(ctx context.Context, programID *string, status *sqlc.ProjectStatus, limit *int, offset *int) ([]*sqlc.Project, error)
+	Projects(ctx context.Context, programID *string, status *sqlc.ProjectStatus, first *int, after *string) (*model.ProjectConnection, error)
 	SubtitleTrack(ctx context.Context, id string) (*sqlc.SubtitleTrack, error)
 	SubtitleTracks(ctx context.Context, assetID string, history bool) ([]*sqlc.SubtitleTrack, error)
 }
@@ -452,7 +493,7 @@ type RenditionFileResolver interface {
 	File(ctx context.Context, obj *sqlc.RenditionFile) (*sqlc.File, error)
 }
 type SubtitleTrackResolver interface {
-	Cues(ctx context.Context, obj *sqlc.SubtitleTrack, limit *int, offset *int) ([]*sqlc.ListSubtitleCuesRow, error)
+	Cues(ctx context.Context, obj *sqlc.SubtitleTrack, first *int, after *string) (*model.SubtitleCueConnection, error)
 	Export(ctx context.Context, obj *sqlc.SubtitleTrack, format subtitle.Format) (string, error)
 }
 
@@ -580,7 +621,20 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Asset.Versions(childComplexity, args["limit"].(*int), args["offset"].(*int)), true
+		return e.ComplexityRoot.Asset.Versions(childComplexity, args["first"].(*int), args["after"].(*string)), true
+
+	case "AssetConnection.nodes":
+		if e.ComplexityRoot.AssetConnection.Nodes == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AssetConnection.Nodes(childComplexity), true
+	case "AssetConnection.pageInfo":
+		if e.ComplexityRoot.AssetConnection.PageInfo == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AssetConnection.PageInfo(childComplexity), true
 
 	case "AssetProjectLink.assetId":
 		if e.ComplexityRoot.AssetProjectLink.AssetID == nil {
@@ -699,6 +753,19 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.AssetVersion.UpdatedAt(childComplexity), true
 
+	case "AssetVersionConnection.nodes":
+		if e.ComplexityRoot.AssetVersionConnection.Nodes == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AssetVersionConnection.Nodes(childComplexity), true
+	case "AssetVersionConnection.pageInfo":
+		if e.ComplexityRoot.AssetVersionConnection.PageInfo == nil {
+			break
+		}
+
+		return e.ComplexityRoot.AssetVersionConnection.PageInfo(childComplexity), true
+
 	case "File.codec":
 		if e.ComplexityRoot.File.Codec == nil {
 			break
@@ -765,6 +832,19 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.File.Width(childComplexity), true
+
+	case "FileConnection.nodes":
+		if e.ComplexityRoot.FileConnection.Nodes == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FileConnection.Nodes(childComplexity), true
+	case "FileConnection.pageInfo":
+		if e.ComplexityRoot.FileConnection.PageInfo == nil {
+			break
+		}
+
+		return e.ComplexityRoot.FileConnection.PageInfo(childComplexity), true
 
 	case "FileCopy.createdAt":
 		if e.ComplexityRoot.FileCopy.CreatedAt == nil {
@@ -1381,6 +1461,19 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.NewServiceToken.Token(childComplexity), true
 
+	case "PageInfo.endCursor":
+		if e.ComplexityRoot.PageInfo.EndCursor == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PageInfo.EndCursor(childComplexity), true
+	case "PageInfo.hasNextPage":
+		if e.ComplexityRoot.PageInfo.HasNextPage == nil {
+			break
+		}
+
+		return e.ComplexityRoot.PageInfo.HasNextPage(childComplexity), true
+
 	case "Program.code":
 		if e.ComplexityRoot.Program.Code == nil {
 			break
@@ -1427,7 +1520,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Program.Projects(childComplexity, args["limit"].(*int), args["offset"].(*int)), true
+		return e.ComplexityRoot.Program.Projects(childComplexity, args["first"].(*int), args["after"].(*string)), true
 	case "Program.revision":
 		if e.ComplexityRoot.Program.Revision == nil {
 			break
@@ -1440,6 +1533,19 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Program.UpdatedAt(childComplexity), true
+
+	case "ProgramConnection.nodes":
+		if e.ComplexityRoot.ProgramConnection.Nodes == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProgramConnection.Nodes(childComplexity), true
+	case "ProgramConnection.pageInfo":
+		if e.ComplexityRoot.ProgramConnection.PageInfo == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProgramConnection.PageInfo(childComplexity), true
 
 	case "Project.code":
 		if e.ComplexityRoot.Project.Code == nil {
@@ -1514,6 +1620,19 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.Project.UpdatedAt(childComplexity), true
 
+	case "ProjectConnection.nodes":
+		if e.ComplexityRoot.ProjectConnection.Nodes == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectConnection.Nodes(childComplexity), true
+	case "ProjectConnection.pageInfo":
+		if e.ComplexityRoot.ProjectConnection.PageInfo == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ProjectConnection.PageInfo(childComplexity), true
+
 	case "Query.asset":
 		if e.ComplexityRoot.Query.Asset == nil {
 			break
@@ -1552,7 +1671,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Query.Assets(childComplexity, args["filter"].(*asset.Filter), args["limit"].(*int), args["offset"].(*int)), true
+		return e.ComplexityRoot.Query.Assets(childComplexity, args["filter"].(*asset.Filter), args["first"].(*int), args["after"].(*string)), true
 	case "Query.file":
 		if e.ComplexityRoot.Query.File == nil {
 			break
@@ -1585,7 +1704,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Query.Files(childComplexity, args["limit"].(*int), args["offset"].(*int)), true
+		return e.ComplexityRoot.Query.Files(childComplexity, args["first"].(*int), args["after"].(*string)), true
 	case "Query.grants":
 		if e.ComplexityRoot.Query.Grants == nil {
 			break
@@ -1642,7 +1761,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Query.Programs(childComplexity, args["limit"].(*int), args["offset"].(*int)), true
+		return e.ComplexityRoot.Query.Programs(childComplexity, args["first"].(*int), args["after"].(*string)), true
 	case "Query.project":
 		if e.ComplexityRoot.Query.Project == nil {
 			break
@@ -1664,7 +1783,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Query.Projects(childComplexity, args["programId"].(*string), args["status"].(*sqlc.ProjectStatus), args["limit"].(*int), args["offset"].(*int)), true
+		return e.ComplexityRoot.Query.Projects(childComplexity, args["programId"].(*string), args["status"].(*sqlc.ProjectStatus), args["first"].(*int), args["after"].(*string)), true
 	case "Query.rendition":
 		if e.ComplexityRoot.Query.Rendition == nil {
 			break
@@ -1737,7 +1856,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Query.Users(childComplexity, args["limit"].(*int), args["offset"].(*int)), true
+		return e.ComplexityRoot.Query.Users(childComplexity, args["first"].(*int), args["after"].(*string)), true
 
 	case "Rendition.createdAt":
 		if e.ComplexityRoot.Rendition.CreatedAt == nil {
@@ -1977,6 +2096,19 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.SubtitleCue.Text(childComplexity), true
 
+	case "SubtitleCueConnection.nodes":
+		if e.ComplexityRoot.SubtitleCueConnection.Nodes == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SubtitleCueConnection.Nodes(childComplexity), true
+	case "SubtitleCueConnection.pageInfo":
+		if e.ComplexityRoot.SubtitleCueConnection.PageInfo == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SubtitleCueConnection.PageInfo(childComplexity), true
+
 	case "SubtitleTrack.assetId":
 		if e.ComplexityRoot.SubtitleTrack.AssetID == nil {
 			break
@@ -2005,7 +2137,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.SubtitleTrack.Cues(childComplexity, args["limit"].(*int), args["offset"].(*int)), true
+		return e.ComplexityRoot.SubtitleTrack.Cues(childComplexity, args["first"].(*int), args["after"].(*string)), true
 	case "SubtitleTrack.export":
 		if e.ComplexityRoot.SubtitleTrack.Export == nil {
 			break
@@ -2114,6 +2246,19 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.User.Name(childComplexity), true
+
+	case "UserConnection.nodes":
+		if e.ComplexityRoot.UserConnection.Nodes == nil {
+			break
+		}
+
+		return e.ComplexityRoot.UserConnection.Nodes(childComplexity), true
+	case "UserConnection.pageInfo":
+		if e.ComplexityRoot.UserConnection.PageInfo == nil {
+			break
+		}
+
+		return e.ComplexityRoot.UserConnection.PageInfo(childComplexity), true
 
 	case "UserGroup.description":
 		if e.ComplexityRoot.UserGroup.Description == nil {
@@ -2352,7 +2497,7 @@ extend type Query {
   "Administrators only, not service accounts. serviceAccount is an id or name."
   serviceTokens(serviceAccount: String!): [ServiceToken!]!
   "Administrators only."
-  users(limit: Int = 50, offset: Int = 0): [User!]!
+  users(first: Int = 50, after: String): UserConnection!
   "Administrators only."
   userGroups: [UserGroup!]!
   "Needs ADMIN on the object."
@@ -2373,6 +2518,12 @@ extend type Mutation {
   createServiceToken(input: ServiceTokenInput!): NewServiceToken!
   "Administrators only, not service accounts. Takes up to a minute to apply."
   revokeServiceToken(id: ID!): ServiceToken!
+}
+
+"One page of users."
+type UserConnection {
+  nodes: [User!]!
+  pageInfo: PageInfo!
 }
 `, BuiltIn: false},
 	{Name: "../schema/asset.graphqls", Input: `enum LinkRole {
@@ -2455,7 +2606,7 @@ type Asset {
   "The caller's permission level on this asset."
   myLevel: PermissionLevel!
   "By number, oldest first. At most 500 per page."
-  versions(limit: Int = 50, offset: Int = 0): [AssetVersion!]!
+  versions(first: Int = 50, after: String): AssetVersionConnection!
   "Links to projects the caller may see. The others are left out, so an asset does not reveal a project."
   projects: [AssetProjectLink!]!
 }
@@ -2557,7 +2708,7 @@ extend type Query {
   languages(activeOnly: Boolean! = true): [Language!]!
   asset(id: ID!): Asset
   "Newest first."
-  assets(filter: AssetFilter, limit: Int = 50, offset: Int = 0): [Asset!]!
+  assets(filter: AssetFilter, first: Int = 50, after: String): AssetConnection!
   assetVersion(id: ID!): AssetVersion
   rendition(id: ID!): Rendition
 }
@@ -2598,6 +2749,18 @@ extend type Mutation {
   "Needs EDIT on the rendition's asset and DOWNLOAD_ORIGINAL on the file: attaching shows where the file is stored to everyone who may download the asset."
   attachFile(renditionId: ID!, fileId: ID!, role: FileRole!, position: Int! = 0): RenditionFile!
   detachFile(renditionId: ID!, fileId: ID!, role: FileRole!): Boolean!
+}
+
+"One page of assets."
+type AssetConnection {
+  nodes: [Asset!]!
+  pageInfo: PageInfo!
+}
+
+"One page of the versions of an asset."
+type AssetVersionConnection {
+  nodes: [AssetVersion!]!
+  pageInfo: PageInfo!
 }
 `, BuiltIn: false},
 	{Name: "../schema/file.graphqls", Input: `enum LocationKind {
@@ -2708,7 +2871,7 @@ extend type Query {
   file(id: ID!): File
   fileByHash(hash: FileHashInput!): File
   "Administrators only."
-  files(limit: Int = 50, offset: Int = 0): [File!]!
+  files(first: Int = 50, after: String): FileConnection!
   "Administrators only."
   storageLocations: [StorageLocation!]!
 }
@@ -2732,6 +2895,12 @@ extend type Mutation {
   "Fails while the file has copies or is used by a rendition."
   deleteFile(id: ID!): Boolean!
 }
+
+"One page of files."
+type FileConnection {
+  nodes: [File!]!
+  pageInfo: PageInfo!
+}
 `, BuiltIn: false},
 	{Name: "../schema/project.graphqls", Input: `enum ProjectStatus {
   PLANNED
@@ -2751,7 +2920,7 @@ type Program {
   createdAt: Time!
   updatedAt: Time!
   "The projects the caller may see, by code. At most 500 per page."
-  projects(limit: Int = 200, offset: Int = 0): [Project!]!
+  projects(first: Int = 200, after: String): ProjectConnection!
 }
 
 type Project {
@@ -2805,9 +2974,9 @@ input UpdateProjectInput {
 
 extend type Query {
   program(id: ID!): Program
-  programs(limit: Int = 50, offset: Int = 0): [Program!]!
+  programs(first: Int = 50, after: String): ProgramConnection!
   project(id: ID!): Project
-  projects(programId: ID, status: ProjectStatus, limit: Int = 50, offset: Int = 0): [Project!]!
+  projects(programId: ID, status: ProjectStatus, first: Int = 50, after: String): ProjectConnection!
 }
 
 extend type Mutation {
@@ -2833,6 +3002,18 @@ extend type Mutation {
   updateProject(id: ID!, input: UpdateProjectInput!, expectedRevision: Int): Project!
   deleteProject(id: ID!): Boolean!
 }
+
+"One page of programs."
+type ProgramConnection {
+  nodes: [Program!]!
+  pageInfo: PageInfo!
+}
+
+"One page of projects."
+type ProjectConnection {
+  nodes: [Project!]!
+  pageInfo: PageInfo!
+}
 `, BuiltIn: false},
 	{Name: "../schema/schema.graphqls", Input: `scalar Time
 "Calendar date, YYYY-MM-DD."
@@ -2848,6 +3029,18 @@ type Query {
 }
 
 type Mutation
+
+"""
+Where a page of a list ends. Every list that can grow without bound is paged the same way:
+ask for ` + "`" + `first` + "`" + ` items, and for the next page pass ` + "`" + `endCursor` + "`" + ` as ` + "`" + `after` + "`" + `. A cursor belongs to
+the list that returned it, with the same other arguments; treat it as opaque.
+"""
+type PageInfo {
+  "True when the list has more items after this page."
+  hasNextPage: Boolean!
+  "Names the last item of this page. Null when the page is empty."
+  endCursor: String
+}
 `, BuiltIn: false},
 	{Name: "../schema/subtitle.graphqls", Input: `enum TrackKind {
   SUBTITLE
@@ -2881,7 +3074,7 @@ type SubtitleTrack {
   createdBy: ID
   createdAt: Time!
   "At most 5000 per page."
-  cues(limit: Int = 500, offset: Int = 0): [SubtitleCue!]!
+  cues(first: Int = 500, after: String): SubtitleCueConnection!
   "The whole track as subtitle text. SRT drops speakers."
   export(format: SubtitleFormat!): String!
 }
@@ -2924,6 +3117,12 @@ extend type Mutation {
   "Writes a new revision with exactly these cues. Only the latest revision can be edited."
   editSubtitles(trackId: ID!, cues: [SubtitleCueInput!]!): SubtitleTrack!
   deleteSubtitleTrack(id: ID!): Boolean!
+}
+
+"One page of the cues of a subtitle track."
+type SubtitleCueConnection {
+  nodes: [SubtitleCue!]!
+  pageInfo: PageInfo!
 }
 `, BuiltIn: false},
 	{Name: "../schema/vidispine.graphqls", Input: `input VidispineImportInput {
@@ -2995,6 +3194,16 @@ func (ec *executionContext) childFields_Asset(ctx context.Context, field graphql
 	return nil, fmt.Errorf("no field named %q was found under type Asset", field.Name)
 }
 
+func (ec *executionContext) childFields_AssetConnection(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "nodes":
+		return ec.fieldContext_AssetConnection_nodes(ctx, field)
+	case "pageInfo":
+		return ec.fieldContext_AssetConnection_pageInfo(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type AssetConnection", field.Name)
+}
+
 func (ec *executionContext) childFields_AssetProjectLink(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "assetId":
@@ -3051,6 +3260,16 @@ func (ec *executionContext) childFields_AssetVersion(ctx context.Context, field 
 	return nil, fmt.Errorf("no field named %q was found under type AssetVersion", field.Name)
 }
 
+func (ec *executionContext) childFields_AssetVersionConnection(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "nodes":
+		return ec.fieldContext_AssetVersionConnection_nodes(ctx, field)
+	case "pageInfo":
+		return ec.fieldContext_AssetVersionConnection_pageInfo(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type AssetVersionConnection", field.Name)
+}
+
 func (ec *executionContext) childFields_File(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "id":
@@ -3077,6 +3296,16 @@ func (ec *executionContext) childFields_File(ctx context.Context, field graphql.
 		return ec.fieldContext_File_copies(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type File", field.Name)
+}
+
+func (ec *executionContext) childFields_FileConnection(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "nodes":
+		return ec.fieldContext_FileConnection_nodes(ctx, field)
+	case "pageInfo":
+		return ec.fieldContext_FileConnection_pageInfo(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type FileConnection", field.Name)
 }
 
 func (ec *executionContext) childFields_FileCopy(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -3169,6 +3398,16 @@ func (ec *executionContext) childFields_NewServiceToken(ctx context.Context, fie
 	return nil, fmt.Errorf("no field named %q was found under type NewServiceToken", field.Name)
 }
 
+func (ec *executionContext) childFields_PageInfo(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "hasNextPage":
+		return ec.fieldContext_PageInfo_hasNextPage(ctx, field)
+	case "endCursor":
+		return ec.fieldContext_PageInfo_endCursor(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type PageInfo", field.Name)
+}
+
 func (ec *executionContext) childFields_Program(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "id":
@@ -3191,6 +3430,16 @@ func (ec *executionContext) childFields_Program(ctx context.Context, field graph
 		return ec.fieldContext_Program_projects(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type Program", field.Name)
+}
+
+func (ec *executionContext) childFields_ProgramConnection(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "nodes":
+		return ec.fieldContext_ProgramConnection_nodes(ctx, field)
+	case "pageInfo":
+		return ec.fieldContext_ProgramConnection_pageInfo(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type ProgramConnection", field.Name)
 }
 
 func (ec *executionContext) childFields_Project(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -3221,6 +3470,16 @@ func (ec *executionContext) childFields_Project(ctx context.Context, field graph
 		return ec.fieldContext_Project_program(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type Project", field.Name)
+}
+
+func (ec *executionContext) childFields_ProjectConnection(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "nodes":
+		return ec.fieldContext_ProjectConnection_nodes(ctx, field)
+	case "pageInfo":
+		return ec.fieldContext_ProjectConnection_pageInfo(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type ProjectConnection", field.Name)
 }
 
 func (ec *executionContext) childFields_Rendition(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -3329,6 +3588,16 @@ func (ec *executionContext) childFields_SubtitleCue(ctx context.Context, field g
 	return nil, fmt.Errorf("no field named %q was found under type SubtitleCue", field.Name)
 }
 
+func (ec *executionContext) childFields_SubtitleCueConnection(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "nodes":
+		return ec.fieldContext_SubtitleCueConnection_nodes(ctx, field)
+	case "pageInfo":
+		return ec.fieldContext_SubtitleCueConnection_pageInfo(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type SubtitleCueConnection", field.Name)
+}
+
 func (ec *executionContext) childFields_SubtitleTrack(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "id":
@@ -3381,6 +3650,16 @@ func (ec *executionContext) childFields_User(ctx context.Context, field graphql.
 		return ec.fieldContext_User_createdAt(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type User", field.Name)
+}
+
+func (ec *executionContext) childFields_UserConnection(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "nodes":
+		return ec.fieldContext_UserConnection_nodes(ctx, field)
+	case "pageInfo":
+		return ec.fieldContext_UserConnection_pageInfo(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type UserConnection", field.Name)
 }
 
 func (ec *executionContext) childFields_UserGroup(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -3516,22 +3795,22 @@ func (ec *executionContext) childFields___Type(ctx context.Context, field graphq
 func (ec *executionContext) field_Asset_versions_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "limit",
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "first",
 		func(ctx context.Context, v any) (*int, error) {
 			return ec.unmarshalOInt2ᚖint(ctx, v)
 		})
 	if err != nil {
 		return nil, err
 	}
-	args["limit"] = arg0
-	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "offset",
-		func(ctx context.Context, v any) (*int, error) {
-			return ec.unmarshalOInt2ᚖint(ctx, v)
+	args["first"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "after",
+		func(ctx context.Context, v any) (*string, error) {
+			return ec.unmarshalOString2ᚖstring(ctx, v)
 		})
 	if err != nil {
 		return nil, err
 	}
-	args["offset"] = arg1
+	args["after"] = arg1
 	return args, nil
 }
 
@@ -4316,22 +4595,22 @@ func (ec *executionContext) field_Mutation_updateStorageLocation_args(ctx contex
 func (ec *executionContext) field_Program_projects_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "limit",
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "first",
 		func(ctx context.Context, v any) (*int, error) {
 			return ec.unmarshalOInt2ᚖint(ctx, v)
 		})
 	if err != nil {
 		return nil, err
 	}
-	args["limit"] = arg0
-	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "offset",
-		func(ctx context.Context, v any) (*int, error) {
-			return ec.unmarshalOInt2ᚖint(ctx, v)
+	args["first"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "after",
+		func(ctx context.Context, v any) (*string, error) {
+			return ec.unmarshalOString2ᚖstring(ctx, v)
 		})
 	if err != nil {
 		return nil, err
 	}
-	args["offset"] = arg1
+	args["after"] = arg1
 	return args, nil
 }
 
@@ -4388,22 +4667,22 @@ func (ec *executionContext) field_Query_assets_args(ctx context.Context, rawArgs
 		return nil, err
 	}
 	args["filter"] = arg0
-	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "limit",
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "first",
 		func(ctx context.Context, v any) (*int, error) {
 			return ec.unmarshalOInt2ᚖint(ctx, v)
 		})
 	if err != nil {
 		return nil, err
 	}
-	args["limit"] = arg1
-	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "offset",
-		func(ctx context.Context, v any) (*int, error) {
-			return ec.unmarshalOInt2ᚖint(ctx, v)
+	args["first"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "after",
+		func(ctx context.Context, v any) (*string, error) {
+			return ec.unmarshalOString2ᚖstring(ctx, v)
 		})
 	if err != nil {
 		return nil, err
 	}
-	args["offset"] = arg2
+	args["after"] = arg2
 	return args, nil
 }
 
@@ -4438,22 +4717,22 @@ func (ec *executionContext) field_Query_file_args(ctx context.Context, rawArgs m
 func (ec *executionContext) field_Query_files_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "limit",
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "first",
 		func(ctx context.Context, v any) (*int, error) {
 			return ec.unmarshalOInt2ᚖint(ctx, v)
 		})
 	if err != nil {
 		return nil, err
 	}
-	args["limit"] = arg0
-	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "offset",
-		func(ctx context.Context, v any) (*int, error) {
-			return ec.unmarshalOInt2ᚖint(ctx, v)
+	args["first"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "after",
+		func(ctx context.Context, v any) (*string, error) {
+			return ec.unmarshalOString2ᚖstring(ctx, v)
 		})
 	if err != nil {
 		return nil, err
 	}
-	args["offset"] = arg1
+	args["after"] = arg1
 	return args, nil
 }
 
@@ -4510,22 +4789,22 @@ func (ec *executionContext) field_Query_program_args(ctx context.Context, rawArg
 func (ec *executionContext) field_Query_programs_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "limit",
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "first",
 		func(ctx context.Context, v any) (*int, error) {
 			return ec.unmarshalOInt2ᚖint(ctx, v)
 		})
 	if err != nil {
 		return nil, err
 	}
-	args["limit"] = arg0
-	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "offset",
-		func(ctx context.Context, v any) (*int, error) {
-			return ec.unmarshalOInt2ᚖint(ctx, v)
+	args["first"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "after",
+		func(ctx context.Context, v any) (*string, error) {
+			return ec.unmarshalOString2ᚖstring(ctx, v)
 		})
 	if err != nil {
 		return nil, err
 	}
-	args["offset"] = arg1
+	args["after"] = arg1
 	return args, nil
 }
 
@@ -4562,22 +4841,22 @@ func (ec *executionContext) field_Query_projects_args(ctx context.Context, rawAr
 		return nil, err
 	}
 	args["status"] = arg1
-	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "limit",
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "first",
 		func(ctx context.Context, v any) (*int, error) {
 			return ec.unmarshalOInt2ᚖint(ctx, v)
 		})
 	if err != nil {
 		return nil, err
 	}
-	args["limit"] = arg2
-	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "offset",
-		func(ctx context.Context, v any) (*int, error) {
-			return ec.unmarshalOInt2ᚖint(ctx, v)
+	args["first"] = arg2
+	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "after",
+		func(ctx context.Context, v any) (*string, error) {
+			return ec.unmarshalOString2ᚖstring(ctx, v)
 		})
 	if err != nil {
 		return nil, err
 	}
-	args["offset"] = arg3
+	args["after"] = arg3
 	return args, nil
 }
 
@@ -4648,22 +4927,22 @@ func (ec *executionContext) field_Query_subtitleTracks_args(ctx context.Context,
 func (ec *executionContext) field_Query_users_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "limit",
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "first",
 		func(ctx context.Context, v any) (*int, error) {
 			return ec.unmarshalOInt2ᚖint(ctx, v)
 		})
 	if err != nil {
 		return nil, err
 	}
-	args["limit"] = arg0
-	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "offset",
-		func(ctx context.Context, v any) (*int, error) {
-			return ec.unmarshalOInt2ᚖint(ctx, v)
+	args["first"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "after",
+		func(ctx context.Context, v any) (*string, error) {
+			return ec.unmarshalOString2ᚖstring(ctx, v)
 		})
 	if err != nil {
 		return nil, err
 	}
-	args["offset"] = arg1
+	args["after"] = arg1
 	return args, nil
 }
 
@@ -4684,22 +4963,22 @@ func (ec *executionContext) field_Rendition_subtitleTracks_args(ctx context.Cont
 func (ec *executionContext) field_SubtitleTrack_cues_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "limit",
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "first",
 		func(ctx context.Context, v any) (*int, error) {
 			return ec.unmarshalOInt2ᚖint(ctx, v)
 		})
 	if err != nil {
 		return nil, err
 	}
-	args["limit"] = arg0
-	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "offset",
-		func(ctx context.Context, v any) (*int, error) {
-			return ec.unmarshalOInt2ᚖint(ctx, v)
+	args["first"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "after",
+		func(ctx context.Context, v any) (*string, error) {
+			return ec.unmarshalOString2ᚖstring(ctx, v)
 		})
 	if err != nil {
 		return nil, err
 	}
-	args["offset"] = arg1
+	args["after"] = arg1
 	return args, nil
 }
 
@@ -5155,11 +5434,11 @@ func (ec *executionContext) _Asset_versions(ctx context.Context, field graphql.C
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Asset().Versions(ctx, obj, fc.Args["limit"].(*int), fc.Args["offset"].(*int))
+			return ec.Resolvers.Asset().Versions(ctx, obj, fc.Args["first"].(*int), fc.Args["after"].(*string))
 		},
 		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v []*sqlc.AssetVersion) graphql.Marshaler {
-			return ec.marshalNAssetVersion2ᚕᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐAssetVersionᚄ(ctx, selections, v)
+		func(ctx context.Context, selections ast.SelectionSet, v *model.AssetVersionConnection) graphql.Marshaler {
+			return ec.marshalNAssetVersionConnection2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋgraphᚋmodelᚐAssetVersionConnection(ctx, selections, v)
 		},
 		true,
 		true,
@@ -5172,7 +5451,7 @@ func (ec *executionContext) fieldContext_Asset_versions(ctx context.Context, fie
 		IsMethod:   true,
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.childFields_AssetVersion(ctx, field)
+			return ec.childFields_AssetVersionConnection(ctx, field)
 		},
 	}
 	defer func() {
@@ -5216,6 +5495,70 @@ func (ec *executionContext) fieldContext_Asset_projects(_ context.Context, field
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_AssetProjectLink(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AssetConnection_nodes(ctx context.Context, field graphql.CollectedField, obj *model.AssetConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AssetConnection_nodes(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Nodes, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*sqlc.Asset) graphql.Marshaler {
+			return ec.marshalNAsset2ᚕᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐAssetᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AssetConnection_nodes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AssetConnection",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Asset(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AssetConnection_pageInfo(ctx context.Context, field graphql.CollectedField, obj *model.AssetConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AssetConnection_pageInfo(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PageInfo, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.PageInfo) graphql.Marshaler {
+			return ec.marshalNPageInfo2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋgraphᚋmodelᚐPageInfo(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AssetConnection_pageInfo(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AssetConnection",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_PageInfo(ctx, field)
 		},
 	}
 	return fc, nil
@@ -5676,6 +6019,70 @@ func (ec *executionContext) fieldContext_AssetVersion_renditions(_ context.Conte
 	return fc, nil
 }
 
+func (ec *executionContext) _AssetVersionConnection_nodes(ctx context.Context, field graphql.CollectedField, obj *model.AssetVersionConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AssetVersionConnection_nodes(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Nodes, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*sqlc.AssetVersion) graphql.Marshaler {
+			return ec.marshalNAssetVersion2ᚕᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐAssetVersionᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AssetVersionConnection_nodes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AssetVersionConnection",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_AssetVersion(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AssetVersionConnection_pageInfo(ctx context.Context, field graphql.CollectedField, obj *model.AssetVersionConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_AssetVersionConnection_pageInfo(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PageInfo, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.PageInfo) graphql.Marshaler {
+			return ec.marshalNPageInfo2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋgraphᚋmodelᚐPageInfo(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_AssetVersionConnection_pageInfo(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AssetVersionConnection",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_PageInfo(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _File_id(ctx context.Context, field graphql.CollectedField, obj *sqlc.File) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -5942,6 +6349,70 @@ func (ec *executionContext) fieldContext_File_copies(_ context.Context, field gr
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_FileCopy(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FileConnection_nodes(ctx context.Context, field graphql.CollectedField, obj *model.FileConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_FileConnection_nodes(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Nodes, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*sqlc.File) graphql.Marshaler {
+			return ec.marshalNFile2ᚕᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐFileᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_FileConnection_nodes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FileConnection",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_File(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _FileConnection_pageInfo(ctx context.Context, field graphql.CollectedField, obj *model.FileConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_FileConnection_pageInfo(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PageInfo, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.PageInfo) graphql.Marshaler {
+			return ec.marshalNPageInfo2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋgraphᚋmodelᚐPageInfo(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_FileConnection_pageInfo(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "FileConnection",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_PageInfo(ctx, field)
 		},
 	}
 	return fc, nil
@@ -8371,6 +8842,52 @@ func (ec *executionContext) fieldContext_NewServiceToken_serviceToken(_ context.
 	return fc, nil
 }
 
+func (ec *executionContext) _PageInfo_hasNextPage(ctx context.Context, field graphql.CollectedField, obj *model.PageInfo) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PageInfo_hasNextPage(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.HasNextPage, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v bool) graphql.Marshaler {
+			return ec.marshalNBoolean2bool(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_PageInfo_hasNextPage(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PageInfo", field, false, false, "Boolean")
+}
+
+func (ec *executionContext) _PageInfo_endCursor(ctx context.Context, field graphql.CollectedField, obj *model.PageInfo) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_PageInfo_endCursor(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.EndCursor, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_PageInfo_endCursor(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("PageInfo", field, false, false, "String")
+}
+
 func (ec *executionContext) _Program_id(ctx context.Context, field graphql.CollectedField, obj *sqlc.Program) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -8565,11 +9082,11 @@ func (ec *executionContext) _Program_projects(ctx context.Context, field graphql
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Program().Projects(ctx, obj, fc.Args["limit"].(*int), fc.Args["offset"].(*int))
+			return ec.Resolvers.Program().Projects(ctx, obj, fc.Args["first"].(*int), fc.Args["after"].(*string))
 		},
 		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v []*sqlc.Project) graphql.Marshaler {
-			return ec.marshalNProject2ᚕᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐProjectᚄ(ctx, selections, v)
+		func(ctx context.Context, selections ast.SelectionSet, v *model.ProjectConnection) graphql.Marshaler {
+			return ec.marshalNProjectConnection2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋgraphᚋmodelᚐProjectConnection(ctx, selections, v)
 		},
 		true,
 		true,
@@ -8582,7 +9099,7 @@ func (ec *executionContext) fieldContext_Program_projects(ctx context.Context, f
 		IsMethod:   true,
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.childFields_Project(ctx, field)
+			return ec.childFields_ProjectConnection(ctx, field)
 		},
 	}
 	defer func() {
@@ -8595,6 +9112,70 @@ func (ec *executionContext) fieldContext_Program_projects(ctx context.Context, f
 	if fc.Args, err = ec.field_Program_projects_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProgramConnection_nodes(ctx context.Context, field graphql.CollectedField, obj *model.ProgramConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProgramConnection_nodes(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Nodes, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*sqlc.Program) graphql.Marshaler {
+			return ec.marshalNProgram2ᚕᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐProgramᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProgramConnection_nodes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProgramConnection",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Program(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProgramConnection_pageInfo(ctx context.Context, field graphql.CollectedField, obj *model.ProgramConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProgramConnection_pageInfo(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PageInfo, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.PageInfo) graphql.Marshaler {
+			return ec.marshalNPageInfo2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋgraphᚋmodelᚐPageInfo(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProgramConnection_pageInfo(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProgramConnection",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_PageInfo(ctx, field)
+		},
 	}
 	return fc, nil
 }
@@ -8884,6 +9465,70 @@ func (ec *executionContext) fieldContext_Project_program(_ context.Context, fiel
 	return fc, nil
 }
 
+func (ec *executionContext) _ProjectConnection_nodes(ctx context.Context, field graphql.CollectedField, obj *model.ProjectConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProjectConnection_nodes(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Nodes, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*sqlc.Project) graphql.Marshaler {
+			return ec.marshalNProject2ᚕᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐProjectᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProjectConnection_nodes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProjectConnection",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_Project(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ProjectConnection_pageInfo(ctx context.Context, field graphql.CollectedField, obj *model.ProjectConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_ProjectConnection_pageInfo(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PageInfo, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.PageInfo) graphql.Marshaler {
+			return ec.marshalNPageInfo2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋgraphᚋmodelᚐPageInfo(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_ProjectConnection_pageInfo(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ProjectConnection",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_PageInfo(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_ping(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -9025,11 +9670,11 @@ func (ec *executionContext) _Query_users(ctx context.Context, field graphql.Coll
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Query().Users(ctx, fc.Args["limit"].(*int), fc.Args["offset"].(*int))
+			return ec.Resolvers.Query().Users(ctx, fc.Args["first"].(*int), fc.Args["after"].(*string))
 		},
 		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v []*sqlc.AppUser) graphql.Marshaler {
-			return ec.marshalNUser2ᚕᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐAppUserᚄ(ctx, selections, v)
+		func(ctx context.Context, selections ast.SelectionSet, v *model.UserConnection) graphql.Marshaler {
+			return ec.marshalNUserConnection2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋgraphᚋmodelᚐUserConnection(ctx, selections, v)
 		},
 		true,
 		true,
@@ -9042,7 +9687,7 @@ func (ec *executionContext) fieldContext_Query_users(ctx context.Context, field 
 		IsMethod:   true,
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.childFields_User(ctx, field)
+			return ec.childFields_UserConnection(ctx, field)
 		},
 	}
 	defer func() {
@@ -9265,11 +9910,11 @@ func (ec *executionContext) _Query_assets(ctx context.Context, field graphql.Col
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Query().Assets(ctx, fc.Args["filter"].(*asset.Filter), fc.Args["limit"].(*int), fc.Args["offset"].(*int))
+			return ec.Resolvers.Query().Assets(ctx, fc.Args["filter"].(*asset.Filter), fc.Args["first"].(*int), fc.Args["after"].(*string))
 		},
 		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v []*sqlc.Asset) graphql.Marshaler {
-			return ec.marshalNAsset2ᚕᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐAssetᚄ(ctx, selections, v)
+		func(ctx context.Context, selections ast.SelectionSet, v *model.AssetConnection) graphql.Marshaler {
+			return ec.marshalNAssetConnection2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋgraphᚋmodelᚐAssetConnection(ctx, selections, v)
 		},
 		true,
 		true,
@@ -9282,7 +9927,7 @@ func (ec *executionContext) fieldContext_Query_assets(ctx context.Context, field
 		IsMethod:   true,
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.childFields_Asset(ctx, field)
+			return ec.childFields_AssetConnection(ctx, field)
 		},
 	}
 	defer func() {
@@ -9485,11 +10130,11 @@ func (ec *executionContext) _Query_files(ctx context.Context, field graphql.Coll
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Query().Files(ctx, fc.Args["limit"].(*int), fc.Args["offset"].(*int))
+			return ec.Resolvers.Query().Files(ctx, fc.Args["first"].(*int), fc.Args["after"].(*string))
 		},
 		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v []*sqlc.File) graphql.Marshaler {
-			return ec.marshalNFile2ᚕᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐFileᚄ(ctx, selections, v)
+		func(ctx context.Context, selections ast.SelectionSet, v *model.FileConnection) graphql.Marshaler {
+			return ec.marshalNFileConnection2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋgraphᚋmodelᚐFileConnection(ctx, selections, v)
 		},
 		true,
 		true,
@@ -9502,7 +10147,7 @@ func (ec *executionContext) fieldContext_Query_files(ctx context.Context, field 
 		IsMethod:   true,
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.childFields_File(ctx, field)
+			return ec.childFields_FileConnection(ctx, field)
 		},
 	}
 	defer func() {
@@ -9605,11 +10250,11 @@ func (ec *executionContext) _Query_programs(ctx context.Context, field graphql.C
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Query().Programs(ctx, fc.Args["limit"].(*int), fc.Args["offset"].(*int))
+			return ec.Resolvers.Query().Programs(ctx, fc.Args["first"].(*int), fc.Args["after"].(*string))
 		},
 		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v []*sqlc.Program) graphql.Marshaler {
-			return ec.marshalNProgram2ᚕᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐProgramᚄ(ctx, selections, v)
+		func(ctx context.Context, selections ast.SelectionSet, v *model.ProgramConnection) graphql.Marshaler {
+			return ec.marshalNProgramConnection2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋgraphᚋmodelᚐProgramConnection(ctx, selections, v)
 		},
 		true,
 		true,
@@ -9622,7 +10267,7 @@ func (ec *executionContext) fieldContext_Query_programs(ctx context.Context, fie
 		IsMethod:   true,
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.childFields_Program(ctx, field)
+			return ec.childFields_ProgramConnection(ctx, field)
 		},
 	}
 	defer func() {
@@ -9693,11 +10338,11 @@ func (ec *executionContext) _Query_projects(ctx context.Context, field graphql.C
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Query().Projects(ctx, fc.Args["programId"].(*string), fc.Args["status"].(*sqlc.ProjectStatus), fc.Args["limit"].(*int), fc.Args["offset"].(*int))
+			return ec.Resolvers.Query().Projects(ctx, fc.Args["programId"].(*string), fc.Args["status"].(*sqlc.ProjectStatus), fc.Args["first"].(*int), fc.Args["after"].(*string))
 		},
 		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v []*sqlc.Project) graphql.Marshaler {
-			return ec.marshalNProject2ᚕᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐProjectᚄ(ctx, selections, v)
+		func(ctx context.Context, selections ast.SelectionSet, v *model.ProjectConnection) graphql.Marshaler {
+			return ec.marshalNProjectConnection2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋgraphᚋmodelᚐProjectConnection(ctx, selections, v)
 		},
 		true,
 		true,
@@ -9710,7 +10355,7 @@ func (ec *executionContext) fieldContext_Query_projects(ctx context.Context, fie
 		IsMethod:   true,
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.childFields_Project(ctx, field)
+			return ec.childFields_ProjectConnection(ctx, field)
 		},
 	}
 	defer func() {
@@ -10804,6 +11449,70 @@ func (ec *executionContext) fieldContext_SubtitleCue_speaker(_ context.Context, 
 	return graphql.NewScalarFieldContext("SubtitleCue", field, false, false, "String")
 }
 
+func (ec *executionContext) _SubtitleCueConnection_nodes(ctx context.Context, field graphql.CollectedField, obj *model.SubtitleCueConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SubtitleCueConnection_nodes(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Nodes, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*sqlc.ListSubtitleCuesRow) graphql.Marshaler {
+			return ec.marshalNSubtitleCue2ᚕᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐListSubtitleCuesRowᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SubtitleCueConnection_nodes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SubtitleCueConnection",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_SubtitleCue(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SubtitleCueConnection_pageInfo(ctx context.Context, field graphql.CollectedField, obj *model.SubtitleCueConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SubtitleCueConnection_pageInfo(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PageInfo, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.PageInfo) graphql.Marshaler {
+			return ec.marshalNPageInfo2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋgraphᚋmodelᚐPageInfo(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SubtitleCueConnection_pageInfo(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SubtitleCueConnection",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_PageInfo(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _SubtitleTrack_id(ctx context.Context, field graphql.CollectedField, obj *sqlc.SubtitleTrack) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -11067,11 +11776,11 @@ func (ec *executionContext) _SubtitleTrack_cues(ctx context.Context, field graph
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.SubtitleTrack().Cues(ctx, obj, fc.Args["limit"].(*int), fc.Args["offset"].(*int))
+			return ec.Resolvers.SubtitleTrack().Cues(ctx, obj, fc.Args["first"].(*int), fc.Args["after"].(*string))
 		},
 		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v []*sqlc.ListSubtitleCuesRow) graphql.Marshaler {
-			return ec.marshalNSubtitleCue2ᚕᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐListSubtitleCuesRowᚄ(ctx, selections, v)
+		func(ctx context.Context, selections ast.SelectionSet, v *model.SubtitleCueConnection) graphql.Marshaler {
+			return ec.marshalNSubtitleCueConnection2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋgraphᚋmodelᚐSubtitleCueConnection(ctx, selections, v)
 		},
 		true,
 		true,
@@ -11084,7 +11793,7 @@ func (ec *executionContext) fieldContext_SubtitleTrack_cues(ctx context.Context,
 		IsMethod:   true,
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.childFields_SubtitleCue(ctx, field)
+			return ec.childFields_SubtitleCueConnection(ctx, field)
 		},
 	}
 	defer func() {
@@ -11327,6 +12036,70 @@ func (ec *executionContext) _User_createdAt(ctx context.Context, field graphql.C
 }
 func (ec *executionContext) fieldContext_User_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("User", field, false, false, "Time")
+}
+
+func (ec *executionContext) _UserConnection_nodes(ctx context.Context, field graphql.CollectedField, obj *model.UserConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_UserConnection_nodes(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Nodes, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*sqlc.AppUser) graphql.Marshaler {
+			return ec.marshalNUser2ᚕᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐAppUserᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_UserConnection_nodes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "UserConnection",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_User(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _UserConnection_pageInfo(ctx context.Context, field graphql.CollectedField, obj *model.UserConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_UserConnection_pageInfo(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.PageInfo, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *model.PageInfo) graphql.Marshaler {
+			return ec.marshalNPageInfo2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋgraphᚋmodelᚐPageInfo(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_UserConnection_pageInfo(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "UserConnection",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_PageInfo(ctx, field)
+		},
+	}
+	return fc, nil
 }
 
 func (ec *executionContext) _UserGroup_id(ctx context.Context, field graphql.CollectedField, obj *sqlc.UserGroup) (ret graphql.Marshaler) {
@@ -13887,6 +14660,44 @@ func (ec *executionContext) _Asset(ctx context.Context, sel ast.SelectionSet, ob
 	return out
 }
 
+var assetConnectionImplementors = []string{"AssetConnection"}
+
+func (ec *executionContext) _AssetConnection(ctx context.Context, sel ast.SelectionSet, obj *model.AssetConnection) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, assetConnectionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("AssetConnection")
+		case "nodes":
+			out.Values[i] = ec._AssetConnection_nodes(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "pageInfo":
+			out.Values[i] = ec._AssetConnection_pageInfo(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
 var assetProjectLinkImplementors = []string{"AssetProjectLink"}
 
 func (ec *executionContext) _AssetProjectLink(ctx context.Context, sel ast.SelectionSet, obj *sqlc.AssetProject) graphql.Marshaler {
@@ -14068,6 +14879,44 @@ func (ec *executionContext) _AssetVersion(ctx context.Context, sel ast.Selection
 	return out
 }
 
+var assetVersionConnectionImplementors = []string{"AssetVersionConnection"}
+
+func (ec *executionContext) _AssetVersionConnection(ctx context.Context, sel ast.SelectionSet, obj *model.AssetVersionConnection) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, assetVersionConnectionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("AssetVersionConnection")
+		case "nodes":
+			out.Values[i] = ec._AssetVersionConnection_nodes(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "pageInfo":
+			out.Values[i] = ec._AssetVersionConnection_pageInfo(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
 var fileImplementors = []string{"File"}
 
 func (ec *executionContext) _File(ctx context.Context, sel ast.SelectionSet, obj *sqlc.File) graphql.Marshaler {
@@ -14136,6 +14985,44 @@ func (ec *executionContext) _File(ctx context.Context, sel ast.SelectionSet, obj
 				func(ctx context.Context) graphql.Marshaler {
 					return ec._File_copies(ctx, field, obj)
 				})
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var fileConnectionImplementors = []string{"FileConnection"}
+
+func (ec *executionContext) _FileConnection(ctx context.Context, sel ast.SelectionSet, obj *model.FileConnection) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, fileConnectionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("FileConnection")
+		case "nodes":
+			out.Values[i] = ec._FileConnection_nodes(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "pageInfo":
+			out.Values[i] = ec._FileConnection_pageInfo(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -14754,6 +15641,44 @@ func (ec *executionContext) _NewServiceToken(ctx context.Context, sel ast.Select
 	return out
 }
 
+var pageInfoImplementors = []string{"PageInfo"}
+
+func (ec *executionContext) _PageInfo(ctx context.Context, sel ast.SelectionSet, obj *model.PageInfo) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, pageInfoImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("PageInfo")
+		case "hasNextPage":
+			out.Values[i] = ec._PageInfo_hasNextPage(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "endCursor":
+			out.Values[i] = ec._PageInfo_endCursor(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
 var programImplementors = []string{"Program"}
 
 func (ec *executionContext) _Program(ctx context.Context, sel ast.SelectionSet, obj *sqlc.Program) graphql.Marshaler {
@@ -14811,6 +15736,44 @@ func (ec *executionContext) _Program(ctx context.Context, sel ast.SelectionSet, 
 				func(ctx context.Context) graphql.Marshaler {
 					return ec._Program_projects(ctx, field, obj)
 				})
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var programConnectionImplementors = []string{"ProgramConnection"}
+
+func (ec *executionContext) _ProgramConnection(ctx context.Context, sel ast.SelectionSet, obj *model.ProgramConnection) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, programConnectionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ProgramConnection")
+		case "nodes":
+			out.Values[i] = ec._ProgramConnection_nodes(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "pageInfo":
+			out.Values[i] = ec._ProgramConnection_pageInfo(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -14900,6 +15863,44 @@ func (ec *executionContext) _Project(ctx context.Context, sel ast.SelectionSet, 
 				func(ctx context.Context) graphql.Marshaler {
 					return ec._Project_program(ctx, field, obj)
 				})
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var projectConnectionImplementors = []string{"ProjectConnection"}
+
+func (ec *executionContext) _ProjectConnection(ctx context.Context, sel ast.SelectionSet, obj *model.ProjectConnection) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, projectConnectionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ProjectConnection")
+		case "nodes":
+			out.Values[i] = ec._ProjectConnection_nodes(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "pageInfo":
+			out.Values[i] = ec._ProjectConnection_pageInfo(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -15438,6 +16439,44 @@ func (ec *executionContext) _SubtitleCue(ctx context.Context, sel ast.SelectionS
 	return out
 }
 
+var subtitleCueConnectionImplementors = []string{"SubtitleCueConnection"}
+
+func (ec *executionContext) _SubtitleCueConnection(ctx context.Context, sel ast.SelectionSet, obj *model.SubtitleCueConnection) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, subtitleCueConnectionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("SubtitleCueConnection")
+		case "nodes":
+			out.Values[i] = ec._SubtitleCueConnection_nodes(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "pageInfo":
+			out.Values[i] = ec._SubtitleCueConnection_pageInfo(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
 var subtitleTrackImplementors = []string{"SubtitleTrack"}
 
 func (ec *executionContext) _SubtitleTrack(ctx context.Context, sel ast.SelectionSet, obj *sqlc.SubtitleTrack) graphql.Marshaler {
@@ -15581,6 +16620,44 @@ func (ec *executionContext) _User(ctx context.Context, sel ast.SelectionSet, obj
 			}
 		case "createdAt":
 			out.Values[i] = ec._User_createdAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var userConnectionImplementors = []string{"UserConnection"}
+
+func (ec *executionContext) _UserConnection(ctx context.Context, sel ast.SelectionSet, obj *model.UserConnection) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, userConnectionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("UserConnection")
+		case "nodes":
+			out.Values[i] = ec._UserConnection_nodes(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "pageInfo":
+			out.Values[i] = ec._UserConnection_pageInfo(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -16035,6 +17112,14 @@ func (ec *executionContext) marshalNAsset2ᚖgithubᚗcomᚋbccᚑmediaᚋmediab
 	return ec._Asset(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNAssetConnection2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋgraphᚋmodelᚐAssetConnection(ctx context.Context, sel ast.SelectionSet, v *model.AssetConnection) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "AssetConnection!")
+		return graphql.Null
+	}
+	return ec._AssetConnection(ctx, sel, v)
+}
+
 func (ec *executionContext) unmarshalNAssetInput2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋassetᚐInput(ctx context.Context, v any) (asset.Input, error) {
 	res, err := ec.unmarshalInputAssetInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -16110,6 +17195,14 @@ func (ec *executionContext) marshalNAssetVersion2ᚖgithubᚗcomᚋbccᚑmedia�
 		return graphql.Null
 	}
 	return ec._AssetVersion(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNAssetVersionConnection2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋgraphᚋmodelᚐAssetVersionConnection(ctx context.Context, sel ast.SelectionSet, v *model.AssetVersionConnection) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "AssetVersionConnection!")
+		return graphql.Null
+	}
+	return ec._AssetVersionConnection(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNBoolean2bool(ctx context.Context, v any) (bool, error) {
@@ -16191,6 +17284,14 @@ func (ec *executionContext) marshalNFile2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabr
 		return graphql.Null
 	}
 	return ec._File(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNFileConnection2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋgraphᚋmodelᚐFileConnection(ctx context.Context, sel ast.SelectionSet, v *model.FileConnection) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "FileConnection!")
+		return graphql.Null
+	}
+	return ec._FileConnection(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNFileCopy2ᚕᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐFileCopyᚄ(ctx context.Context, sel ast.SelectionSet, v []*sqlc.FileCopy) graphql.Marshaler {
@@ -16625,6 +17726,14 @@ func (ec *executionContext) marshalNNewServiceToken2ᚖgithubᚗcomᚋbccᚑmedi
 	return ec._NewServiceToken(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNPageInfo2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋgraphᚋmodelᚐPageInfo(ctx context.Context, sel ast.SelectionSet, v *model.PageInfo) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "PageInfo!")
+		return graphql.Null
+	}
+	return ec._PageInfo(ctx, sel, v)
+}
+
 func (ec *executionContext) unmarshalNPermissionLevel2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐPermissionLevel(ctx context.Context, v any) (sqlc.PermissionLevel, error) {
 	tmp, err := graphql.UnmarshalString(v)
 	res := unmarshalNPermissionLevel2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐPermissionLevel[tmp]
@@ -16681,6 +17790,14 @@ func (ec *executionContext) marshalNProgram2ᚖgithubᚗcomᚋbccᚑmediaᚋmedi
 	return ec._Program(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNProgramConnection2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋgraphᚋmodelᚐProgramConnection(ctx context.Context, sel ast.SelectionSet, v *model.ProgramConnection) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "ProgramConnection!")
+		return graphql.Null
+	}
+	return ec._ProgramConnection(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNProject2ᚕᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐProjectᚄ(ctx context.Context, sel ast.SelectionSet, v []*sqlc.Project) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
@@ -16703,6 +17820,14 @@ func (ec *executionContext) marshalNProject2ᚖgithubᚗcomᚋbccᚑmediaᚋmedi
 		return graphql.Null
 	}
 	return ec._Project(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNProjectConnection2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋgraphᚋmodelᚐProjectConnection(ctx context.Context, sel ast.SelectionSet, v *model.ProjectConnection) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "ProjectConnection!")
+		return graphql.Null
+	}
+	return ec._ProjectConnection(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNProjectStatus2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐProjectStatus(ctx context.Context, v any) (sqlc.ProjectStatus, error) {
@@ -16958,6 +18083,14 @@ func (ec *executionContext) marshalNSubtitleCue2ᚖgithubᚗcomᚋbccᚑmediaᚋ
 	return ec._SubtitleCue(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNSubtitleCueConnection2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋgraphᚋmodelᚐSubtitleCueConnection(ctx context.Context, sel ast.SelectionSet, v *model.SubtitleCueConnection) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "SubtitleCueConnection!")
+		return graphql.Null
+	}
+	return ec._SubtitleCueConnection(ctx, sel, v)
+}
+
 func (ec *executionContext) unmarshalNSubtitleCueInput2ᚕᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋsubtitleᚐCueᚄ(ctx context.Context, v any) ([]*subtitle.Cue, error) {
 	vSlice := graphql.CoerceList(v)
 	var err error
@@ -17134,6 +18267,14 @@ func (ec *executionContext) marshalNUser2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabr
 		return graphql.Null
 	}
 	return ec._User(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNUserConnection2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋgraphᚋmodelᚐUserConnection(ctx context.Context, sel ast.SelectionSet, v *model.UserConnection) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "UserConnection!")
+		return graphql.Null
+	}
+	return ec._UserConnection(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNUserGroup2ᚕᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐUserGroupᚄ(ctx context.Context, sel ast.SelectionSet, v []*sqlc.UserGroup) graphql.Marshaler {

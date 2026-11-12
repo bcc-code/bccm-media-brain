@@ -186,7 +186,7 @@ func TestRegisterFile(t *testing.T) {
 			t.Run(name, func(t *testing.T) { admin.fails(t, "INVALID_INPUT", registerFile, vars) })
 		}
 		admin.fails(t, "INVALID_INPUT", `{ fileByHash(hash: {algo: MD5, value: "xyz"}) { id } }`, nil)
-		admin.fails(t, "INVALID_INPUT", `{ files(limit: 9999) { id } }`, nil)
+		admin.fails(t, "INVALID_INPUT", `{ files(first: 9999) { nodes { id } } }`, nil)
 	})
 
 	// The size of a large file survives as a 64-bit number.
@@ -196,8 +196,8 @@ func TestRegisterFile(t *testing.T) {
 	if reg.RegisterFile.SizeBytes != 1<<40 {
 		t.Fatalf("large size = %d", reg.RegisterFile.SizeBytes)
 	}
-	var list struct{ Files []struct{ ID string } }
-	admin.must(t, `{ files(limit: 2) { id } }`, nil, &list)
+	var list struct{ Files nodes[struct{ ID string }] }
+	admin.must(t, `{ files(first: 2) { nodes { id } } }`, nil, &list)
 	if len(list.Files) != 2 || list.Files[0].ID != reg.RegisterFile.ID {
 		t.Fatalf("files are listed newest first, got %+v", list.Files)
 	}

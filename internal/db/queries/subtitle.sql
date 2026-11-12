@@ -28,7 +28,9 @@ SELECT c.track_id, c.seq, c.start_ms, c.end_ms, c.text, c.speaker
 FROM (
     SELECT sc.track_id, sc.seq, sc.start_ms, sc.end_ms, sc.text, sc.speaker,
            row_number() OVER (PARTITION BY sc.track_id ORDER BY sc.seq) AS rn
-    FROM subtitle_cue sc WHERE sc.track_id = ANY(@track_ids::text[])
+    FROM subtitle_cue sc
+    WHERE sc.track_id = ANY(@track_ids::text[])
+      AND (sqlc.narg('after')::int IS NULL OR sc.seq > sqlc.narg('after'))
 ) c
-WHERE c.rn > sqlc.arg('offset')::int AND c.rn <= sqlc.arg('offset')::int + sqlc.arg('limit')::int
+WHERE c.rn <= sqlc.arg('limit')::int
 ORDER BY c.track_id, c.seq;

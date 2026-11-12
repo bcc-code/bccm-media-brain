@@ -147,15 +147,16 @@ func (s *Service) Me(ctx context.Context) (sqlc.AppUser, error) {
 	return u, domain.FromPG(err)
 }
 
-func (s *Service) Users(ctx context.Context, limit, offset int) ([]sqlc.AppUser, error) {
+func (s *Service) Users(ctx context.Context, first int, after *string) (domain.Slice[sqlc.AppUser], error) {
 	if err := RequireAdmin(ctx); err != nil {
-		return nil, err
+		return domain.Slice[sqlc.AppUser]{}, err
 	}
-	l, o, err := domain.Page(limit, offset)
+	w, err := domain.NewWindow(first, after, domain.DefaultLimit, domain.MaxLimit)
 	if err != nil {
-		return nil, err
+		return domain.Slice[sqlc.AppUser]{}, err
 	}
-	return s.q.ListUsers(ctx, sqlc.ListUsersParams{Limit: l, Offset: o})
+	rows, err := s.q.ListUsers(ctx, sqlc.ListUsersParams{Limit: w.Fetch(), After: w.After})
+	return domain.Cut(rows, w, func(u sqlc.AppUser) string { return u.ID }), err
 }
 
 func (s *Service) Groups(ctx context.Context) ([]sqlc.UserGroup, error) {

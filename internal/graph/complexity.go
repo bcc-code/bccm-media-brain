@@ -34,8 +34,7 @@ const (
 	assumedLanguages  = 200
 
 	// An export reads the whole track, like a default page of cues.
-	exportCost     = 500
-	defaultCuePage = 500 // the schema's default for cues(limit:)
+	exportCost = 500
 
 	// maxCost is where a cost stops growing, so nested lists cannot overflow into a small number.
 	maxCost = 1 << 40
@@ -64,9 +63,18 @@ func pageSize(limit *int, def, max int) int {
 	return *limit
 }
 
-func paged(def, max int) func(int, *int, *int) int {
-	return func(child int, limit, _ *int) int { return listCost(child, pageSize(limit, def, max)) }
+// paged is the cost of a connection: its selection once per item the page may hold. The
+// selection of a connection is its nodes, whose cost is one node's (see nodesCost).
+func paged(def, max int) func(int, *int, *string) int {
+	return func(child int, first *int, _ *string) int { return listCost(child, pageSize(first, def, max)) }
 }
+
+// connectionPart is the cost of a connection's nodes and of its pageInfo: what is selected
+// inside, and nothing for the field itself. The page size is an argument of the field that
+// returns the connection, so that field counts the list, once per item, and nodes must cost
+// what one node costs. pageInfo is counted per item too, which overstates it by at most two
+// per item: gqlgen ignores a cost below the selection's, so it cannot be made free.
+func connectionPart(child int) int { return child }
 
 func assumed(items int) func(int) int {
 	return func(child int) int { return listCost(child, items) }
@@ -85,12 +93,12 @@ func complexity() generated.ComplexityRoot {
 	var c generated.ComplexityRoot
 	page := paged(domain.DefaultLimit, domain.MaxLimit)
 
-	c.Query.Assets = func(child int, _ *asset.Filter, limit, offset *int) int { return page(child, limit, offset) }
+	c.Query.Assets = func(child int, _ *asset.Filter, first *int, after *string) int { return page(child, first, after) }
 	c.Query.Files = page
 	c.Query.Programs = page
 	c.Query.Users = page
-	c.Query.Projects = func(child int, _ *string, _ *sqlc.ProjectStatus, limit, offset *int) int {
-		return page(child, limit, offset)
+	c.Query.Projects = func(child int, _ *string, _ *sqlc.ProjectStatus, first *int, after *string) int {
+		return page(child, first, after)
 	}
 	c.Query.AssetTypes = assumed(assumedReference)
 	c.Query.StorageLocations = assumed(assumedReference)
@@ -109,7 +117,15 @@ func complexity() generated.ComplexityRoot {
 	c.File.Hashes = assumed(assumedHashes)
 	c.File.Copies = assumed(assumedCopies)
 	c.Program.Projects = paged(project.ProjectsPerProgram, domain.MaxLimit)
-	c.SubtitleTrack.Cues = paged(defaultCuePage, subtitle.MaxCuePage)
+	c.SubtitleTrack.Cues = paged(subtitle.DefaultCuePage, subtitle.MaxCuePage)
 	c.SubtitleTrack.Export = func(int, subtitle.Format) int { return exportCost }
+
+	c.AssetConnection.Nodes, c.AssetConnection.PageInfo = connectionPart, connectionPart
+	c.AssetVersionConnection.Nodes, c.AssetVersionConnection.PageInfo = connectionPart, connectionPart
+	c.FileConnection.Nodes, c.FileConnection.PageInfo = connectionPart, connectionPart
+	c.ProgramConnection.Nodes, c.ProgramConnection.PageInfo = connectionPart, connectionPart
+	c.ProjectConnection.Nodes, c.ProjectConnection.PageInfo = connectionPart, connectionPart
+	c.SubtitleCueConnection.Nodes, c.SubtitleCueConnection.PageInfo = connectionPart, connectionPart
+	c.UserConnection.Nodes, c.UserConnection.PageInfo = connectionPart, connectionPart
 	return c
 }

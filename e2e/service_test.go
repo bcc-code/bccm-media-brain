@@ -210,7 +210,7 @@ func TestServiceAccountsUseGrants(t *testing.T) {
 	svc := signInService(t, false)
 
 	svc.isNull(t, "asset", w.c1.asset)
-	svc.fails(t, "FORBIDDEN", `{ files { id } }`, nil)
+	svc.fails(t, "FORBIDDEN", `{ files { nodes { id } } }`, nil)
 	if got := w.visible(t, svc); got != "" {
 		t.Fatalf("without a grant the account sees %q", got)
 	}
@@ -232,7 +232,7 @@ func TestServiceAccountsCannotManageCredentials(t *testing.T) {
 	other := signInService(t, false)
 	person := signIn(t)
 
-	svc.must(t, `{ users { id } files { id } }`, nil, nil)
+	svc.must(t, `{ users { nodes { id } } files { nodes { id } } }`, nil, nil)
 	svc.must(t, registerFile, map[string]any{"in": fileVars(w.f.VideoFile())}, nil)
 
 	token := newServiceToken(t, w.admin, other.sub)
@@ -348,7 +348,7 @@ func TestServiceCLI(t *testing.T) {
 	if status, _ := post(t, map[string]string{"Authorization": "Bearer " + first}, `{ ping }`, nil); status != http.StatusUnauthorized {
 		t.Fatalf("revoked token: status %d", status)
 	}
-	user{token: second}.must(t, `{ users { id } }`, nil, nil)
+	user{token: second}.must(t, `{ users { nodes { id } } }`, nil, nil)
 }
 
 // The access scenario's service tokens are the same for the same seed, and they work.
