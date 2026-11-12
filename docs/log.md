@@ -2,6 +2,18 @@
 
 Newest first. Each entry: what changed, why, and what was left out on purpose.
 
+## 2026-11-11 — Indexes for what a delete looks up
+
+- Deleting a file or a subtitle track makes the database find the rows that point at it, once
+  per deleted row. `subtitle_track.parent_id`, `subtitle_track.source_file_id` and
+  `timeline.source_file_id` had no index, so each lookup read the whole table, and
+  `subtitle_track` gets a row per edit (system review, findings DB-06 and PERF-06). Migration
+  `00013` adds partial indexes (`WHERE ... IS NOT NULL`: most rows have no parent or source file).
+- `TestDeletedTablesAreReferencedThroughIndexes` reads the catalog and fails when a foreign key
+  to a table the API deletes from has no index on the referencing column.
+- Left out: the `created_by`, `granted_by` and `added_by` columns that point at `app_user`.
+  Users are never deleted. Not measured: the gain was not timed on a large table.
+
 ## 2026-11-11 — An email is unique whatever its case
 
 - `app_user.email` was unique as written but looked up with `lower()`, so `Ann@x.org` and
