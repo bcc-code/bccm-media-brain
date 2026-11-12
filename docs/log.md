@@ -2,6 +2,22 @@
 
 Newest first. Each entry: what changed, why, and what was left out on purpose.
 
+## 2026-11-11 — A pool size chosen on purpose, and nothing waits without end
+
+- The pool was pgx's default, the CPU count and at least 4, while one GraphQL request runs
+  several statements at once: on a 2-CPU container one deep query filled it (system review,
+  finding PERF-07). It is now 16 unless `DATABASE_URL` says `pool_max_conns`.
+- Every connection sets `statement_timeout` (35 s) and
+  `idle_in_transaction_session_timeout` (1 min). A request already had its 30 s deadline; the
+  sweeper and the CLI had none. The sweep also gets 30 s of its own, so one that waits on a
+  lock gives its connection back.
+- `/healthz` waits at most 2 s for the database and then answers 503. It pinged through the
+  same pool with no limit, so a full pool made the probe hang.
+- Left out: a load test. 16 is a judgement, not a measurement; the review's suggestion stands
+  (the deep query at 20 requests a second with the pool at 4 and at 16, watching
+  `pool.Stat().EmptyAcquireCount()`). Splitting liveness from readiness: one endpoint that
+  always answers in 2 s was enough for the failure described.
+
 ## 2026-11-11 — Every error has a code, and says what a client acts on
 
 - **Code.** A `Date` or `Time` that could not be read answered with a message and no

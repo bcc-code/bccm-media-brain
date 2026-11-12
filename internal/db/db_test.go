@@ -40,3 +40,23 @@ func TestEmbeddedMigrations(t *testing.T) {
 		t.Fatalf("no embedded migrations: %v", err)
 	}
 }
+
+func TestPoolConfig(t *testing.T) {
+	cfg, err := poolConfig("postgres://u:p@db/x")
+	if err != nil {
+		t.Fatal(err)
+	}
+	params := cfg.ConnConfig.RuntimeParams
+	if cfg.MaxConns != DefaultMaxConns || params["statement_timeout"] != "35000" || params["idle_in_transaction_session_timeout"] != "60000" {
+		t.Fatalf("defaults: %d connections, %v", cfg.MaxConns, params)
+	}
+
+	cfg, err = poolConfig("postgres://u:p@db/x?pool_max_conns=3&statement_timeout=1000&idle_in_transaction_session_timeout=0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	params = cfg.ConnConfig.RuntimeParams
+	if cfg.MaxConns != 3 || params["statement_timeout"] != "1000" || params["idle_in_transaction_session_timeout"] != "0" {
+		t.Fatalf("the URL must win: %d connections, %v", cfg.MaxConns, params)
+	}
+}

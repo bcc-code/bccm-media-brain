@@ -110,9 +110,11 @@ replicas behind the auth proxy. What each instance keeps to itself:
 - **The sweeper for expired grants**, at start and once a minute in every instance. The first one
   deletes the expired grants; the others wait on its row locks and find nothing. It is cleanup
   only: permission checks compare expiry to the clock themselves.
-- **A connection pool** of pgx's default size (the larger of 4 and the CPU count). Cap it with
-  `pool_max_conns` in `DATABASE_URL` so that replicas times the cap stays below Postgres's
-  `max_connections`.
+- **A connection pool** of 16 connections (`db.DefaultMaxConns`) unless `DATABASE_URL` sets
+  `pool_max_conns`. Choose it so that replicas times the size stays below Postgres's
+  `max_connections`. Every connection sets `statement_timeout` (35 s, just above the 30 s a
+  request may run) and `idle_in_transaction_session_timeout` (1 min); the URL can override
+  both. Migrations use their own connection and have no statement timeout.
 
 **Migrations take a Postgres advisory lock** (goose's session locker, `internal/db/migrate.go`),
 so instances that start together with `AUTO_MIGRATE=true` do not apply the same migration twice:

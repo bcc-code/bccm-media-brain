@@ -14,6 +14,7 @@ import (
 
 	"github.com/bcc-media/mediabrain/internal/access"
 	"github.com/bcc-media/mediabrain/internal/auth"
+	"github.com/bcc-media/mediabrain/internal/db"
 	"github.com/bcc-media/mediabrain/internal/graph"
 )
 
@@ -43,6 +44,17 @@ func TestHealthz(t *testing.T) {
 	down := NewHandler(&graph.Resolver{}, pingFunc(func(context.Context) error { return errors.New("down") }), HandlerOptions{})
 	if rec := do(t, down, http.MethodGet, "/healthz", ""); rec.Code != http.StatusServiceUnavailable {
 		t.Fatalf("healthz when db down = %d", rec.Code)
+	}
+
+	// A pool with no free connection makes the ping wait; the probe must still get an answer.
+	defer func(d time.Duration) { healthTimeout = d }(healthTimeout)
+	healthTimeout = 20 * time.Millisecond
+	busy := NewHandler(&graph.Resolver{}, pingFunc(func(ctx context.Context) error { <-ctx.Done(); return ctx.Err() }), HandlerOptions{})
+	if rec := do(t, busy, http.MethodGet, "/healthz", ""); rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("healthz when the pool is busy = %d", rec.Code)
+	}
+	if db.StatementTimeout <= QueryTimeout {
+		t.Fatalf("a statement is stopped after %v, before the request's own deadline of %v", db.StatementTimeout, QueryTimeout)
 	}
 }
 

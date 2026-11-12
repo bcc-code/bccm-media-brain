@@ -23,6 +23,9 @@ const maxBody = 8 << 20
 // query nobody waits for any more does not keep the database busy.
 const QueryTimeout = 30 * time.Second
 
+// healthTimeout is how long /healthz waits for the database. A variable for tests.
+var healthTimeout = 2 * time.Second
+
 // writeGrace is how long after the deadline the answer may still be written.
 const writeGrace = 15 * time.Second
 
@@ -61,7 +64,11 @@ func NewHandler(r *graph.Resolver, db Pinger, opts HandlerOptions) http.Handler 
 	mux.Handle("/query", http.MaxBytesHandler(gql, maxBody))
 
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, req *http.Request) {
-		if err := db.Ping(req.Context()); err != nil {
+		// The ping waits for a free pool connection. Under load that wait must end in an
+		// answer, or the probe hangs until whoever asked gives up.
+		ctx, cancel := context.WithTimeout(req.Context(), healthTimeout)
+		defer cancel()
+		if err := db.Ping(ctx); err != nil {
 			http.Error(w, "db unavailable", http.StatusServiceUnavailable)
 			return
 		}
