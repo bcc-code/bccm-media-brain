@@ -2,6 +2,22 @@
 
 Newest first. Each entry: what changed, why, and what was left out on purpose.
 
+## 2026-11-17 — Sign-in settings follow authentik's forward auth
+
+- The proxy is now known: Traefik with authentik's forward auth. It sends the user as plain
+  `X-authentik-*` headers and as a signed JWT in `X-authentik-jwt`. MediaBrain keeps verifying
+  the JWT and reads nothing else, so `AUTH_HEADER` now defaults to `X-authentik-jwt` (was
+  `Authorization`). Nothing else in the code changed: issuer, audience, key set and the
+  `groups` claim were already what authentik's token needs.
+- Why not the plain headers: they are only as good as the network path, and machine clients
+  need a route around the forward-auth middleware, on which anyone could write them. A test
+  holds that they sign nobody in.
+- `security.md` has the authentik values for the `AUTH_*` settings and what domain-wide
+  forward auth means: everyone who may open any app behind the middleware becomes a user
+  here, without grants.
+- Left out: reading `X-authentik-meta-jwks` (the key URL stays configuration), honouring
+  `email_verified`, and an OIDC login of MediaBrain's own.
+
 ## 2026-11-12 — Paged lists are connections with cursors
 
 - Every list that can grow returned a bare array with `limit` and `offset`. Nothing said that

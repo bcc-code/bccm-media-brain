@@ -6,7 +6,7 @@ MediaBrain does not log users in. **A proxy in front of it does**, and forwards 
 every request. MediaBrain:
 
 1. accepts `/query` requests only from **trusted proxy addresses** (`AUTH_TRUSTED_PROXIES`),
-2. reads the JWT from `AUTH_HEADER` (default `Authorization`, `Bearer ` optional),
+2. reads the JWT from `AUTH_HEADER` (default `X-authentik-jwt`, `Bearer ` optional),
 3. **verifies it itself** against the keys at `AUTH_JWKS_URL`: signature (asymmetric algorithms
    only), issuer, audience, expiry. A reachable port and a forged header are not enough,
 4. creates or updates the user from the claims (`sub`, `email`, `name`) and syncs their groups
@@ -15,6 +15,40 @@ every request. MediaBrain:
 
 The server **refuses to start** without `AUTH_ISSUER`, `AUTH_AUDIENCE`, `AUTH_JWKS_URL` and
 `AUTH_TRUSTED_PROXIES`, unless `DEBUG=true`.
+
+### The proxy: Traefik with authentik
+
+The proxy is Traefik with authentik's forward auth (`authentik@file` middleware); users sign in
+at `https://auth.bcc.media`. The defaults match what it sends, so a deployment sets:
+
+| Setting | Value |
+|---|---|
+| `AUTH_ISSUER` | `https://auth.bcc.media/application/o/<app-slug>/` (compared exactly, with the trailing slash) |
+| `AUTH_JWKS_URL` | `https://auth.bcc.media/application/o/<app-slug>/jwks/` |
+| `AUTH_AUDIENCE` | the client ID of the authentik proxy provider |
+| `AUTH_TRUSTED_PROXIES` | the address or network of Traefik |
+
+- Only `X-authentik-jwt` is read. authentik also sends the same facts as plain headers
+  (`X-authentik-uid`, `-username`, `-email`, `-name`, `-groups`) and the key URL as
+  `X-authentik-meta-jwks`. Those are not signed, so they are ignored: whoever can reach the
+  port could write them, and a key URL taken from the request would let the sender choose the
+  keys. The JWT carries the same values as claims.
+- The user key is `sub` (authentik's stable user id), never the email. `groups` holds
+  authentik group **names**, and only groups the user is a direct member of. A group is
+  matched to a MediaBrain group by that name, so renaming it in authentik is a new group here.
+- Forward auth is domain-wide: every app behind `authentik@file` shares one authentik
+  application, so one issuer, audience and access rule. Whoever may open any of those apps gets
+  a token MediaBrain accepts and becomes a user here, with no grants. What they can see is
+  decided by grants and `is_admin`, not by having got through the proxy. An access rule for
+  MediaBrain alone needs its own proxy provider and middleware (and then its own slug and
+  client ID above).
+- The signature stops invented identities, not replayed ones. With the shared application,
+  every app behind the middleware receives its visitors' tokens, and those tokens are valid
+  here too (same issuer and audience) until they expire. An app that is compromised could send
+  one to MediaBrain over any route that reaches it. A proxy provider of MediaBrain's own gives
+  its tokens an audience no other app sees; the router for machine clients should also remove
+  `X-authentik-jwt` from what callers send.
+- Sign-out is authentik's: `https://auth.bcc.media/outpost.goauthentik.io/sign_out`.
 
 Details worth knowing:
 
@@ -56,7 +90,10 @@ can do for machines.
   (`AUTH_TRUSTED_PROXIES` applies), which must let a request to `/query` with such a header
   through without a browser session and pass the header on unchanged. The proxy is only the
   network path here; MediaBrain is what checks the token. When the proxy keeps `Authorization`
-  for itself, name another header in `AUTH_SERVICE_HEADER`.
+  for itself, name another header in `AUTH_SERVICE_HEADER`. authentik's forward auth sends a
+  request without a session to the login page, so machine clients need a Traefik router for
+  `/query` without the `authentik@file` middleware. That router adds no way in for people: a
+  request on it has no JWT unless the caller wrote one, and a written one fails verification.
 - Unknown, revoked and expired tokens and tokens of a switched-off account get the same HTTP 401.
 - An accepted token is cached for one minute like a user's (and never past its expiry), so
   revoking a token or switching its account off (`setServiceAccountActive`) can take that long. `lastUsedAt` is written at most

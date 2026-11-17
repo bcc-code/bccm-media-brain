@@ -25,7 +25,7 @@ func TestLoadFrom(t *testing.T) {
 		{
 			name: "defaults",
 			env:  map[string]string{"DATABASE_URL": "postgres://x"},
-			want: Config{DatabaseURL: "postgres://x", HTTPAddr: ":8080", AutoMigrate: true, LogFormat: "text", AuthHeader: "Authorization", AuthServiceHeader: "Authorization", AuthGroupsClaim: "groups"},
+			want: Config{DatabaseURL: "postgres://x", HTTPAddr: ":8080", AutoMigrate: true, LogFormat: "text", AuthHeader: "X-authentik-jwt", AuthServiceHeader: "Authorization", AuthGroupsClaim: "groups"},
 		},
 		{
 			name: "overrides",

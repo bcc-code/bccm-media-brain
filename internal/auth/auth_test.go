@@ -194,8 +194,11 @@ func TestMiddlewareTokens(t *testing.T) {
 		"no token":          {request{remote: "10.1.2.3:555"}, 401, ""},
 		"wrong header":      {request{remote: "10.1.2.3:555", headers: map[string]string{"Authorization": "Bearer " + token}}, 401, ""},
 		"bad token":         {request{remote: "10.1.2.3:555", headers: map[string]string{"X-Auth-Token": "junk"}}, 401, ""},
-		"debug header off":  {request{remote: "10.1.2.3:555", headers: map[string]string{DebugUserHeader: "US-1"}}, 401, ""},
-		"debug cookie off":  {request{remote: "10.1.2.3:555", cookie: "US-1"}, 401, ""},
+		// What the proxy also sends next to its JWT. Unsigned, so it must never sign anyone in.
+		"identity headers": {request{remote: "10.1.2.3:555", headers: map[string]string{
+			"X-authentik-uid": "alice", "X-authentik-email": "alice@example.test", "X-authentik-groups": "it-admins"}}, 401, ""},
+		"debug header off": {request{remote: "10.1.2.3:555", headers: map[string]string{DebugUserHeader: "US-1"}}, 401, ""},
+		"debug cookie off": {request{remote: "10.1.2.3:555", cookie: "US-1"}, 401, ""},
 	} {
 		if status, user := call(c.req); status != c.status || user != c.user {
 			t.Errorf("%s: status %d user %q, want %d %q", name, status, user, c.status, c.user)

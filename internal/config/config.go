@@ -25,8 +25,9 @@ type Config struct {
 
 	DebugAllowRemote bool // DEBUG_ALLOW_REMOTE (default false): with DEBUG, HTTP_ADDR may be reachable from other machines
 
-	// Sign-in is done by a proxy in front of MediaBrain that forwards a signed JWT.
-	AuthHeader         string // AUTH_HEADER (default "Authorization"): header carrying the JWT
+	// Sign-in is done by a proxy in front of MediaBrain that forwards a signed JWT. The defaults
+	// are what authentik's forward auth sends.
+	AuthHeader         string // AUTH_HEADER (default "X-authentik-jwt"): header carrying the JWT
 	AuthServiceHeader  string // AUTH_SERVICE_HEADER (default "Authorization"): header carrying a machine client's service token
 	AuthClientHeader   string // AUTH_CLIENT_HEADER: header in which the proxy reports its client's address, for the logs
 	AuthTrustedProxies string // AUTH_TRUSTED_PROXIES: comma-separated IPs/CIDRs allowed to call /query
@@ -102,7 +103,7 @@ func Load() (Config, error) {
 
 // LoadFrom reads configuration using the given lookup function.
 func LoadFrom(lookup func(string) (string, bool)) (Config, error) {
-	cfg := Config{HTTPAddr: ":8080", AutoMigrate: true, LogFormat: "text", AuthHeader: "Authorization", AuthServiceHeader: "Authorization", AuthGroupsClaim: "groups"}
+	cfg := Config{HTTPAddr: ":8080", AutoMigrate: true, LogFormat: "text", AuthHeader: "X-authentik-jwt", AuthServiceHeader: "Authorization", AuthGroupsClaim: "groups"}
 
 	url, ok := lookup("DATABASE_URL")
 	if !ok || url == "" {
