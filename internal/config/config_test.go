@@ -25,7 +25,7 @@ func TestLoadFrom(t *testing.T) {
 		{
 			name: "defaults",
 			env:  map[string]string{"DATABASE_URL": "postgres://x"},
-			want: Config{DatabaseURL: "postgres://x", HTTPAddr: ":8080", AutoMigrate: true, LogFormat: "text", AuthHeader: "X-authentik-jwt", AuthServiceHeader: "Authorization", AuthGroupsClaim: "groups"},
+			want: Config{DatabaseURL: "postgres://x", HTTPAddr: ":8080", AutoMigrate: true, LogFormat: "text", AuthHeader: "X-authentik-jwt", AuthGroupsClaim: "groups"},
 		},
 		{
 			name: "overrides",
@@ -33,12 +33,12 @@ func TestLoadFrom(t *testing.T) {
 				"DATABASE_URL": "postgres://x", "HTTP_ADDR": ":9000",
 				"AUTO_MIGRATE": "false", "GRAPHQL_PLAYGROUND": "1", "DEBUG": "true", "DEBUG_USER": "dev@example.test", "DEBUG_ALLOW_REMOTE": "true",
 				"LOG_FORMAT": "json", "LOG_LEVEL": "debug",
-				"AUTH_HEADER": "X-Token", "AUTH_SERVICE_HEADER": "X-Service-Token", "AUTH_TRUSTED_PROXIES": "10.0.0.0/8", "AUTH_ISSUER": "https://idp",
+				"AUTH_HEADER": "X-Token", "AUTH_USER_GROUP": "people", "AUTH_SERVICE_GROUP": "machines", "AUTH_TRUSTED_PROXIES": "10.0.0.0/8", "AUTH_ISSUER": "https://idp",
 				"AUTH_AUDIENCE": "mb", "AUTH_JWKS_URL": "https://idp/keys", "AUTH_GROUPS_CLAIM": "roles", "AUTH_CLIENT_HEADER": "X-Real-IP",
 			},
 			want: Config{
 				DatabaseURL: "postgres://x", HTTPAddr: ":9000", Debug: true, DebugUser: "dev@example.test", DebugAllowRemote: true, Playground: true, LogFormat: "json", LogLevel: slog.LevelDebug,
-				AuthHeader: "X-Token", AuthServiceHeader: "X-Service-Token", AuthTrustedProxies: "10.0.0.0/8", AuthIssuer: "https://idp",
+				AuthHeader: "X-Token", AuthUserGroup: "people", AuthServiceGroup: "machines", AuthTrustedProxies: "10.0.0.0/8", AuthIssuer: "https://idp",
 				AuthAudience: "mb", AuthJWKSURL: "https://idp/keys", AuthGroupsClaim: "roles", AuthClientHeader: "X-Real-IP",
 			},
 		},
@@ -73,7 +73,7 @@ func TestLoadFrom(t *testing.T) {
 }
 
 func TestValidate(t *testing.T) {
-	full := Config{AuthIssuer: "i", AuthAudience: "a", AuthJWKSURL: "j", AuthTrustedProxies: "127.0.0.1"}
+	full := Config{AuthIssuer: "i", AuthAudience: "a", AuthJWKSURL: "j", AuthTrustedProxies: "127.0.0.1", AuthUserGroup: "people"}
 	if err := full.Validate(); err != nil {
 		t.Fatalf("configured auth: %v", err)
 	}
@@ -82,7 +82,10 @@ func TestValidate(t *testing.T) {
 	}
 	partial := full
 	partial.AuthTrustedProxies = ""
-	for _, c := range []Config{{}, partial} {
+	// Without a group of people nobody could be told from a stranger with a valid token.
+	open := full
+	open.AuthUserGroup = ""
+	for _, c := range []Config{{}, partial, open} {
 		if err := c.Validate(); !errors.Is(err, ErrAuthNotConfigured) {
 			t.Fatalf("%+v: err = %v", c, err)
 		}
@@ -105,7 +108,7 @@ func TestDebugIsLocalUnlessAllowed(t *testing.T) {
 		}
 	}
 	// The rule is about debug mode only: with real authentication any address is fine.
-	prod := Config{HTTPAddr: ":8080", AuthIssuer: "i", AuthAudience: "a", AuthJWKSURL: "j", AuthTrustedProxies: "10.0.0.0/8"}
+	prod := Config{HTTPAddr: ":8080", AuthIssuer: "i", AuthAudience: "a", AuthJWKSURL: "j", AuthTrustedProxies: "10.0.0.0/8", AuthUserGroup: "people"}
 	if err := prod.Validate(); err != nil {
 		t.Fatalf("without debug: %v", err)
 	}

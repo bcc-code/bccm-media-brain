@@ -16,11 +16,12 @@ body:
     {
       "in": {
         "name": "${[ service_account ]}",
-        "admin": true
+        "admin": true,
+        "user": null
       }
     }
 bodyType: graphql
-description: A machine client. Administrators that are people only. An administrator account is what an ingest tool needs to register files; without it the account sees what it is granted, like a user.
+description: A machine client, created under its username at the identity provider. It signs in with a token of the identity provider that carries the service group; without this account such a token is refused. Put the id of a user into "user" to turn an account that already signed in as a person into the service account. Administrators that are people only. An administrator account is what an ingest tool needs to register files; without it the account sees what it is granted, like a user.
 headers:
 - enabled: true
   name: Content-Type

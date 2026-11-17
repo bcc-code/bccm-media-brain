@@ -1809,18 +1809,6 @@ type SavedSearch struct {
 	UpdatedAt time.Time       `json:"updated_at"`
 }
 
-type ServiceToken struct {
-	ID         string     `json:"id"`
-	UserID     string     `json:"user_id"`
-	Name       string     `json:"name"`
-	TokenHash  []byte     `json:"token_hash"`
-	CreatedBy  *string    `json:"created_by"`
-	CreatedAt  time.Time  `json:"created_at"`
-	ExpiresAt  time.Time  `json:"expires_at"`
-	LastUsedAt *time.Time `json:"last_used_at"`
-	RevokedAt  *time.Time `json:"revoked_at"`
-}
-
 type StorageLocation struct {
 	ID        string       `json:"id"`
 	Name      string       `json:"name"`

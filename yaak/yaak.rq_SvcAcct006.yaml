@@ -18,7 +18,7 @@ body:
       "a": false
     }
 bodyType: graphql
-description: Switching an account off refuses all its tokens without revoking them.
+description: A switched-off account is refused. A token that was used in the last minute keeps working until that minute is over.
 headers:
 - enabled: true
   name: Content-Type

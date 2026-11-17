@@ -198,14 +198,14 @@ func TestRequestLogging(t *testing.T) {
 	buf.Reset()
 	signedIn := logRequests(log, http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 		o := access.OriginOf(r.Context())
-		o.Client, o.User, o.Token = "203.0.113.9", "US-1", "TK-1"
+		o.Client, o.User = "203.0.113.9", "US-1"
 	}))
 	rec := do(t, signedIn, http.MethodPost, "/query", "")
 	var m map[string]any
 	if err := json.Unmarshal(buf.Bytes(), &m); err != nil {
 		t.Fatal(err)
 	}
-	if id := rec.Header().Get("X-Request-Id"); id == "" || m["request"] != id || m["client"] != "203.0.113.9" || m["user"] != "US-1" || m["token"] != "TK-1" {
+	if id := rec.Header().Get("X-Request-Id"); id == "" || m["request"] != id || m["client"] != "203.0.113.9" || m["user"] != "US-1" {
 		t.Errorf("header %q, line %v", id, m)
 	}
 }

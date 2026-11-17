@@ -32,16 +32,12 @@ type Verifier interface {
 
 type Users interface {
 	SignIn(ctx context.Context, id access.Identity) (access.Principal, error)
-	// ServiceSignIn also returns when the token expires.
-	ServiceSignIn(ctx context.Context, token string) (access.Principal, time.Time, error)
 	Impersonate(ctx context.Context, ref string) (access.Principal, error)
 	DebugAdmin(ctx context.Context, email string) (access.Principal, error)
 }
 
 type Options struct {
 	Header string
-	// ServiceHeader is where machine clients send their service token. Empty: only Header.
-	ServiceHeader string
 	// ClientHeader is the header in which the proxy reports the address of its client. It is
 	// read only from a trusted proxy and only recorded. Empty: the peer's address is recorded.
 	ClientHeader   string
@@ -136,22 +132,12 @@ func (m *middleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if origin != nil {
-		origin.User, origin.Token = p.UserID, p.TokenID
+		origin.User = p.UserID
 	}
 	m.next.ServeHTTP(w, r.WithContext(access.With(r.Context(), p)))
 }
 
 func (m *middleware) authenticate(r *http.Request) (access.Principal, int, error) {
-	// Before the debug bypass, so a token can be tried in development with DEBUG_USER set.
-	if token := m.serviceToken(r); token != "" {
-		if !m.Debug && !m.trusted(r.RemoteAddr) {
-			return access.Principal{}, http.StatusForbidden, errors.New("peer is not a trusted proxy")
-		}
-		return m.cached(token, func() (access.Principal, time.Time, int, error) {
-			p, expires, err := m.Users.ServiceSignIn(r.Context(), token)
-			return p, expires, statusOf(err), err
-		})
-	}
 	if m.Debug {
 		ref := r.Header.Get(DebugUserHeader)
 		if c, err := r.Cookie(DebugUserCookie); ref == "" && err == nil {
@@ -178,6 +164,9 @@ func (m *middleware) authenticate(r *http.Request) (access.Principal, int, error
 	}
 	return m.cached(token, func() (access.Principal, time.Time, int, error) {
 		id, err := m.Verifier.Verify(r.Context(), token)
+		if errors.Is(err, ErrNotAllowed) {
+			return access.Principal{}, time.Time{}, http.StatusForbidden, err
+		}
 		if err != nil {
 			return access.Principal{}, time.Time{}, http.StatusUnauthorized, err
 		}
@@ -192,20 +181,6 @@ func bearer(header string) string {
 		token = strings.TrimSpace(token[7:])
 	}
 	return token
-}
-
-// serviceToken returns the service token a machine client sent, or "". A proxy that puts its
-// own JWT in another header leaves ServiceHeader to the client, so both are looked at.
-func (m *middleware) serviceToken(r *http.Request) string {
-	for _, h := range []string{m.ServiceHeader, m.Header} {
-		if h == "" {
-			continue
-		}
-		if token := bearer(r.Header.Get(h)); access.IsServiceToken(token) {
-			return token
-		}
-	}
-	return ""
 }
 
 // cached remembers the principal of a token for principalTTL, so a busy client costs one

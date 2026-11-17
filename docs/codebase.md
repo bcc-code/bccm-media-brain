@@ -28,9 +28,12 @@ code. Keep it to pointers: the code is the detail.
 - Administrator-only today: programs (create/delete), storage locations, all file writes, users
   and groups, Vidispine import and refresh.
 - `access.RequirePersonAdmin(ctx)` is `RequireAdmin` minus machine clients. Use it for anything
-  that creates credentials or administrators (`internal/access/serviceaccount.go`).
-- A caller can be a service account (`Principal.Service`, `Principal.TokenID`). It is an
-  `app_user` row, so nothing else in a service has to know.
+  that creates service accounts or administrators (`internal/access/serviceaccount.go`).
+- A caller can be a service account (`Principal.Service`). It is an `app_user` row, so nothing
+  else in a service has to know.
+- Sign-in is `access.Service.SignIn`: `person` creates or updates the row, `serviceAccountOf`
+  only finds one. Which of the two a token gets is decided before that, from its groups, in
+  `auth.JWKSVerifier.Verify` (`Identity.Service`).
 
 ## Services are constructed in three places
 
@@ -59,7 +62,7 @@ A new service, or a new dependency of one, must be added to all of them:
   value, a backfill in a migration) has to disable the trigger or live in another table.
 - Subtitle import always adds a revision; only SRT and WebVTT parse.
 - `language.alt_codes` holds 3-letter codes, but no query reads it yet.
-- The id prefix `ST` is `subtitle_track`; service tokens are `TK`.
+- The id prefix `ST` is `subtitle_track`.
 - Postgres cannot drop an enum value: a migration that adds one rebuilds the type in its Down
   (`00003_languages.sql`, `00008_vidispine_import.sql`).
 
@@ -67,7 +70,7 @@ A new service, or a new dependency of one, must be added to all of them:
 
 `internal/config/config.go`: flat fields on `Config`, the env name in a trailing comment. Plain
 strings are read in the map loop of `LoadFrom`; booleans with `boolEnv`. A group that must be
-complete is checked at the end of `LoadFrom` (`ErrVidispineIncomplete`). `Validate` (AUTH required
+complete is checked at the end of `LoadFrom` (`ErrVidispineIncomplete`). `Validate` (AUTH required, `AUTH_USER_GROUP` included,
 unless `DEBUG`; `DEBUG` only on a loopback `HTTP_ADDR` unless `DEBUG_ALLOW_REMOTE`) runs only in `app.New`, so CLI commands other than `serve` skip it. New settings
 also go in `.env.example` and `AGENTS.md`.
 
@@ -126,9 +129,11 @@ non-test package that e2e can import: `internal/auth/authtest` (token issuer),
 
 - `e2e/main_test.go` starts Postgres (testcontainers), the token issuer, the fake Vidispine and the
   app; `appConfig()` is the app's configuration. Globals: `pool`, `baseURL`, `issuer`, `vsServer`.
-- Users: `signIn(t)`, `signInAdmin(t)`, `signInService(t, admin)` (a service account with a
-  token; a token that was accepted once stays accepted for a minute, so tests of refusal use a
-  token for the first time); `u.must`, `u.fails(t, code, query, vars)`, `u.sees`,
+- Users: `signIn(t)`, `signInAdmin(t)`, `signInService(t, admin)` (a service account that has
+  signed in; `serviceToken(sub, username)` signs another token for one). `tokenFor` and
+  `authtest.Issuer.Token` add the group that lets people in. A token that was accepted once
+  stays accepted for a minute, so tests of refusal use a token for the first time
+  (`refused` in `e2e/service_test.go`); `u.must`, `u.fails(t, code, query, vars)`, `u.sees`,
   `u.isNull`. Builders in `e2e/fixtures_test.go` (`newProgram`, `newProject`, `newClip`, ...);
   `newWorld` in `e2e/access_test.go`. Tests do not run in parallel.
 - A new operation is added to: `TestAdminOnlyOperations` or the level tables of
@@ -149,10 +154,8 @@ non-test package that e2e can import: `internal/auth/authtest` (token issuer),
 
 A scenario is an entry in `registry` (`internal/devdata/scenarios.go`) with `Params` and a
 `Run(ctx, env, values)` that goes through the services. `internal/fake` builders return service
-input structs and never read the clock. A `fake.Faker` is also an `io.Reader`: a scenario that
-creates service tokens passes it to `access.Service.WithRand`, so the same seed gives the same
-tokens. A scenario that needs another system uses a stand-in held
-in memory (`vidispineItems`).
+input structs and never read the clock. A scenario that needs another system uses a stand-in
+held in memory (`vidispineItems`).
 
 The debug UI is one file, `internal/devdata/ui/index.html`, over the JSON API in
 `internal/devdata/http.go`. The handler sees only the `Backend` interface (`Store` implements

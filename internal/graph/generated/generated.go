@@ -183,7 +183,6 @@ type ComplexityRoot struct {
 		CreateProject           func(childComplexity int, input project.ProjectInput) int
 		CreateRendition         func(childComplexity int, versionID string, input asset.RenditionInput) int
 		CreateServiceAccount    func(childComplexity int, input access.ServiceAccountInput) int
-		CreateServiceToken      func(childComplexity int, input access.ServiceTokenInput) int
 		CreateStorageLocation   func(childComplexity int, input file.LocationInput) int
 		DeleteAsset             func(childComplexity int, id string) int
 		DeleteAssetVersion      func(childComplexity int, id string) int
@@ -203,7 +202,6 @@ type ComplexityRoot struct {
 		RegisterFile            func(childComplexity int, input file.RegisterInput) int
 		RemoveFileCopy          func(childComplexity int, id string) int
 		RevokeAccess            func(childComplexity int, id string) int
-		RevokeServiceToken      func(childComplexity int, id string) int
 		SetFileCopyStatus       func(childComplexity int, id string, status sqlc.CopyStatus) int
 		SetServiceAccountActive func(childComplexity int, serviceAccount string, active bool) int
 		SetUserAdmin            func(childComplexity int, user string, admin bool) int
@@ -214,11 +212,6 @@ type ComplexityRoot struct {
 		UpdateProject           func(childComplexity int, id string, input project.ProjectInput, expectedRevision *int) int
 		UpdateRendition         func(childComplexity int, id string, input asset.RenditionInput, expectedRevision *int) int
 		UpdateStorageLocation   func(childComplexity int, id string, input file.LocationInput, expectedRevision *int) int
-	}
-
-	NewServiceToken struct {
-		ServiceToken func(childComplexity int) int
-		Token        func(childComplexity int) int
 	}
 
 	PageInfo struct {
@@ -281,7 +274,6 @@ type ComplexityRoot struct {
 		Projects         func(childComplexity int, programID *string, status *sqlc.ProjectStatus, first *int, after *string) int
 		Rendition        func(childComplexity int, id string) int
 		ServiceAccounts  func(childComplexity int) int
-		ServiceTokens    func(childComplexity int, serviceAccount string) int
 		StorageLocations func(childComplexity int) int
 		SubtitleTrack    func(childComplexity int, id string) int
 		SubtitleTracks   func(childComplexity int, assetID string, history bool) int
@@ -310,17 +302,6 @@ type ComplexityRoot struct {
 		Position    func(childComplexity int) int
 		RenditionID func(childComplexity int) int
 		Role        func(childComplexity int) int
-	}
-
-	ServiceToken struct {
-		CreatedAt  func(childComplexity int) int
-		CreatedBy  func(childComplexity int) int
-		ExpiresAt  func(childComplexity int) int
-		ID         func(childComplexity int) int
-		LastUsedAt func(childComplexity int) int
-		Name       func(childComplexity int) int
-		RevokedAt  func(childComplexity int) int
-		UserID     func(childComplexity int) int
 	}
 
 	StorageLocation struct {
@@ -419,8 +400,6 @@ type MutationResolver interface {
 	SetUserAdmin(ctx context.Context, user string, admin bool) (*sqlc.AppUser, error)
 	CreateServiceAccount(ctx context.Context, input access.ServiceAccountInput) (*sqlc.AppUser, error)
 	SetServiceAccountActive(ctx context.Context, serviceAccount string, active bool) (*sqlc.AppUser, error)
-	CreateServiceToken(ctx context.Context, input access.ServiceTokenInput) (*access.NewServiceToken, error)
-	RevokeServiceToken(ctx context.Context, id string) (*sqlc.ServiceToken, error)
 	CreateAsset(ctx context.Context, projectID *string, input asset.Input) (*sqlc.Asset, error)
 	UpdateAsset(ctx context.Context, id string, input asset.Input, expectedRevision *int) (*sqlc.Asset, error)
 	DeleteAsset(ctx context.Context, id string) (bool, error)
@@ -464,7 +443,6 @@ type QueryResolver interface {
 	Ping(ctx context.Context) (string, error)
 	Me(ctx context.Context) (*sqlc.AppUser, error)
 	ServiceAccounts(ctx context.Context) ([]*sqlc.AppUser, error)
-	ServiceTokens(ctx context.Context, serviceAccount string) ([]*sqlc.ServiceToken, error)
 	Users(ctx context.Context, first *int, after *string) (*model.UserConnection, error)
 	UserGroups(ctx context.Context) ([]*sqlc.UserGroup, error)
 	Grants(ctx context.Context, scope sqlc.GrantScope, scopeID string) ([]*sqlc.PermissionGrant, error)
@@ -1106,17 +1084,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.CreateServiceAccount(childComplexity, args["input"].(access.ServiceAccountInput)), true
-	case "Mutation.createServiceToken":
-		if e.ComplexityRoot.Mutation.CreateServiceToken == nil {
-			break
-		}
-
-		args, err := ec.field_Mutation_createServiceToken_args(ctx, rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.ComplexityRoot.Mutation.CreateServiceToken(childComplexity, args["input"].(access.ServiceTokenInput)), true
 	case "Mutation.createStorageLocation":
 		if e.ComplexityRoot.Mutation.CreateStorageLocation == nil {
 			break
@@ -1326,17 +1293,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.RevokeAccess(childComplexity, args["id"].(string)), true
-	case "Mutation.revokeServiceToken":
-		if e.ComplexityRoot.Mutation.RevokeServiceToken == nil {
-			break
-		}
-
-		args, err := ec.field_Mutation_revokeServiceToken_args(ctx, rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.ComplexityRoot.Mutation.RevokeServiceToken(childComplexity, args["id"].(string)), true
 	case "Mutation.setFileCopyStatus":
 		if e.ComplexityRoot.Mutation.SetFileCopyStatus == nil {
 			break
@@ -1447,19 +1403,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.UpdateStorageLocation(childComplexity, args["id"].(string), args["input"].(file.LocationInput), args["expectedRevision"].(*int)), true
-
-	case "NewServiceToken.serviceToken":
-		if e.ComplexityRoot.NewServiceToken.ServiceToken == nil {
-			break
-		}
-
-		return e.ComplexityRoot.NewServiceToken.ServiceToken(childComplexity), true
-	case "NewServiceToken.token":
-		if e.ComplexityRoot.NewServiceToken.Token == nil {
-			break
-		}
-
-		return e.ComplexityRoot.NewServiceToken.Token(childComplexity), true
 
 	case "PageInfo.endCursor":
 		if e.ComplexityRoot.PageInfo.EndCursor == nil {
@@ -1801,17 +1744,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.ServiceAccounts(childComplexity), true
-	case "Query.serviceTokens":
-		if e.ComplexityRoot.Query.ServiceTokens == nil {
-			break
-		}
-
-		args, err := ec.field_Query_serviceTokens_args(ctx, rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.ComplexityRoot.Query.ServiceTokens(childComplexity, args["serviceAccount"].(string)), true
 	case "Query.storageLocations":
 		if e.ComplexityRoot.Query.StorageLocations == nil {
 			break
@@ -1966,55 +1898,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.RenditionFile.Role(childComplexity), true
-
-	case "ServiceToken.createdAt":
-		if e.ComplexityRoot.ServiceToken.CreatedAt == nil {
-			break
-		}
-
-		return e.ComplexityRoot.ServiceToken.CreatedAt(childComplexity), true
-	case "ServiceToken.createdBy":
-		if e.ComplexityRoot.ServiceToken.CreatedBy == nil {
-			break
-		}
-
-		return e.ComplexityRoot.ServiceToken.CreatedBy(childComplexity), true
-	case "ServiceToken.expiresAt":
-		if e.ComplexityRoot.ServiceToken.ExpiresAt == nil {
-			break
-		}
-
-		return e.ComplexityRoot.ServiceToken.ExpiresAt(childComplexity), true
-	case "ServiceToken.id":
-		if e.ComplexityRoot.ServiceToken.ID == nil {
-			break
-		}
-
-		return e.ComplexityRoot.ServiceToken.ID(childComplexity), true
-	case "ServiceToken.lastUsedAt":
-		if e.ComplexityRoot.ServiceToken.LastUsedAt == nil {
-			break
-		}
-
-		return e.ComplexityRoot.ServiceToken.LastUsedAt(childComplexity), true
-	case "ServiceToken.name":
-		if e.ComplexityRoot.ServiceToken.Name == nil {
-			break
-		}
-
-		return e.ComplexityRoot.ServiceToken.Name(childComplexity), true
-	case "ServiceToken.revokedAt":
-		if e.ComplexityRoot.ServiceToken.RevokedAt == nil {
-			break
-		}
-
-		return e.ComplexityRoot.ServiceToken.RevokedAt(childComplexity), true
-	case "ServiceToken.userId":
-		if e.ComplexityRoot.ServiceToken.UserID == nil {
-			break
-		}
-
-		return e.ComplexityRoot.ServiceToken.UserID(childComplexity), true
 
 	case "StorageLocation.baseUri":
 		if e.ComplexityRoot.StorageLocation.BaseUri == nil {
@@ -2305,7 +2188,6 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 			graphql.NewInputUnmarshaler("ImportSubtitlesInput", ec.unmarshalInputImportSubtitlesInput),
 			graphql.NewInputUnmarshaler("RegisterFileInput", ec.unmarshalInputRegisterFileInput),
 			graphql.NewInputUnmarshaler("ServiceAccountInput", ec.unmarshalInputServiceAccountInput),
-			graphql.NewInputUnmarshaler("ServiceTokenInput", ec.unmarshalInputServiceTokenInput),
 			graphql.NewInputUnmarshaler("StorageLocationInput", ec.unmarshalInputStorageLocationInput),
 			graphql.NewInputUnmarshaler("SubtitleCueInput", ec.unmarshalInputSubtitleCueInput),
 			graphql.NewInputUnmarshaler("UpdateProgramInput", ec.unmarshalInputUpdateProgramInput),
@@ -2406,7 +2288,7 @@ enum GrantScope {
 
 enum UserKind {
   PERSON
-  "A machine client. It signs in with a service token."
+  "A machine client. Its token carries the service group, and it must have been created with createServiceAccount."
   SERVICE
 }
 
@@ -2455,47 +2337,18 @@ input GrantInput {
 }
 
 input ServiceAccountInput {
-  "Unique. Also how the account is named on the command line."
+  "The account's username at the identity provider: its first sign-in is matched on it. Unique among service accounts."
   name: String!
   "System administrator. Needed for administrator-only operations such as registering files."
   admin: Boolean! = false
-}
-
-"A credential of a service account. The token itself is only in the answer of createServiceToken."
-type ServiceToken {
-  id: ID!
-  "The service account."
-  userId: ID!
-  name: String!
-  createdBy: ID
-  createdAt: Time!
-  expiresAt: Time!
-  "Updated at most once a minute."
-  lastUsedAt: Time
-  revokedAt: Time
-}
-
-input ServiceTokenInput {
-  "Id or name of the service account."
-  serviceAccount: String!
-  "What the token is for, e.g. \"ingest, production\"."
-  name: String!
-  "A year from now when not given."
-  expiresAt: Time
-}
-
-type NewServiceToken {
-  "Sent as ` + "`" + `Authorization: Bearer <token>` + "`" + `. It cannot be read again."
-  token: String!
-  serviceToken: ServiceToken!
+  "Id of an account that already signed in as a person and becomes this service account. Without it a new account is made, which signs in later."
+  user: ID
 }
 
 extend type Query {
   me: User!
   "Administrators only, not service accounts."
   serviceAccounts: [User!]!
-  "Administrators only, not service accounts. serviceAccount is an id or name."
-  serviceTokens(serviceAccount: String!): [ServiceToken!]!
   "Administrators only."
   users(first: Int = 50, after: String): UserConnection!
   "Administrators only."
@@ -2512,12 +2365,8 @@ extend type Mutation {
   setUserAdmin(user: String!, admin: Boolean!): User!
   "Administrators only, not service accounts."
   createServiceAccount(input: ServiceAccountInput!): User!
-  "Administrators only, not service accounts. An inactive account's tokens are refused."
+  "Administrators only, not service accounts. An inactive account is refused. Takes up to a minute to apply."
   setServiceAccountActive(serviceAccount: String!, active: Boolean!): User!
-  "Administrators only, not service accounts."
-  createServiceToken(input: ServiceTokenInput!): NewServiceToken!
-  "Administrators only, not service accounts. Takes up to a minute to apply."
-  revokeServiceToken(id: ID!): ServiceToken!
 }
 
 "One page of users."
@@ -3388,16 +3237,6 @@ func (ec *executionContext) childFields_Language(ctx context.Context, field grap
 	return nil, fmt.Errorf("no field named %q was found under type Language", field.Name)
 }
 
-func (ec *executionContext) childFields_NewServiceToken(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-	switch field.Name {
-	case "token":
-		return ec.fieldContext_NewServiceToken_token(ctx, field)
-	case "serviceToken":
-		return ec.fieldContext_NewServiceToken_serviceToken(ctx, field)
-	}
-	return nil, fmt.Errorf("no field named %q was found under type NewServiceToken", field.Name)
-}
-
 func (ec *executionContext) childFields_PageInfo(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 	switch field.Name {
 	case "hasNextPage":
@@ -3526,28 +3365,6 @@ func (ec *executionContext) childFields_RenditionFile(ctx context.Context, field
 		return ec.fieldContext_RenditionFile_file(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type RenditionFile", field.Name)
-}
-
-func (ec *executionContext) childFields_ServiceToken(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-	switch field.Name {
-	case "id":
-		return ec.fieldContext_ServiceToken_id(ctx, field)
-	case "userId":
-		return ec.fieldContext_ServiceToken_userId(ctx, field)
-	case "name":
-		return ec.fieldContext_ServiceToken_name(ctx, field)
-	case "createdBy":
-		return ec.fieldContext_ServiceToken_createdBy(ctx, field)
-	case "createdAt":
-		return ec.fieldContext_ServiceToken_createdAt(ctx, field)
-	case "expiresAt":
-		return ec.fieldContext_ServiceToken_expiresAt(ctx, field)
-	case "lastUsedAt":
-		return ec.fieldContext_ServiceToken_lastUsedAt(ctx, field)
-	case "revokedAt":
-		return ec.fieldContext_ServiceToken_revokedAt(ctx, field)
-	}
-	return nil, fmt.Errorf("no field named %q was found under type ServiceToken", field.Name)
 }
 
 func (ec *executionContext) childFields_StorageLocation(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -3982,20 +3799,6 @@ func (ec *executionContext) field_Mutation_createServiceAccount_args(ctx context
 	return args, nil
 }
 
-func (ec *executionContext) field_Mutation_createServiceToken_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
-	var err error
-	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "input",
-		func(ctx context.Context, v any) (access.ServiceTokenInput, error) {
-			return ec.unmarshalNServiceTokenInput2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋaccessᚐServiceTokenInput(ctx, v)
-		})
-	if err != nil {
-		return nil, err
-	}
-	args["input"] = arg0
-	return args, nil
-}
-
 func (ec *executionContext) field_Mutation_createStorageLocation_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -4289,20 +4092,6 @@ func (ec *executionContext) field_Mutation_removeFileCopy_args(ctx context.Conte
 }
 
 func (ec *executionContext) field_Mutation_revokeAccess_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
-	var err error
-	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
-		func(ctx context.Context, v any) (string, error) {
-			return ec.unmarshalNID2string(ctx, v)
-		})
-	if err != nil {
-		return nil, err
-	}
-	args["id"] = arg0
-	return args, nil
-}
-
-func (ec *executionContext) field_Mutation_revokeServiceToken_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
 	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id",
@@ -4871,20 +4660,6 @@ func (ec *executionContext) field_Query_rendition_args(ctx context.Context, rawA
 		return nil, err
 	}
 	args["id"] = arg0
-	return args, nil
-}
-
-func (ec *executionContext) field_Query_serviceTokens_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
-	var err error
-	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "serviceAccount",
-		func(ctx context.Context, v any) (string, error) {
-			return ec.unmarshalNString2string(ctx, v)
-		})
-	if err != nil {
-		return nil, err
-	}
-	args["serviceAccount"] = arg0
 	return args, nil
 }
 
@@ -7291,94 +7066,6 @@ func (ec *executionContext) fieldContext_Mutation_setServiceAccountActive(ctx co
 	return fc, nil
 }
 
-func (ec *executionContext) _Mutation_createServiceToken(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_Mutation_createServiceToken(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().CreateServiceToken(ctx, fc.Args["input"].(access.ServiceTokenInput))
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v *access.NewServiceToken) graphql.Marshaler {
-			return ec.marshalNNewServiceToken2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋaccessᚐNewServiceToken(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_Mutation_createServiceToken(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Mutation",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.childFields_NewServiceToken(ctx, field)
-		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Mutation_createServiceToken_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Mutation_revokeServiceToken(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_Mutation_revokeServiceToken(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Mutation().RevokeServiceToken(ctx, fc.Args["id"].(string))
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v *sqlc.ServiceToken) graphql.Marshaler {
-			return ec.marshalNServiceToken2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐServiceToken(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_Mutation_revokeServiceToken(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Mutation",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.childFields_ServiceToken(ctx, field)
-		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Mutation_revokeServiceToken_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
-	}
-	return fc, nil
-}
-
 func (ec *executionContext) _Mutation_createAsset(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -8787,61 +8474,6 @@ func (ec *executionContext) fieldContext_Mutation_refreshFromVidispine(ctx conte
 	return fc, nil
 }
 
-func (ec *executionContext) _NewServiceToken_token(ctx context.Context, field graphql.CollectedField, obj *access.NewServiceToken) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_NewServiceToken_token(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Token, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_NewServiceToken_token(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("NewServiceToken", field, false, false, "String")
-}
-
-func (ec *executionContext) _NewServiceToken_serviceToken(ctx context.Context, field graphql.CollectedField, obj *access.NewServiceToken) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_NewServiceToken_serviceToken(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.ServiceToken, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v sqlc.ServiceToken) graphql.Marshaler {
-			return ec.marshalNServiceToken2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐServiceToken(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_NewServiceToken_serviceToken(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "NewServiceToken",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.childFields_ServiceToken(ctx, field)
-		},
-	}
-	return fc, nil
-}
-
 func (ec *executionContext) _PageInfo_hasNextPage(ctx context.Context, field graphql.CollectedField, obj *model.PageInfo) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -9612,50 +9244,6 @@ func (ec *executionContext) fieldContext_Query_serviceAccounts(_ context.Context
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return ec.childFields_User(ctx, field)
 		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Query_serviceTokens(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_Query_serviceTokens(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Query().ServiceTokens(ctx, fc.Args["serviceAccount"].(string))
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v []*sqlc.ServiceToken) graphql.Marshaler {
-			return ec.marshalNServiceToken2ᚕᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐServiceTokenᚄ(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_Query_serviceTokens(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Query",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.childFields_ServiceToken(ctx, field)
-		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Query_serviceTokens_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
 	}
 	return fc, nil
 }
@@ -10964,190 +10552,6 @@ func (ec *executionContext) fieldContext_RenditionFile_file(_ context.Context, f
 		},
 	}
 	return fc, nil
-}
-
-func (ec *executionContext) _ServiceToken_id(ctx context.Context, field graphql.CollectedField, obj *sqlc.ServiceToken) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_ServiceToken_id(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.ID, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNID2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_ServiceToken_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("ServiceToken", field, false, false, "ID")
-}
-
-func (ec *executionContext) _ServiceToken_userId(ctx context.Context, field graphql.CollectedField, obj *sqlc.ServiceToken) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_ServiceToken_userId(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.UserID, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNID2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_ServiceToken_userId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("ServiceToken", field, false, false, "ID")
-}
-
-func (ec *executionContext) _ServiceToken_name(ctx context.Context, field graphql.CollectedField, obj *sqlc.ServiceToken) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_ServiceToken_name(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.Name, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
-			return ec.marshalNString2string(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_ServiceToken_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("ServiceToken", field, false, false, "String")
-}
-
-func (ec *executionContext) _ServiceToken_createdBy(ctx context.Context, field graphql.CollectedField, obj *sqlc.ServiceToken) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_ServiceToken_createdBy(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.CreatedBy, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
-			return ec.marshalOID2ᚖstring(ctx, selections, v)
-		},
-		true,
-		false,
-	)
-}
-func (ec *executionContext) fieldContext_ServiceToken_createdBy(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("ServiceToken", field, false, false, "ID")
-}
-
-func (ec *executionContext) _ServiceToken_createdAt(ctx context.Context, field graphql.CollectedField, obj *sqlc.ServiceToken) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_ServiceToken_createdAt(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.CreatedAt, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
-			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_ServiceToken_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("ServiceToken", field, false, false, "Time")
-}
-
-func (ec *executionContext) _ServiceToken_expiresAt(ctx context.Context, field graphql.CollectedField, obj *sqlc.ServiceToken) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_ServiceToken_expiresAt(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.ExpiresAt, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v time.Time) graphql.Marshaler {
-			return ec.marshalNTime2timeᚐTime(ctx, selections, v)
-		},
-		true,
-		true,
-	)
-}
-func (ec *executionContext) fieldContext_ServiceToken_expiresAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("ServiceToken", field, false, false, "Time")
-}
-
-func (ec *executionContext) _ServiceToken_lastUsedAt(ctx context.Context, field graphql.CollectedField, obj *sqlc.ServiceToken) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_ServiceToken_lastUsedAt(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.LastUsedAt, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
-			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
-		},
-		true,
-		false,
-	)
-}
-func (ec *executionContext) fieldContext_ServiceToken_lastUsedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("ServiceToken", field, false, false, "Time")
-}
-
-func (ec *executionContext) _ServiceToken_revokedAt(ctx context.Context, field graphql.CollectedField, obj *sqlc.ServiceToken) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return ec.fieldContext_ServiceToken_revokedAt(ctx, field)
-		},
-		func(ctx context.Context) (any, error) {
-			return obj.RevokedAt, nil
-		},
-		nil,
-		func(ctx context.Context, selections ast.SelectionSet, v *time.Time) graphql.Marshaler {
-			return ec.marshalOTime2ᚖtimeᚐTime(ctx, selections, v)
-		},
-		true,
-		false,
-	)
-}
-func (ec *executionContext) fieldContext_ServiceToken_revokedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("ServiceToken", field, false, false, "Time")
 }
 
 func (ec *executionContext) _StorageLocation_id(ctx context.Context, field graphql.CollectedField, obj *sqlc.StorageLocation) (ret graphql.Marshaler) {
@@ -14017,7 +13421,7 @@ func (ec *executionContext) unmarshalInputServiceAccountInput(ctx context.Contex
 		asMap["admin"] = false
 	}
 
-	fieldsInOrder := [...]string{"name", "admin"}
+	fieldsInOrder := [...]string{"name", "admin", "user"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -14038,6 +13442,13 @@ func (ec *executionContext) unmarshalInputServiceAccountInput(ctx context.Contex
 				return it, err
 			}
 			it.Admin = data
+		case "user":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("user"))
+			data, err := ec.unmarshalOID2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.User = data
 		}
 	}
 	return it, nil
@@ -14052,62 +13463,6 @@ func (ec *executionContext) unmarshalInputServiceAccountInput(ctx context.Contex
 func UnmarshalServiceAccountInput(ctx context.Context, raw any) (access.ServiceAccountInput, error) {
 	var out access.ServiceAccountInput
 	err := graphql.UnmarshalNamedInputFromContext(ctx, "ServiceAccountInput", raw, &out)
-	return out, err
-}
-
-func (ec *executionContext) unmarshalInputServiceTokenInput(ctx context.Context, obj any) (access.ServiceTokenInput, error) {
-	var it access.ServiceTokenInput
-	if obj == nil {
-		return it, nil
-	}
-
-	asMap := map[string]any{}
-	for k, v := range obj.(map[string]any) {
-		asMap[k] = v
-	}
-
-	fieldsInOrder := [...]string{"serviceAccount", "name", "expiresAt"}
-	for _, k := range fieldsInOrder {
-		v, ok := asMap[k]
-		if !ok {
-			continue
-		}
-		switch k {
-		case "serviceAccount":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("serviceAccount"))
-			data, err := ec.unmarshalNString2string(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.ServiceAccount = data
-		case "name":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
-			data, err := ec.unmarshalNString2string(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.Name = data
-		case "expiresAt":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("expiresAt"))
-			data, err := ec.unmarshalOTime2ᚖtimeᚐTime(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.ExpiresAt = data
-		}
-	}
-	return it, nil
-}
-
-// UnmarshalServiceTokenInput unmarshals raw into the ServiceTokenInput input type, using the
-// unmarshaler bound to ctx's request. Call it from a resolver to decode an input
-// object that was not passed as a field argument.
-//
-// ctx must come from a gqlgen request; outside one there is no unmarshaler to use
-// and the returned error says so.
-func UnmarshalServiceTokenInput(ctx context.Context, raw any) (access.ServiceTokenInput, error) {
-	var out access.ServiceTokenInput
-	err := graphql.UnmarshalNamedInputFromContext(ctx, "ServiceTokenInput", raw, &out)
 	return out, err
 }
 
@@ -15348,20 +14703,6 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "createServiceToken":
-			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._Mutation_createServiceToken(ctx, field)
-			})
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "revokeServiceToken":
-			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._Mutation_revokeServiceToken(ctx, field)
-			})
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
 		case "createAsset":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_createAsset(ctx, field)
@@ -15583,44 +14924,6 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_refreshFromVidispine(ctx, field)
 			})
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		default:
-			panic("unknown field " + strconv.Quote(field.Name))
-		}
-	}
-	out.Dispatch(ctx)
-	if out.Invalids > 0 {
-		return graphql.Null
-	}
-
-	if n := len(deferred.Defers); n > 0 {
-		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
-		ec.ProcessDeferredGroup(deferred)
-	}
-
-	return out
-}
-
-var newServiceTokenImplementors = []string{"NewServiceToken"}
-
-func (ec *executionContext) _NewServiceToken(ctx context.Context, sel ast.SelectionSet, obj *access.NewServiceToken) graphql.Marshaler {
-	fields := graphql.CollectFields(ec.OperationContext, sel, newServiceTokenImplementors)
-
-	out := graphql.NewFieldSet(fields)
-	deferred := graphql.NewDeferredGroup(ctx)
-	for i, field := range fields {
-		switch field.Name {
-		case "__typename":
-			out.Values[i] = graphql.MarshalString("NewServiceToken")
-		case "token":
-			out.Values[i] = ec._NewServiceToken_token(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "serviceToken":
-			out.Values[i] = ec._NewServiceToken_serviceToken(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -15955,12 +15258,6 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 				func(ctx context.Context) graphql.Marshaler {
 					return ec._Query_serviceAccounts(ctx, field)
 				})
-		case "serviceTokens":
-			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
-				true, true,
-				func(ctx context.Context) graphql.Marshaler {
-					return ec._Query_serviceTokens(ctx, field)
-				})
 		case "users":
 			out.ResolveRootConcurrently(innerCtx, ec.OperationContext, i,
 				true, true,
@@ -16233,74 +15530,6 @@ func (ec *executionContext) _RenditionFile(ctx context.Context, sel ast.Selectio
 				func(ctx context.Context) graphql.Marshaler {
 					return ec._RenditionFile_file(ctx, field, obj)
 				})
-		default:
-			panic("unknown field " + strconv.Quote(field.Name))
-		}
-	}
-	out.Dispatch(ctx)
-	if out.Invalids > 0 {
-		return graphql.Null
-	}
-
-	if n := len(deferred.Defers); n > 0 {
-		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
-		ec.ProcessDeferredGroup(deferred)
-	}
-
-	return out
-}
-
-var serviceTokenImplementors = []string{"ServiceToken"}
-
-func (ec *executionContext) _ServiceToken(ctx context.Context, sel ast.SelectionSet, obj *sqlc.ServiceToken) graphql.Marshaler {
-	fields := graphql.CollectFields(ec.OperationContext, sel, serviceTokenImplementors)
-
-	out := graphql.NewFieldSet(fields)
-	deferred := graphql.NewDeferredGroup(ctx)
-	for i, field := range fields {
-		switch field.Name {
-		case "__typename":
-			out.Values[i] = graphql.MarshalString("ServiceToken")
-		case "id":
-			out.Values[i] = ec._ServiceToken_id(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "userId":
-			out.Values[i] = ec._ServiceToken_userId(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "name":
-			out.Values[i] = ec._ServiceToken_name(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "createdBy":
-			out.Values[i] = ec._ServiceToken_createdBy(ctx, field, obj)
-			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
-			}
-		case "createdAt":
-			out.Values[i] = ec._ServiceToken_createdAt(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "expiresAt":
-			out.Values[i] = ec._ServiceToken_expiresAt(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "lastUsedAt":
-			out.Values[i] = ec._ServiceToken_lastUsedAt(ctx, field, obj)
-			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
-			}
-		case "revokedAt":
-			out.Values[i] = ec._ServiceToken_revokedAt(ctx, field, obj)
-			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
-			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -17718,14 +16947,6 @@ var (
 	}
 )
 
-func (ec *executionContext) marshalNNewServiceToken2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋaccessᚐNewServiceToken(ctx context.Context, sel ast.SelectionSet, v *access.NewServiceToken) graphql.Marshaler {
-	if v == nil {
-		graphql.AddInvalidNullError(ctx, "NewServiceToken!")
-		return graphql.Null
-	}
-	return ec._NewServiceToken(ctx, sel, v)
-}
-
 func (ec *executionContext) marshalNPageInfo2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋgraphᚋmodelᚐPageInfo(ctx context.Context, sel ast.SelectionSet, v *model.PageInfo) graphql.Marshaler {
 	if v == nil {
 		graphql.AddInvalidNullError(ctx, "PageInfo!")
@@ -17951,39 +17172,6 @@ var (
 
 func (ec *executionContext) unmarshalNServiceAccountInput2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋaccessᚐServiceAccountInput(ctx context.Context, v any) (access.ServiceAccountInput, error) {
 	res, err := ec.unmarshalInputServiceAccountInput(ctx, v)
-	return res, graphql.ErrorOnPath(ctx, err)
-}
-
-func (ec *executionContext) marshalNServiceToken2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐServiceToken(ctx context.Context, sel ast.SelectionSet, v sqlc.ServiceToken) graphql.Marshaler {
-	return ec._ServiceToken(ctx, sel, &v)
-}
-
-func (ec *executionContext) marshalNServiceToken2ᚕᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐServiceTokenᚄ(ctx context.Context, sel ast.SelectionSet, v []*sqlc.ServiceToken) graphql.Marshaler {
-	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
-		fc := graphql.GetFieldContext(ctx)
-		fc.Result = &v[i]
-		return ec.marshalNServiceToken2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐServiceToken(ctx, sel, v[i])
-	})
-
-	for _, e := range ret {
-		if e == graphql.Null {
-			return graphql.Null
-		}
-	}
-
-	return ret
-}
-
-func (ec *executionContext) marshalNServiceToken2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐServiceToken(ctx context.Context, sel ast.SelectionSet, v *sqlc.ServiceToken) graphql.Marshaler {
-	if v == nil {
-		graphql.AddInvalidNullError(ctx, "ServiceToken!")
-		return graphql.Null
-	}
-	return ec._ServiceToken(ctx, sel, v)
-}
-
-func (ec *executionContext) unmarshalNServiceTokenInput2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋaccessᚐServiceTokenInput(ctx context.Context, v any) (access.ServiceTokenInput, error) {
-	res, err := ec.unmarshalInputServiceTokenInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 

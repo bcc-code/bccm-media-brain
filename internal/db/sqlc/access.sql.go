@@ -100,6 +100,36 @@ func (q *Queries) AssetLevels(ctx context.Context, arg AssetLevelsParams) ([]Ass
 	return items, nil
 }
 
+const bindServiceAccount = `-- name: BindServiceAccount :one
+UPDATE app_user SET external_id = $1
+WHERE external_id = $2 AND kind = 'service'
+RETURNING id, external_id, email, name, person_id, active, created_at, is_admin, kind
+`
+
+type BindServiceAccountParams struct {
+	ExternalID string `json:"external_id"`
+	Pending    string `json:"pending"`
+}
+
+// The first sign-in of a service account that was created by name: from here on it is found
+// by the subject of its token.
+func (q *Queries) BindServiceAccount(ctx context.Context, arg BindServiceAccountParams) (AppUser, error) {
+	row := q.db.QueryRow(ctx, bindServiceAccount, arg.ExternalID, arg.Pending)
+	var i AppUser
+	err := row.Scan(
+		&i.ID,
+		&i.ExternalID,
+		&i.Email,
+		&i.Name,
+		&i.PersonID,
+		&i.Active,
+		&i.CreatedAt,
+		&i.IsAdmin,
+		&i.Kind,
+	)
+	return i, err
+}
+
 const createGrant = `-- name: CreateGrant :one
 INSERT INTO permission_grant (user_id, group_id, scope, scope_id, level, granted_by, expires_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -166,43 +196,6 @@ func (q *Queries) CreateServiceAccount(ctx context.Context, arg CreateServiceAcc
 		&i.CreatedAt,
 		&i.IsAdmin,
 		&i.Kind,
-	)
-	return i, err
-}
-
-const createServiceToken = `-- name: CreateServiceToken :one
-INSERT INTO service_token (user_id, name, token_hash, created_by, expires_at)
-VALUES ($1, $2, $3, $4, $5)
-RETURNING id, user_id, name, token_hash, created_by, created_at, expires_at, last_used_at, revoked_at
-`
-
-type CreateServiceTokenParams struct {
-	UserID    string    `json:"user_id"`
-	Name      string    `json:"name"`
-	TokenHash []byte    `json:"token_hash"`
-	CreatedBy *string   `json:"created_by"`
-	ExpiresAt time.Time `json:"expires_at"`
-}
-
-func (q *Queries) CreateServiceToken(ctx context.Context, arg CreateServiceTokenParams) (ServiceToken, error) {
-	row := q.db.QueryRow(ctx, createServiceToken,
-		arg.UserID,
-		arg.Name,
-		arg.TokenHash,
-		arg.CreatedBy,
-		arg.ExpiresAt,
-	)
-	var i ServiceToken
-	err := row.Scan(
-		&i.ID,
-		&i.UserID,
-		&i.Name,
-		&i.TokenHash,
-		&i.CreatedBy,
-		&i.CreatedAt,
-		&i.ExpiresAt,
-		&i.LastUsedAt,
-		&i.RevokedAt,
 	)
 	return i, err
 }
@@ -376,6 +369,27 @@ func (q *Queries) GetGrant(ctx context.Context, id string) (PermissionGrant, err
 	return i, err
 }
 
+const getServiceAccountByName = `-- name: GetServiceAccountByName :one
+SELECT id, external_id, email, name, person_id, active, created_at, is_admin, kind FROM app_user WHERE kind = 'service' AND name = $1::text
+`
+
+func (q *Queries) GetServiceAccountByName(ctx context.Context, name string) (AppUser, error) {
+	row := q.db.QueryRow(ctx, getServiceAccountByName, name)
+	var i AppUser
+	err := row.Scan(
+		&i.ID,
+		&i.ExternalID,
+		&i.Email,
+		&i.Name,
+		&i.PersonID,
+		&i.Active,
+		&i.CreatedAt,
+		&i.IsAdmin,
+		&i.Kind,
+	)
+	return i, err
+}
+
 const getUser = `-- name: GetUser :one
 SELECT id, external_id, email, name, person_id, active, created_at, is_admin, kind FROM app_user WHERE id = $1
 `
@@ -544,41 +558,6 @@ func (q *Queries) ListServiceAccounts(ctx context.Context) ([]AppUser, error) {
 	return items, nil
 }
 
-const listServiceTokens = `-- name: ListServiceTokens :many
-SELECT id, user_id, name, token_hash, created_by, created_at, expires_at, last_used_at, revoked_at FROM service_token WHERE user_id = $1 ORDER BY created_at, id
-`
-
-// Ids made within the same millisecond do not sort by creation, so created_at leads.
-func (q *Queries) ListServiceTokens(ctx context.Context, userID string) ([]ServiceToken, error) {
-	rows, err := q.db.Query(ctx, listServiceTokens, userID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ServiceToken
-	for rows.Next() {
-		var i ServiceToken
-		if err := rows.Scan(
-			&i.ID,
-			&i.UserID,
-			&i.Name,
-			&i.TokenHash,
-			&i.CreatedBy,
-			&i.CreatedAt,
-			&i.ExpiresAt,
-			&i.LastUsedAt,
-			&i.RevokedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listUserGroupIDs = `-- name: ListUserGroupIDs :many
 SELECT group_id FROM user_group_member WHERE user_id = $1 ORDER BY group_id
 `
@@ -672,6 +651,35 @@ func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]AppUser
 	return items, nil
 }
 
+const makeServiceAccount = `-- name: MakeServiceAccount :one
+UPDATE app_user SET kind = 'service', name = $1::text, is_admin = $2
+WHERE id = $3 AND kind = 'person'
+RETURNING id, external_id, email, name, person_id, active, created_at, is_admin, kind
+`
+
+type MakeServiceAccountParams struct {
+	Name    string `json:"name"`
+	IsAdmin bool   `json:"is_admin"`
+	ID      string `json:"id"`
+}
+
+func (q *Queries) MakeServiceAccount(ctx context.Context, arg MakeServiceAccountParams) (AppUser, error) {
+	row := q.db.QueryRow(ctx, makeServiceAccount, arg.Name, arg.IsAdmin, arg.ID)
+	var i AppUser
+	err := row.Scan(
+		&i.ID,
+		&i.ExternalID,
+		&i.Email,
+		&i.Name,
+		&i.PersonID,
+		&i.Active,
+		&i.CreatedAt,
+		&i.IsAdmin,
+		&i.Kind,
+	)
+	return i, err
+}
+
 const programSeenViaProject = `-- name: ProgramSeenViaProject :one
 SELECT EXISTS (
     SELECT 1 FROM project p
@@ -707,27 +715,6 @@ type RemoveSSOMembershipsParams struct {
 func (q *Queries) RemoveSSOMemberships(ctx context.Context, arg RemoveSSOMembershipsParams) error {
 	_, err := q.db.Exec(ctx, removeSSOMemberships, arg.UserID, arg.Keep)
 	return err
-}
-
-const revokeServiceToken = `-- name: RevokeServiceToken :one
-UPDATE service_token SET revoked_at = coalesce(revoked_at, now()) WHERE id = $1 RETURNING id, user_id, name, token_hash, created_by, created_at, expires_at, last_used_at, revoked_at
-`
-
-func (q *Queries) RevokeServiceToken(ctx context.Context, id string) (ServiceToken, error) {
-	row := q.db.QueryRow(ctx, revokeServiceToken, id)
-	var i ServiceToken
-	err := row.Scan(
-		&i.ID,
-		&i.UserID,
-		&i.Name,
-		&i.TokenHash,
-		&i.CreatedBy,
-		&i.CreatedAt,
-		&i.ExpiresAt,
-		&i.LastUsedAt,
-		&i.RevokedAt,
-	)
-	return i, err
 }
 
 const scopeLevel = `-- name: ScopeLevel :one
@@ -852,34 +839,6 @@ func (q *Queries) UpsertUser(ctx context.Context, arg UpsertUserParams) (AppUser
 		&i.CreatedAt,
 		&i.IsAdmin,
 		&i.Kind,
-	)
-	return i, err
-}
-
-const useServiceToken = `-- name: UseServiceToken :one
-UPDATE service_token t SET last_used_at = now()
-FROM app_user u
-WHERE t.token_hash = $1 AND t.revoked_at IS NULL AND t.expires_at > now()
-  AND u.id = t.user_id AND u.kind = 'service' AND u.active
-RETURNING t.id AS token_id, t.expires_at, u.id AS user_id, u.is_admin
-`
-
-type UseServiceTokenRow struct {
-	TokenID   string    `json:"token_id"`
-	ExpiresAt time.Time `json:"expires_at"`
-	UserID    string    `json:"user_id"`
-	IsAdmin   bool      `json:"is_admin"`
-}
-
-// The one statement that accepts a token: every reason to refuse it gives no row.
-func (q *Queries) UseServiceToken(ctx context.Context, tokenHash []byte) (UseServiceTokenRow, error) {
-	row := q.db.QueryRow(ctx, useServiceToken, tokenHash)
-	var i UseServiceTokenRow
-	err := row.Scan(
-		&i.TokenID,
-		&i.ExpiresAt,
-		&i.UserID,
-		&i.IsAdmin,
 	)
 	return i, err
 }

@@ -29,7 +29,7 @@ const (
 	assumedHashes     = 3   // per file
 	assumedCopies     = 3   // per file
 	assumedLinks      = 3   // projects per asset
-	assumedReference  = 20  // asset types, storage locations, the tokens of a service account
+	assumedReference  = 20  // asset types, storage locations
 	assumedDirectory  = 100 // groups, service accounts, the grants on one object
 	assumedLanguages  = 200
 
@@ -105,7 +105,6 @@ func complexity() generated.ComplexityRoot {
 	c.Query.Languages = func(child int, _ bool) int { return listCost(child, assumedLanguages) }
 	c.Query.UserGroups = assumed(assumedDirectory)
 	c.Query.ServiceAccounts = assumed(assumedDirectory)
-	c.Query.ServiceTokens = func(child int, _ string) int { return listCost(child, assumedReference) }
 	c.Query.Grants = func(child int, _ sqlc.GrantScope, _ string) int { return listCost(child, assumedDirectory) }
 	c.Query.SubtitleTracks = func(child int, _ string, history bool) int { return trackCost(child, history) }
 

@@ -16,7 +16,12 @@ import (
 	"github.com/go-jose/go-jose/v4/jwt"
 )
 
-const Audience = "mediabrain-test"
+const (
+	Audience = "mediabrain-test"
+	// UserGroup and ServiceGroup are the groups a verifier under test lets in.
+	UserGroup    = "mediabrain-users"
+	ServiceGroup = "mediabrain-services"
+)
 
 type Issuer struct {
 	URL     string // the "iss" claim
@@ -60,13 +65,15 @@ func (i *Issuer) Sign(claims map[string]any) string {
 	return token
 }
 
-// Token returns a valid one-hour token for the subject. Every call gives a different token.
+// Token returns a valid one-hour token for the subject, a person unless extra sets "groups".
+// Every call gives a different token.
 func (i *Issuer) Token(subject string, extra map[string]any) string {
 	jti := make([]byte, 8)
 	_, _ = rand.Read(jti)
 	claims := map[string]any{
 		"iss": i.URL, "aud": Audience, "sub": subject, "jti": hex.EncodeToString(jti),
 		"iat": time.Now().Unix(), "exp": time.Now().Add(time.Hour).Unix(),
+		"groups": []string{UserGroup},
 	}
 	for k, v := range extra {
 		claims[k] = v

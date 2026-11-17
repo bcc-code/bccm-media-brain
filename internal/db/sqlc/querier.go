@@ -16,6 +16,9 @@ type Querier interface {
 	// what ends access.
 	AssetLevels(ctx context.Context, arg AssetLevelsParams) ([]AssetLevelsRow, error)
 	AttachFile(ctx context.Context, arg AttachFileParams) (RenditionFile, error)
+	// The first sign-in of a service account that was created by name: from here on it is found
+	// by the subject of its token.
+	BindServiceAccount(ctx context.Context, arg BindServiceAccountParams) (AppUser, error)
 	CreateAsset(ctx context.Context, arg CreateAssetParams) (Asset, error)
 	CreateAssetVersion(ctx context.Context, arg CreateAssetVersionParams) (AssetVersion, error)
 	CreateFile(ctx context.Context, arg CreateFileParams) (File, error)
@@ -25,7 +28,6 @@ type Querier interface {
 	CreateProject(ctx context.Context, arg CreateProjectParams) (Project, error)
 	CreateRendition(ctx context.Context, arg CreateRenditionParams) (Rendition, error)
 	CreateServiceAccount(ctx context.Context, arg CreateServiceAccountParams) (AppUser, error)
-	CreateServiceToken(ctx context.Context, arg CreateServiceTokenParams) (ServiceToken, error)
 	CreateStorageLocation(ctx context.Context, arg CreateStorageLocationParams) (StorageLocation, error)
 	CreateSubtitleTrack(ctx context.Context, arg CreateSubtitleTrackParams) (SubtitleTrack, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (AppUser, error)
@@ -60,6 +62,7 @@ type Querier interface {
 	GetPrograms(ctx context.Context, ids []string) ([]Program, error)
 	GetProject(ctx context.Context, id string) (Project, error)
 	GetRendition(ctx context.Context, id string) (GetRenditionRow, error)
+	GetServiceAccountByName(ctx context.Context, name string) (AppUser, error)
 	GetStorageLocation(ctx context.Context, id string) (StorageLocation, error)
 	GetStorageLocationByName(ctx context.Context, name string) (StorageLocation, error)
 	GetStorageLocations(ctx context.Context, ids []string) ([]StorageLocation, error)
@@ -91,8 +94,6 @@ type Querier interface {
 	ListRenditionTracks(ctx context.Context, renditionIds []string) ([]SubtitleTrack, error)
 	ListRenditions(ctx context.Context, versionIds []string) ([]Rendition, error)
 	ListServiceAccounts(ctx context.Context) ([]AppUser, error)
-	// Ids made within the same millisecond do not sort by creation, so created_at leads.
-	ListServiceTokens(ctx context.Context, userID string) ([]ServiceToken, error)
 	ListStorageLocations(ctx context.Context) ([]StorageLocation, error)
 	ListSubtitleCues(ctx context.Context, arg ListSubtitleCuesParams) ([]ListSubtitleCuesRow, error)
 	ListUserGroupIDs(ctx context.Context, userID string) ([]string, error)
@@ -102,9 +103,9 @@ type Querier interface {
 	ListVisibleProjects(ctx context.Context, arg ListVisibleProjectsParams) ([]Project, error)
 	// Serialises imports of the same legacy id until the transaction ends.
 	LockLegacyID(ctx context.Context, legacyID string) error
+	MakeServiceAccount(ctx context.Context, arg MakeServiceAccountParams) (AppUser, error)
 	ProgramSeenViaProject(ctx context.Context, arg ProgramSeenViaProjectParams) (bool, error)
 	RemoveSSOMemberships(ctx context.Context, arg RemoveSSOMembershipsParams) error
-	RevokeServiceToken(ctx context.Context, id string) (ServiceToken, error)
 	ScopeLevel(ctx context.Context, arg ScopeLevelParams) (PermissionLevel, error)
 	SetAssetMetadataKey(ctx context.Context, arg SetAssetMetadataKeyParams) (Asset, error)
 	SetFileCopyStatus(ctx context.Context, arg SetFileCopyStatusParams) (FileCopy, error)
@@ -119,8 +120,6 @@ type Querier interface {
 	UpdateStorageLocation(ctx context.Context, arg UpdateStorageLocationParams) (StorageLocation, error)
 	UpsertSSOGroup(ctx context.Context, arg UpsertSSOGroupParams) (UserGroup, error)
 	UpsertUser(ctx context.Context, arg UpsertUserParams) (AppUser, error)
-	// The one statement that accepts a token: every reason to refuse it gives no row.
-	UseServiceToken(ctx context.Context, tokenHash []byte) (UseServiceTokenRow, error)
 }
 
 var _ Querier = (*Queries)(nil)

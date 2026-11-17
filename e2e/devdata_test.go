@@ -180,7 +180,7 @@ func TestStoreScenarios(t *testing.T) {
 			services++
 		}
 	}
-	if err != nil || len(users) != 10 || services != 2 {
+	if err != nil || len(users) != 11 || services != 3 {
 		t.Fatalf("users = %d (%d service accounts), %v", len(users), services, err)
 	}
 	if u, err := s.CreateUser(ctx, "extra@example.test", true); err != nil || !u.Admin || !u.Active {
@@ -299,13 +299,13 @@ func TestDebugAPI(t *testing.T) {
 			t.Fatalf("reference table %s was emptied by reset", s.Table)
 		}
 	}
-	if counts["asset"] != 6 || counts["app_user"] != 10 || counts["service_token"] != 4 {
+	if counts["asset"] != 6 || counts["app_user"] != 11 {
 		t.Fatalf("stats = %v", counts)
 	}
 
 	// Acting as a persona through the debug cookie shows exactly what that persona may see.
 	var users []devdata.User
-	if code := call("GET", "/debug/api/users", "", &users); code != 200 || len(users) != 10 {
+	if code := call("GET", "/debug/api/users", "", &users); code != 200 || len(users) != 11 {
 		t.Fatalf("users = %d %v", code, users)
 	}
 	seen := func(cookie string) (int, int) {

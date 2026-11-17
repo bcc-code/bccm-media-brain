@@ -53,15 +53,6 @@ models:
   ServiceAccountInput:
     model:
       - github.com/bcc-media/mediabrain/internal/access.ServiceAccountInput
-  ServiceToken:
-    model:
-      - github.com/bcc-media/mediabrain/internal/db/sqlc.ServiceToken
-  ServiceTokenInput:
-    model:
-      - github.com/bcc-media/mediabrain/internal/access.ServiceTokenInput
-  NewServiceToken:
-    model:
-      - github.com/bcc-media/mediabrain/internal/access.NewServiceToken
   UserGroup:
     model:
       - github.com/bcc-media/mediabrain/internal/db/sqlc.UserGroup

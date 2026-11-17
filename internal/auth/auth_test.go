@@ -16,7 +16,8 @@ import (
 )
 
 func verifier(i *authtest.Issuer) *JWKSVerifier {
-	return &JWKSVerifier{Issuer: i.URL, Audience: authtest.Audience, JWKSURL: i.JWKSURL, GroupsClaim: "groups"}
+	return &JWKSVerifier{Issuer: i.URL, Audience: authtest.Audience, JWKSURL: i.JWKSURL, GroupsClaim: "groups",
+		UserGroup: authtest.UserGroup, ServiceGroup: authtest.ServiceGroup}
 }
 
 func TestVerify(t *testing.T) {
@@ -25,11 +26,12 @@ func TestVerify(t *testing.T) {
 	v := verifier(iss)
 	ctx := context.Background()
 
-	id, err := v.Verify(ctx, iss.Token("sub-1", map[string]any{"email": "a@example.test", "name": "A", "groups": []string{"g1", "g2"}}))
-	if err != nil || id.Subject != "sub-1" || id.Email != "a@example.test" || id.Name != "A" || len(id.Groups) != 2 {
+	id, err := v.Verify(ctx, iss.Token("sub-1", map[string]any{
+		"email": "a@example.test", "name": "A", "preferred_username": "a", "groups": []string{"g1", authtest.UserGroup}}))
+	if err != nil || id.Subject != "sub-1" || id.Email != "a@example.test" || id.Name != "A" || id.Username != "a" || len(id.Groups) != 2 || id.Service {
 		t.Fatalf("valid token = %+v, %v", id, err)
 	}
-	if id, err := v.Verify(ctx, iss.Token("sub-2", map[string]any{"groups": "only"})); err != nil || len(id.Groups) != 1 {
+	if id, err := v.Verify(ctx, iss.Token("sub-2", map[string]any{"groups": authtest.UserGroup})); err != nil || len(id.Groups) != 1 {
 		t.Fatalf("single group = %+v, %v", id, err)
 	}
 
@@ -70,6 +72,48 @@ func TestVerify(t *testing.T) {
 	}
 }
 
+// The two groups decide who is let in and as what. A machine must not get in as a person, who
+// needs no account made in advance, so the service group wins.
+func TestVerifyGroups(t *testing.T) {
+	iss := authtest.NewIssuer()
+	defer iss.Close()
+	ctx := context.Background()
+	token := func(groups ...string) string { return iss.Token("s", map[string]any{"groups": groups}) }
+
+	v := verifier(iss)
+	for name, c := range map[string]struct {
+		token   string
+		service bool
+		err     error
+	}{
+		"person":             {token("x", authtest.UserGroup), false, nil},
+		"service":            {token(authtest.ServiceGroup), true, nil},
+		"both":               {token(authtest.UserGroup, authtest.ServiceGroup), true, nil},
+		"another group":      {token("x"), false, ErrNotAllowed},
+		"no groups":          {token(), false, ErrNotAllowed},
+		"no claim":           {iss.Token("s", map[string]any{"groups": nil}), false, ErrNotAllowed},
+		"not a list of text": {iss.Token("s", map[string]any{"groups": []int{1}}), false, ErrNotAllowed},
+	} {
+		id, err := v.Verify(ctx, c.token)
+		if !errors.Is(err, c.err) || id.Service != c.service {
+			t.Errorf("%s: service %v, err %v; want %v, %v", name, id.Service, err, c.service, c.err)
+		}
+	}
+
+	// A group that is not configured matches nobody, not the token that names an empty group.
+	v.ServiceGroup = ""
+	if id, err := v.Verify(ctx, token("", authtest.UserGroup)); err != nil || id.Service {
+		t.Errorf("no service group configured: %+v, %v", id, err)
+	}
+	if _, err := v.Verify(ctx, token(authtest.ServiceGroup)); !errors.Is(err, ErrNotAllowed) {
+		t.Errorf("a service token without a service group configured: %v", err)
+	}
+	v.UserGroup = ""
+	if _, err := v.Verify(ctx, token("")); !errors.Is(err, ErrNotAllowed) {
+		t.Errorf("no user group configured: %v", err)
+	}
+}
+
 // tamper changes the payload without re-signing.
 func tamper(token string) string {
 	parts := strings.Split(token, ".")
@@ -95,28 +139,15 @@ func TestVerifyJWKSUnavailable(t *testing.T) {
 }
 
 type fakeUsers struct {
-	signIns        int
-	serviceSignIns int
-	// serviceExpires is when service tokens expire. Zero: an hour from now.
-	serviceExpires time.Time
-	err            error
-}
-
-// ServiceSignIn accepts every token but "mbs_revoked".
-func (f *fakeUsers) ServiceSignIn(_ context.Context, token string) (access.Principal, time.Time, error) {
-	f.serviceSignIns++
-	if token == "mbs_revoked" {
-		return access.Principal{}, time.Time{}, domain.ErrUnauthenticated
-	}
-	expires := f.serviceExpires
-	if expires.IsZero() {
-		expires = time.Now().Add(time.Hour)
-	}
-	return access.Principal{UserID: "US-svc:" + token, Service: true}, expires, f.err
+	signIns int
+	err     error
 }
 
 func (f *fakeUsers) SignIn(_ context.Context, id access.Identity) (access.Principal, error) {
 	f.signIns++
+	if id.Service {
+		return access.Principal{UserID: "US-svc:" + id.Subject, Service: true}, f.err
+	}
 	return access.Principal{UserID: "US-" + id.Subject}, f.err
 }
 
@@ -249,15 +280,17 @@ func TestMiddlewareDebug(t *testing.T) {
 	}
 }
 
-func TestMiddlewareServiceTokens(t *testing.T) {
+// A machine client signs in with the same kind of token as a person, in the same header.
+func TestMiddlewareServiceAccounts(t *testing.T) {
 	iss := authtest.NewIssuer()
 	defer iss.Close()
 	proxies, _ := ParseProxies("10.0.0.0/8")
 	users := &fakeUsers{}
-	// The proxy puts its JWT in X-Auth-Token and leaves Authorization to the client.
-	opts := Options{Header: "X-Auth-Token", ServiceHeader: "Authorization", TrustedProxies: proxies, Verifier: verifier(iss), Users: users}
+	opts := Options{Header: "X-Auth-Token", TrustedProxies: proxies, Verifier: verifier(iss), Users: users}
 	call := server(opts)
-	const proxy, svc = "10.1.2.3:555", "US-svc:mbs_abc"
+	const proxy = "10.1.2.3:555"
+	service := iss.Token("flows", map[string]any{"groups": []string{authtest.ServiceGroup}})
+	stranger := iss.Token("mallory", map[string]any{"groups": []string{"somewhere-else"}})
 
 	for _, c := range []struct {
 		name   string
@@ -265,46 +298,27 @@ func TestMiddlewareServiceTokens(t *testing.T) {
 		status int
 		user   string
 	}{
-		{"service header", request{remote: proxy, headers: map[string]string{"Authorization": "Bearer mbs_abc"}}, 200, svc},
-		{"without bearer", request{remote: proxy, headers: map[string]string{"Authorization": "mbs_abc"}}, 200, svc},
-		{"token header", request{remote: proxy, headers: map[string]string{"X-Auth-Token": "mbs_abc"}}, 200, svc},
-		{"wins over a jwt", request{remote: proxy, headers: map[string]string{"Authorization": "Bearer mbs_abc", "X-Auth-Token": iss.Token("alice", nil)}}, 200, svc},
-		{"jwt still works", request{remote: proxy, headers: map[string]string{"X-Auth-Token": iss.Token("alice", nil)}}, 200, "US-alice"},
-		{"jwt in the service header", request{remote: proxy, headers: map[string]string{"Authorization": iss.Token("alice", nil)}}, 401, ""},
-		{"untrusted peer", request{remote: "203.0.113.9:555", headers: map[string]string{"Authorization": "Bearer mbs_abc"}}, 403, ""},
-		{"refused token", request{remote: proxy, headers: map[string]string{"Authorization": "Bearer mbs_revoked"}}, 401, ""},
-		{"refused again", request{remote: proxy, headers: map[string]string{"Authorization": "Bearer mbs_revoked"}}, 401, ""},
+		{"service group", request{remote: proxy, headers: map[string]string{"X-Auth-Token": service}}, 200, "US-svc:flows"},
+		{"neither group", request{remote: proxy, headers: map[string]string{"X-Auth-Token": stranger}}, 403, ""},
+		{"refused again", request{remote: proxy, headers: map[string]string{"X-Auth-Token": stranger}}, 403, ""},
+		{"untrusted peer", request{remote: "203.0.113.9:555", headers: map[string]string{"X-Auth-Token": service}}, 403, ""},
+		// MediaBrain issued tokens of its own once. Nothing reads them or their header now.
+		{"a token of the old kind", request{remote: proxy, headers: map[string]string{"Authorization": "Bearer mbs_abc"}}, 401, ""},
+		{"in the token header", request{remote: proxy, headers: map[string]string{"X-Auth-Token": "mbs_abc"}}, 401, ""},
 	} {
 		if status, user := call(c.req); status != c.status || user != c.user {
 			t.Errorf("%s: status %d user %q, want %d %q", c.name, status, user, c.status, c.user)
 		}
 	}
-	// Four accepted requests with one token are one sign-in; a refusal is never cached.
-	if users.serviceSignIns != 3 {
-		t.Errorf("service sign-ins = %d, want 3", users.serviceSignIns)
+	if users.signIns != 1 {
+		t.Errorf("sign-ins = %d, want 1: a refused token never reaches sign-in", users.signIns)
 	}
 
-	users.err = errors.New("db down")
-	if status, _ := call(request{remote: proxy, headers: map[string]string{"Authorization": "mbs_other"}}); status != 500 {
-		t.Errorf("sign-in failure: status %d", status)
-	}
-
-	// Without a service header only the token header is read.
-	opts.ServiceHeader = ""
-	if status, _ := serve(opts, request{remote: proxy, headers: map[string]string{"Authorization": "mbs_abc"}}); status != 401 {
-		t.Errorf("no service header: status %d", status)
-	}
-}
-
-func TestMiddlewareServiceTokensInDebug(t *testing.T) {
-	// Development: no verifier, no proxy, and a default user that must not shadow the token.
-	opts := Options{Header: "Authorization", ServiceHeader: "Authorization", Users: &fakeUsers{}, Debug: true, DebugUser: "dev@example.test"}
-	status, user := serve(opts, request{remote: "203.0.113.9:1", headers: map[string]string{"Authorization": "Bearer mbs_abc"}})
-	if status != 200 || user != "US-svc:mbs_abc" {
-		t.Errorf("service token in debug mode: %d %q", status, user)
-	}
-	if status, _ := serve(opts, request{headers: map[string]string{"Authorization": "Bearer mbs_revoked"}}); status != 401 {
-		t.Errorf("a refused token must not fall back to the debug user: %d", status)
+	// The account does not exist, or is switched off: sign-in says so.
+	users.err = domain.ErrForbidden
+	other := iss.Token("unknown", map[string]any{"groups": []string{authtest.ServiceGroup}})
+	if status, _ := call(request{remote: proxy, headers: map[string]string{"X-Auth-Token": other}}); status != 403 {
+		t.Errorf("a service account that was not created: status %d", status)
 	}
 }
 
@@ -321,7 +335,10 @@ func TestParseProxiesRejects(t *testing.T) {
 // be choosing what the log says about them.
 func TestMiddlewareRecordsTheClient(t *testing.T) {
 	proxies, _ := ParseProxies("10.0.0.0/8")
-	const svc = "US-svc:mbs_abc"
+	iss := authtest.NewIssuer()
+	defer iss.Close()
+	token := iss.Token("alice", nil)
+	const user = "US-alice"
 	long := strings.Repeat("9", 300)
 	for name, c := range map[string]struct {
 		header, remote, sent string
@@ -329,20 +346,21 @@ func TestMiddlewareRecordsTheClient(t *testing.T) {
 		want                 string
 		user                 string
 	}{
-		"the proxy's word":        {"X-Real-IP", "10.1.2.3:555", "203.0.113.9", false, "203.0.113.9", svc},
-		"no header configured":    {"", "10.1.2.3:555", "203.0.113.9", false, "10.1.2.3", svc},
-		"the proxy sent nothing":  {"X-Real-IP", "10.1.2.3:555", "", false, "10.1.2.3", svc},
-		"a header of any length":  {"X-Real-IP", "10.1.2.3:555", long, false, long[:128], svc},
-		"a peer that is no proxy": {"X-Real-IP", "192.0.2.7:555", "203.0.113.9", true, "192.0.2.7", svc},
+		"the proxy's word":        {"X-Real-IP", "10.1.2.3:555", "203.0.113.9", false, "203.0.113.9", user},
+		"no header configured":    {"", "10.1.2.3:555", "203.0.113.9", false, "10.1.2.3", user},
+		"the proxy sent nothing":  {"X-Real-IP", "10.1.2.3:555", "", false, "10.1.2.3", user},
+		"a header of any length":  {"X-Real-IP", "10.1.2.3:555", long, false, long[:128], user},
+		"a peer that is no proxy": {"X-Real-IP", "192.0.2.7:555", "203.0.113.9", true, "192.0.2.7", "US-debug"},
 		"a refused request":       {"X-Real-IP", "192.0.2.7:555", "203.0.113.9", false, "192.0.2.7", ""},
-		"a peer without a port":   {"", "10.1.2.3", "", false, "10.1.2.3", svc},
+		"a peer without a port":   {"", "10.1.2.3", "", false, "10.1.2.3", user},
 	} {
 		origin := &access.Origin{RequestID: "r1"}
-		h := Middleware(Options{Header: "Authorization", ClientHeader: c.header, TrustedProxies: proxies, Users: &fakeUsers{}, Debug: c.debug},
+		h := Middleware(Options{Header: "Authorization", ClientHeader: c.header, TrustedProxies: proxies, Verifier: verifier(iss), Users: &fakeUsers{}, Debug: c.debug},
 			http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
 		req := httptest.NewRequest(http.MethodPost, "/query", nil)
 		req.RemoteAddr = c.remote
-		req.Header.Set("Authorization", "mbs_abc")
+		req.Header.Set("Authorization", token)
+		req.Header.Set(DebugUserHeader, "US-debug")
 		if c.sent != "" {
 			req.Header.Set("X-Real-IP", c.sent)
 		}

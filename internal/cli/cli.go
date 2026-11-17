@@ -6,7 +6,7 @@
 //	mediabrain seed <scenario> [flags] [k=v]   run a scenario
 //	mediabrain reset-data                      truncate all tables
 //	mediabrain admin grant|revoke <user>       make a user a system administrator, or not
-//	mediabrain service create|token|revoke|list  manage machine clients and their tokens
+//	mediabrain service create|list             manage machine clients
 //	mediabrain vidispine import [flags] <VX-id>  import one Vidispine item as an asset
 //	mediabrain vidispine refresh <asset id>      refresh an imported asset's Vidispine metadata
 //
@@ -21,9 +21,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
-	"strconv"
 	"strings"
-	"time"
 
 	"github.com/bcc-media/mediabrain/internal/access"
 	"github.com/bcc-media/mediabrain/internal/app"
@@ -46,11 +44,11 @@ const usage = `usage:
   mediabrain seed <scenario> [-reset] [-seed N] [param=value ...]
   mediabrain reset-data                       truncate all application tables
   mediabrain admin grant|revoke <email|id>    make a signed-in user a system administrator, or not
-  mediabrain service create [-admin] <name>   add a service account (a machine client)
-  mediabrain service token [-name label] [-expires 365d] <account>
-                                              create a token for it; the token is printed once
-  mediabrain service revoke <token id>        revoke one token
-  mediabrain service list                     list service accounts and their tokens
+  mediabrain service create [-admin] [-user US-...] <name>
+                                              add a service account (a machine client) under its
+                                              username at the identity provider; -user turns an
+                                              account that signed in as a person into it
+  mediabrain service list                     list service accounts
   mediabrain vidispine import [-type N] [-project PJ-...] <VX-id>
                                               import one Vidispine item as an asset (type 1 by default)
   mediabrain vidispine refresh <asset id>       replace an imported asset's Vidispine metadata
@@ -198,47 +196,25 @@ func admin(ctx context.Context, cfg config.Config, args []string, out io.Writer)
 	return nil
 }
 
-// lifetime reads a duration that may also be given in days ("90d").
-func lifetime(s string) (time.Duration, error) {
-	var d time.Duration
-	var err error
-	if days, ok := strings.CutSuffix(s, "d"); ok {
-		var n int
-		n, err = strconv.Atoi(days)
-		d = time.Duration(n) * 24 * time.Hour
-	} else {
-		d, err = time.ParseDuration(s)
-	}
-	if err != nil || d <= 0 {
-		return 0, fmt.Errorf("%q is not a lifetime such as 90d or 12h", s)
-	}
-	return d, nil
-}
-
 func service(ctx context.Context, cfg config.Config, args []string, out io.Writer) error {
 	if len(args) == 0 {
-		return usageErr("service needs create, token, revoke or list")
+		return usageErr("service needs create or list")
 	}
 	action := args[0]
 	fs := flag.NewFlagSet("service", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	admin := fs.Bool("admin", false, "make the account a system administrator")
-	label := fs.String("name", "cli", "what the token is for")
-	expires := fs.String("expires", "365d", "lifetime of the token")
+	user := fs.String("user", "", "id of an account that signed in as a person and becomes the service account")
 	if err := fs.Parse(args[1:]); err != nil {
 		return usageErr("%v", err)
 	}
-	want := map[string]int{"create": 1, "token": 1, "revoke": 1, "list": 0}
+	want := map[string]int{"create": 1, "list": 0}
 	n, ok := want[action]
 	if !ok {
 		return usageErr("unknown service action %q", action)
 	}
 	if fs.NArg() != n {
 		return usageErr("service %s needs %d argument(s)", action, n)
-	}
-	ttl, err := lifetime(*expires)
-	if err != nil {
-		return usageErr("-expires: %v", err)
 	}
 
 	pool, err := db.Connect(ctx, cfg.DatabaseURL)
@@ -249,49 +225,27 @@ func service(ctx context.Context, cfg config.Config, args []string, out io.Write
 	svc := access.NewService(sqlc.New(pool), db.PoolTx(pool))
 	ctx = access.With(ctx, access.System())
 
-	switch action {
-	case "create":
-		u, err := svc.CreateServiceAccount(ctx, access.ServiceAccountInput{Name: fs.Arg(0), Admin: *admin})
+	if action == "create" {
+		u, err := svc.CreateServiceAccount(ctx, access.ServiceAccountInput{Name: fs.Arg(0), Admin: *admin, User: domain.Blank(user)})
+		if errors.Is(err, domain.ErrNotFound) {
+			return fmt.Errorf("no user %q that signed in as a person", *user)
+		}
 		if err != nil {
 			return err
 		}
 		fmt.Fprintf(out, "%s: service account %q (administrator = %v)\n", u.ID, fs.Arg(0), u.IsAdmin)
-	case "token":
-		at := time.Now().Add(ttl)
-		t, err := svc.CreateServiceToken(ctx, access.ServiceTokenInput{ServiceAccount: fs.Arg(0), Name: *label, ExpiresAt: &at})
-		if errors.Is(err, domain.ErrNotFound) {
-			return fmt.Errorf("no service account %q: create it with `service create`", fs.Arg(0))
+		return nil
+	}
+	accounts, err := svc.ServiceAccounts(ctx)
+	if err != nil {
+		return err
+	}
+	for _, u := range accounts {
+		state := "signed in"
+		if access.Pending(u) {
+			state = "has not signed in yet"
 		}
-		if err != nil {
-			return err
-		}
-		fmt.Fprintf(out, "%s: token %q, expires %s. It is not shown again:\n%s\n",
-			t.ServiceToken.ID, t.ServiceToken.Name, t.ServiceToken.ExpiresAt.Format(time.DateOnly), t.Token)
-	case "revoke":
-		t, err := svc.RevokeServiceToken(ctx, fs.Arg(0))
-		if err != nil {
-			return err
-		}
-		fmt.Fprintf(out, "%s: revoked\n", t.ID)
-	default:
-		accounts, err := svc.ServiceAccounts(ctx)
-		if err != nil {
-			return err
-		}
-		for _, u := range accounts {
-			fmt.Fprintf(out, "%s %s (administrator = %v, active = %v)\n", u.ID, *u.Name, u.IsAdmin, u.Active)
-			tokens, err := svc.ServiceTokens(ctx, u.ID)
-			if err != nil {
-				return err
-			}
-			for _, t := range tokens {
-				state := "expires " + t.ExpiresAt.Format(time.DateOnly)
-				if t.RevokedAt != nil {
-					state = "revoked " + t.RevokedAt.Format(time.DateOnly)
-				}
-				fmt.Fprintf(out, "  %s %q %s\n", t.ID, t.Name, state)
-			}
-		}
+		fmt.Fprintf(out, "%s %s (administrator = %v, active = %v, %s)\n", u.ID, *u.Name, u.IsAdmin, u.Active, state)
 	}
 	return nil
 }

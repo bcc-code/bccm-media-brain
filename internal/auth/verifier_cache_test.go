@@ -83,7 +83,7 @@ func keyCache(t *testing.T) (*JWKSVerifier, *jwks, *clock, func() string) {
 	v := verifier(iss)
 	v.JWKSURL, v.now = j.URL, c.now
 	token := func() string {
-		return iss.Sign(map[string]any{"iss": iss.URL, "aud": authtest.Audience, "sub": "s", "exp": c.now().Add(time.Hour).Unix()})
+		return iss.Sign(map[string]any{"iss": iss.URL, "aud": authtest.Audience, "sub": "s", "exp": c.now().Add(time.Hour).Unix(), "groups": []string{authtest.UserGroup}})
 	}
 	return v, j, c, token
 }

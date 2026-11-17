@@ -9,12 +9,22 @@ every request. MediaBrain:
 2. reads the JWT from `AUTH_HEADER` (default `X-authentik-jwt`, `Bearer ` optional),
 3. **verifies it itself** against the keys at `AUTH_JWKS_URL`: signature (asymmetric algorithms
    only), issuer, audience, expiry. A reachable port and a forged header are not enough,
-4. creates or updates the user from the claims (`sub`, `email`, `name`) and syncs their groups
-   from `AUTH_GROUPS_CLAIM`. Groups from the token are marked `sso`; leaving a group at the
-   identity provider removes the membership at the next sign-in.
+4. decides from the token's groups (`AUTH_GROUPS_CLAIM`) whether its holder is let in, and as
+   what:
 
-The server **refuses to start** without `AUTH_ISSUER`, `AUTH_AUDIENCE`, `AUTH_JWKS_URL` and
-`AUTH_TRUSTED_PROXIES`, unless `DEBUG=true`.
+   | The token has | Result |
+   |---|---|
+   | the service group (`AUTH_SERVICE_GROUP`), with or without the user group | A machine client. It must be a [service account](#machine-clients) that was created in advance and is active, otherwise HTTP 403. Never created by signing in. |
+   | the user group (`AUTH_USER_GROUP`) only | A person. The user is created or updated from the claims (`sub`, `email`, `name`), with no permissions of its own. |
+   | neither | HTTP 403. Nothing is written. |
+
+5. syncs the account's groups from the same claim, for people and service accounts alike. Groups
+   from the token are marked `sso`; leaving a group at the identity provider removes the
+   membership at the next sign-in. The two groups above are synced like any other.
+
+The server **refuses to start** without `AUTH_ISSUER`, `AUTH_AUDIENCE`, `AUTH_JWKS_URL`,
+`AUTH_TRUSTED_PROXIES` and `AUTH_USER_GROUP`, unless `DEBUG=true`. `AUTH_SERVICE_GROUP` is
+optional: without it no machine client can sign in.
 
 ### The proxy: Traefik with authentik
 
@@ -27,6 +37,8 @@ at `https://auth.bcc.media`. The defaults match what it sends, so a deployment s
 | `AUTH_JWKS_URL` | `https://auth.bcc.media/application/o/<app-slug>/jwks/` |
 | `AUTH_AUDIENCE` | the client ID of the authentik proxy provider |
 | `AUTH_TRUSTED_PROXIES` | the address or network of Traefik |
+| `AUTH_USER_GROUP` | the authentik group of the people who may use MediaBrain |
+| `AUTH_SERVICE_GROUP` | the authentik group of the machine accounts that may |
 
 - Only `X-authentik-jwt` is read. authentik also sends the same facts as plain headers
   (`X-authentik-uid`, `-username`, `-email`, `-name`, `-groups`) and the key URL as
@@ -38,16 +50,15 @@ at `https://auth.bcc.media`. The defaults match what it sends, so a deployment s
   matched to a MediaBrain group by that name, so renaming it in authentik is a new group here.
 - Forward auth is domain-wide: every app behind `authentik@file` shares one authentik
   application, so one issuer, audience and access rule. Whoever may open any of those apps gets
-  a token MediaBrain accepts and becomes a user here, with no grants. What they can see is
-  decided by grants and `is_admin`, not by having got through the proxy. An access rule for
-  MediaBrain alone needs its own proxy provider and middleware (and then its own slug and
-  client ID above).
+  a token MediaBrain can verify. That is why the two groups above decide who is let in: getting
+  through the proxy is not enough. What someone who is let in can see is decided by grants and
+  `is_admin`. A proxy provider and middleware for MediaBrain alone (with its own slug and
+  client ID above) would move the first decision to authentik.
 - The signature stops invented identities, not replayed ones. With the shared application,
   every app behind the middleware receives its visitors' tokens, and those tokens are valid
   here too (same issuer and audience) until they expire. An app that is compromised could send
   one to MediaBrain over any route that reaches it. A proxy provider of MediaBrain's own gives
-  its tokens an audience no other app sees; the router for machine clients should also remove
-  `X-authentik-jwt` from what callers send.
+  its tokens an audience no other app sees.
 - Sign-out is authentik's: `https://auth.bcc.media/outpost.goauthentik.io/sign_out`.
 
 Details worth knowing:
@@ -74,39 +85,43 @@ Details worth knowing:
 
 ### Machine clients
 
-Another system (an ingest tool, a transcoder) signs in as a **service account** with a
-**service token** that MediaBrain issues itself, so nothing depends on what the identity provider
-can do for machines.
+Another system (an ingest tool, a transcoder) signs in as a **service account** with a token of
+the identity provider, in the same header and verified the same way as a person's. MediaBrain
+issues no credentials of its own: making, rotating and withdrawing a machine's credential is
+done in authentik.
 
 - A service account is a user of kind `service`: it has grants, can be in groups and shows up as
-  `createdBy` like anyone else, and every permission rule below applies to it unchanged. It has
-  no email and cannot sign in through the identity provider: a JWT whose subject equals a service
-  account's external id (`service|<name>`) is refused.
-- A token is `mbs_` followed by 256 random bits. It is shown once, when it is created; the
-  database keeps its SHA-256. It expires (a year by default) and can be revoked. An account can
-  hold several, so a token is replaced by creating the next one, switching over and revoking
-  the old one.
-- The client sends `Authorization: Bearer mbs_...`. **Requests still come through the proxy**
-  (`AUTH_TRUSTED_PROXIES` applies), which must let a request to `/query` with such a header
-  through without a browser session and pass the header on unchanged. The proxy is only the
-  network path here; MediaBrain is what checks the token. When the proxy keeps `Authorization`
-  for itself, name another header in `AUTH_SERVICE_HEADER`. authentik's forward auth sends a
-  request without a session to the login page, so machine clients need a Traefik router for
-  `/query` without the `authentik@file` middleware. That router adds no way in for people: a
-  request on it has no JWT unless the caller wrote one, and a written one fails verification.
-- Unknown, revoked and expired tokens and tokens of a switched-off account get the same HTTP 401.
-- An accepted token is cached for one minute like a user's (and never past its expiry), so
-  revoking a token or switching its account off (`setServiceAccountActive`) can take that long. `lastUsedAt` is written at most
-  once a minute for the same reason.
-- **Administrators that are people** manage service accounts and tokens (`createServiceAccount`,
-  `createServiceToken`, `revokeServiceToken`, ...) and make administrators. A service account
-  cannot, even when it is an administrator: a leaked token must not be able to mint the next
-  one or promote someone. The CLI can too (`mediabrain service ...`), which is how the first
-  token is made without a browser.
+  `createdBy` like anyone else, and every permission rule below applies to it unchanged.
+- **It must be created before it can sign in** (`createServiceAccount`, or
+  `mediabrain service create <name>`), under the account's **username at the identity
+  provider**. A token with the service group whose `preferred_username` is that name is the
+  account at its first sign-in; from then on the account is the token's `sub`, so renaming it
+  at the identity provider changes nothing, and another account that takes the old username
+  does not get in. Grants can be given before the first sign-in. A token with the service
+  group that matches no account gets HTTP 403 and leaves no row behind.
+- The service group wins over the user group. A machine must not get in as a person, who needs
+  no account made in advance, so a service account whose token lacks the service group is
+  refused, and so is a token with the service group whose subject is a person.
+- An account that signed in as a person before it was put in the service group is turned into
+  a service account in place, keeping its id and grants: `createServiceAccount` with `user`,
+  or `mediabrain service create -user US-... <name>`.
+- Until its first sign-in an account is stored under `service|<name>`. A token whose subject
+  starts with `service|` is refused, so no token can be such an account without the match on
+  its username.
+- A refused machine client gets HTTP 403 whatever the reason; the reason is in the log
+  (`auth: request refused`).
+- An accepted token is cached for one minute like a person's (and never past its expiry), so
+  switching an account off (`setServiceAccountActive`) or a change to its groups can take that
+  long. Withdrawing the credential at the identity provider stops new tokens; one that was
+  already issued works until it expires.
+- **Administrators that are people** manage service accounts and make administrators. A
+  service account cannot, even when it is an administrator: a leaked machine credential must
+  not be able to make the next account or promote someone. The CLI can too
+  (`mediabrain service ...`).
 - An ingest tool has to be an administrator today, because registering files is
   administrator-only. That is more than it needs; see "Not covered yet".
-- The audit log names the token (`token=TK-...`) next to the account on every change and
-  refusal by a machine client.
+- Machine clients come through the proxy like everyone else (`AUTH_TRUSTED_PROXIES` applies),
+  and the proxy has to accept their token and pass it on in `AUTH_HEADER`.
 
 ### Debug bypass (development only)
 
@@ -121,8 +136,8 @@ user, who is created as an administrator when missing. That is what makes `make 
 straight away: the playground and API clients such as the Yaak workspace work on an empty or
 freshly reset database. Any other user must exist (run a scenario or add one in the debug UI).
 
-A service token is honoured before any of this, and in debug mode from any address, so machine
-clients can be tried under `make dev`.
+A service account is tried the same way: choose it in the debug UI or name its id. It is still
+a machine client then, and cannot do what only people may.
 
 `DEBUG` also exposes the data-wiping debug API. It must never be on in production.
 
@@ -161,6 +176,7 @@ who manage programs (create/delete), storage locations and files, and who import
 - First administrator: `mediabrain admin grant <email>` (`make admin-grant u=...`). The user must
   have signed in once; promoting an address nobody has proven they own would be a takeover path.
 - Further ones: `setUserAdmin` (administrators only, and not service accounts).
+- A service account is made an administrator when it is created (`admin: true`, `-admin`).
 
 ## Permissions
 
@@ -228,17 +244,17 @@ to every caller. Dev-data scenarios and the CLI run as an explicit system princi
 - Audit log (`slog`):
   - `audit: change` for every change that was made, written by the service after the write
     succeeded: `action` (`grant.create`, `asset.update`, ...), `user` (`system` for the command
-    line), `token` for a machine client, `target` and what matters about the change. A grant or
-    revoke names scope, recipient, `permission` and expiry; `user.set_admin` the new value;
-    a service token its account and expiry. A write that failed or was rolled back leaves no
-    record. Metadata, titles and token values are never logged.
+    line), `target` and what matters about the change. A grant or
+    revoke names scope, recipient, `permission` and expiry; `user.set_admin` the new value.
+    A write that failed or was rolled back leaves no
+    record. Metadata, titles and tokens are never logged.
   - `audit: denied` for every `FORBIDDEN` answer of the API, with the user and the operation.
   - Refused sign-ins are logged with the reason.
   - **Which request, from where.** Every HTTP request gets an id: the `X-Request-Id` response
     header, `request` on its `http request` line and on every `audit: change`,
     `audit: denied` and refused sign-in it causes. Those records also carry `client`, the
-    address the request came from, and the `http request` line of `/query` adds `user` and
-    `token`. `client` is what the proxy reports in `AUTH_CLIENT_HEADER`, read only when the
+    address the request came from, and the `http request` line of `/query` adds `user`.
+    `client` is what the proxy reports in `AUTH_CLIENT_HEADER`, read only when the
     peer is a trusted proxy and cut at 128 characters; without the setting, or without the
     header, it is the peer's own address, which behind a proxy is the proxy. It is recorded
     and never decides anything. Set the header only if the proxy overwrites it: a proxy that
@@ -254,9 +270,10 @@ to every caller. Dev-data scenarios and the CLI run as an explicit system princi
 `e2e/access_test.go` runs every operation as users with no grant, each level, group and inherited
 grants, and expired or revoked grants. `e2e/auth_test.go` and `internal/auth` cover tokens
 (missing, malformed, expired, wrong issuer or audience, foreign key, tampered, `alg: none`),
-untrusted proxies, inactive users and the debug bypass. `e2e/service_test.go` covers service
-accounts: every way a token is refused, grants applying to them, and that an administrator
-service account cannot manage credentials. `e2e/graph_test.go` fails every database
+the two groups, untrusted proxies, inactive users and the debug bypass. `e2e/service_test.go`
+covers service accounts: the first sign-in and what follows it, every way a machine client is
+refused and that a refusal writes nothing, grants applying to them, and that an administrator
+service account cannot manage accounts or administrators. `e2e/graph_test.go` fails every database
 statement of every operation in turn and requires a clean `INTERNAL` error each time.
 
 ## Vidispine
@@ -271,8 +288,7 @@ against `VX-<digits>` before they go into a request path.
 ## Not covered yet
 
 - Roles for machine clients that are narrower than administrator (for example "may register
-  files"), and scopes per token.
-- Tokens from the identity provider for machines (OAuth2 client credentials).
+  files").
 - Telling other systems about changes (webhooks, events). Machine access is inbound only.
 - Grants on asset groups, collections, saved searches and notes (the tables allow them).
 - Managing local groups through the API (dev data creates them; SSO groups sync automatically).

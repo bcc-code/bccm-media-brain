@@ -41,7 +41,7 @@ func TestMain(m *testing.M) { os.Exit(run(m)) }
 func appConfig() config.Config {
 	return config.Config{
 		DatabaseURL: dbURL, HTTPAddr: "127.0.0.1:0", AutoMigrate: true, Playground: true, Debug: true,
-		AuthHeader: "Authorization", AuthGroupsClaim: "groups", AuthTrustedProxies: "127.0.0.1", AuthClientHeader: "X-Forwarded-For",
+		AuthHeader: "Authorization", AuthGroupsClaim: "groups", AuthUserGroup: authtest.UserGroup, AuthServiceGroup: authtest.ServiceGroup, AuthTrustedProxies: "127.0.0.1", AuthClientHeader: "X-Forwarded-For",
 		AuthIssuer: issuer.URL, AuthAudience: authtest.Audience, AuthJWKSURL: issuer.JWKSURL,
 		VidispineURL: vsServer.URL, VidispineUsername: vidispinetest.Username, VidispinePassword: vidispinetest.Password,
 	}
@@ -147,8 +147,9 @@ func unique() string {
 	return hex.EncodeToString(b)
 }
 
+// tokenFor signs the token of a person: it always carries the group that lets people in.
 func tokenFor(sub, email string, groups ...string) string {
-	return issuer.Token(sub, map[string]any{"email": email, "name": "Test " + sub, "groups": groups})
+	return issuer.Token(sub, map[string]any{"email": email, "name": "Test " + sub, "groups": append(groups, authtest.UserGroup)})
 }
 
 // signIn creates a fresh user by making their first request.

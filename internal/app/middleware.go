@@ -69,9 +69,6 @@ func logRequests(log *slog.Logger, next http.Handler) http.Handler {
 		if origin.User != "" {
 			attrs = append(attrs, "user", origin.User)
 		}
-		if origin.Token != "" {
-			attrs = append(attrs, "token", origin.Token)
-		}
 		log.Log(r.Context(), level, "http request", attrs...)
 	})
 }

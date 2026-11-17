@@ -70,13 +70,5 @@ variables:
   name: service_account
   value: ingest
   id: SvcAcctNam
-- enabled: true
-  name: service_token
-  value: ''
-  id: SvcAcctTok
-- enabled: true
-  name: service_token_id
-  value: ''
-  id: SvcAcctTid
 color: null
 sortPriority: 0.0

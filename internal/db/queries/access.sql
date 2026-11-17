@@ -148,22 +148,17 @@ SELECT * FROM app_user WHERE kind = 'service' ORDER BY name;
 -- name: SetServiceAccountActive :one
 UPDATE app_user SET active = @active WHERE id = @id AND kind = 'service' RETURNING *;
 
--- name: CreateServiceToken :one
-INSERT INTO service_token (user_id, name, token_hash, created_by, expires_at)
-VALUES (@user_id, @name, @token_hash, sqlc.narg('created_by'), @expires_at)
+-- name: GetServiceAccountByName :one
+SELECT * FROM app_user WHERE kind = 'service' AND name = @name::text;
+
+-- name: BindServiceAccount :one
+-- The first sign-in of a service account that was created by name: from here on it is found
+-- by the subject of its token.
+UPDATE app_user SET external_id = @external_id
+WHERE external_id = @pending AND kind = 'service'
 RETURNING *;
 
--- name: UseServiceToken :one
--- The one statement that accepts a token: every reason to refuse it gives no row.
-UPDATE service_token t SET last_used_at = now()
-FROM app_user u
-WHERE t.token_hash = @token_hash AND t.revoked_at IS NULL AND t.expires_at > now()
-  AND u.id = t.user_id AND u.kind = 'service' AND u.active
-RETURNING t.id AS token_id, t.expires_at, u.id AS user_id, u.is_admin;
-
--- name: ListServiceTokens :many
--- Ids made within the same millisecond do not sort by creation, so created_at leads.
-SELECT * FROM service_token WHERE user_id = $1 ORDER BY created_at, id;
-
--- name: RevokeServiceToken :one
-UPDATE service_token SET revoked_at = coalesce(revoked_at, now()) WHERE id = $1 RETURNING *;
+-- name: MakeServiceAccount :one
+UPDATE app_user SET kind = 'service', name = @name::text, is_admin = @is_admin
+WHERE id = @id AND kind = 'person'
+RETURNING *;

@@ -46,7 +46,7 @@ func TestRequirePersonAdmin(t *testing.T) {
 		"nobody":        {nil, domain.ErrUnauthenticated},
 		"user":          {&Principal{UserID: "US-1"}, domain.ErrForbidden},
 		"service":       {&Principal{UserID: "US-1", Service: true}, domain.ErrForbidden},
-		"admin service": {&Principal{UserID: "US-1", Admin: true, Service: true, TokenID: "TK-1"}, domain.ErrForbidden},
+		"admin service": {&Principal{UserID: "US-1", Admin: true, Service: true}, domain.ErrForbidden},
 		"admin":         {&Principal{UserID: "US-1", Admin: true}, nil},
 		"system":        {ptr(System()), nil},
 	} {
@@ -61,35 +61,6 @@ func TestRequirePersonAdmin(t *testing.T) {
 }
 
 func ptr[T any](v T) *T { return &v }
-
-type failingReader struct{}
-
-func (failingReader) Read([]byte) (int, error) { return 0, errors.New("no entropy") }
-
-func TestTokens(t *testing.T) {
-	a, err := newToken(strings.NewReader(strings.Repeat("a", tokenBytes)))
-	if err != nil || !IsServiceToken(a) || len(a) != len(TokenPrefix)+43 {
-		t.Fatalf("token = %q, %v", a, err)
-	}
-	b, _ := newToken(strings.NewReader(strings.Repeat("b", tokenBytes)))
-	if a == b || bytes.Equal(hashToken(a), hashToken(b)) || len(hashToken(a)) != 32 {
-		t.Fatal("different randomness must give different tokens and hashes")
-	}
-	if strings.Contains(a, string(hashToken(a))) || !bytes.Equal(hashToken(a), hashToken(a)) {
-		t.Fatal("hash")
-	}
-	if _, err := newToken(strings.NewReader("short")); err == nil {
-		t.Fatal("too little randomness must fail")
-	}
-	if _, err := newToken(failingReader{}); err == nil {
-		t.Fatal("a failing source must fail")
-	}
-	for _, s := range []string{"", "eyJhbGciOi.x.y", "MBS_abc", "Bearer mbs_abc"} {
-		if IsServiceToken(s) {
-			t.Errorf("%q is not a service token", s)
-		}
-	}
-}
 
 func TestLevels(t *testing.T) {
 	levels := []sqlc.PermissionLevel{None, View, Download, Edit, Delete, Admin}
@@ -127,13 +98,13 @@ func TestAudited(t *testing.T) {
 		buf.Reset()
 		return n
 	}
-	ctx := With(context.Background(), Principal{UserID: "US-1", TokenID: "TK-1"})
+	ctx := With(context.Background(), Principal{UserID: "US-1"})
 
 	failure := errors.New("no")
 	if err := Audited(ctx, failure, "a", "t"); err != failure || logged() != 0 {
 		t.Fatalf("a failed write was recorded or its error lost: %v", err)
 	}
-	if err := Audited(ctx, nil, "a", "t", "k", "v"); err != nil || !strings.Contains(buf.String(), "user=US-1 token=TK-1 target=t k=v") || logged() != 1 {
+	if err := Audited(ctx, nil, "a", "t", "k", "v"); err != nil || !strings.Contains(buf.String(), "user=US-1 target=t k=v") || logged() != 1 {
 		t.Fatalf("record = %q, %v", buf.String(), err)
 	}
 	_ = Audited(With(context.Background(), System()), nil, "a", "t")

@@ -13,10 +13,10 @@ program 1--n project n--m asset 1--n asset_version 1--n rendition n--m file 1--n
 ## Users and service accounts
 
 `app_user.kind` is `person` or `service`. A service account is a machine client: the same row as
-a user, so grants, groups and `created_by` columns need nothing extra. Its `external_id` is
-`service|<name>` and it has no email. `service_token` (`TK-...`) holds its credentials: the
-SHA-256 of each token (never the token), a name, who created it, when it expires, when it was
-last used and when it was revoked. See [security.md](security.md#machine-clients).
+a user, so grants, groups and `created_by` columns need nothing extra. It is created by name
+(unique among service accounts) and has no credentials here: it signs in with a token of the
+identity provider. Until its first sign-in its `external_id` is `service|<name>`; after it, the
+subject of its token, like a person's. See [security.md](security.md#machine-clients).
 
 An email belongs to one account whatever its case: the unique index is on `lower(email)`, the
 same expression the lookup by email uses, so `Ann@x.org` and `ann@x.org` cannot both exist and

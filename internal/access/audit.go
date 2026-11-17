@@ -29,9 +29,6 @@ func Audited(ctx context.Context, err error, action, target string, attrs ...any
 	if p.UserID != "" {
 		record[3] = p.UserID
 	}
-	if p.TokenID != "" {
-		record = append(record, "token", p.TokenID)
-	}
 	record = append(append(record, "target", target), attrs...)
 	record = append(record, OriginAttrs(ctx)...)
 	if h, ok := ctx.Value(auditKey{}).(*heldAudit); ok {

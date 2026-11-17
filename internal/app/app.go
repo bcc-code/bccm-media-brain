@@ -82,11 +82,12 @@ func New(ctx context.Context, cfg config.Config) (*App, error) {
 	}
 	opts := HandlerOptions{
 		Playground: cfg.Playground,
-		Auth:       auth.Options{Header: cfg.AuthHeader, ServiceHeader: cfg.AuthServiceHeader, ClientHeader: cfg.AuthClientHeader, TrustedProxies: proxies, Users: accessSvc, Debug: cfg.Debug, DebugUser: cfg.DebugUser},
+		Auth:       auth.Options{Header: cfg.AuthHeader, ClientHeader: cfg.AuthClientHeader, TrustedProxies: proxies, Users: accessSvc, Debug: cfg.Debug, DebugUser: cfg.DebugUser},
 	}
 	if cfg.AuthConfigured() {
 		opts.Auth.Verifier = &auth.JWKSVerifier{
 			Issuer: cfg.AuthIssuer, Audience: cfg.AuthAudience, JWKSURL: cfg.AuthJWKSURL, GroupsClaim: cfg.AuthGroupsClaim,
+			UserGroup: cfg.AuthUserGroup, ServiceGroup: cfg.AuthServiceGroup,
 		}
 	}
 	if cfg.Debug {

@@ -2,6 +2,30 @@
 
 Newest first. Each entry: what changed, why, and what was left out on purpose.
 
+## 2026-11-17 — Service accounts sign in with the identity provider's token; two groups decide who gets in
+
+- MediaBrain issued its own tokens (`mbs_...`) for machine clients, a second credential system
+  beside authentik. A machine that came with an authentik token instead was auto-created as a
+  person with no grants, which is how the `flows` account met `FORBIDDEN` everywhere. Machine
+  clients now sign in with the same JWT as people, and MediaBrain holds no credentials.
+- Two groups decide who is let in. `AUTH_USER_GROUP` (required): people, created at their
+  first request with no permissions. `AUTH_SERVICE_GROUP` (optional): machine clients, which
+  must match a service account created in advance. A token with neither is refused with 403
+  and writes nothing. Before this, everyone who could pass the shared forward auth became a
+  user.
+- A service account is created under its authentik username and bound to the token's `sub` at
+  its first sign-in; an account that already signed in as a person is converted in place
+  (`createServiceAccount` with `user`, `service create -user`). The rule that a service
+  account cannot make administrators or service accounts stays.
+- **Breaking:** `createServiceToken`, `revokeServiceToken`, `serviceTokens` and their types are
+  gone from the API, `service token` and `service revoke` from the command line, and
+  `AUTH_SERVICE_HEADER` from the settings. The `service_token` table is dropped (migration
+  `00016`); existing service accounts stay and sign in by name. A deployment must set
+  `AUTH_USER_GROUP` or the server does not start. Audit records no longer carry `token`.
+- What an account may do is unchanged: grants and `is_admin`. Left out: roles narrower than
+  administrator for machines (an ingest tool still has to be one), telling machines from
+  people by anything but the group, and a way to delete a service account (switch it off).
+
 ## 2026-11-17 — Sign-in settings follow authentik's forward auth
 
 - The proxy is now known: Traefik with authentik's forward auth. It sends the user as plain

@@ -45,7 +45,7 @@ Conventions:
 | Area | Queries | Mutations |
 |---|---|---|
 | Access | `me`, `users`, `userGroups`, `grants` | `grantAccess`, `revokeAccess`, `setUserAdmin` |
-| Machine clients ([security.md](security.md#machine-clients)) | `serviceAccounts`, `serviceTokens` | `createServiceAccount`, `setServiceAccountActive`, `createServiceToken`, `revokeServiceToken` |
+| Machine clients ([security.md](security.md#machine-clients)) | `serviceAccounts` | `createServiceAccount`, `setServiceAccountActive` |
 | Programs, projects | `program(s)`, `project(s)` | `create/update/deleteProgram`, `create/update/deleteProject` |
 | Files | `file`, `fileByHash`, `files`, `storageLocations` | `registerFile`, `addFileCopy`, `setFileCopyStatus`, `removeFileCopy`, `deleteFile`, `create/update/deleteStorageLocation` |
 | Assets | `asset(s)`, `assetVersion`, `rendition`, `assetTypes`, `languages` | `create/update/deleteAsset`, `linkAssetToProject`, `unlinkAssetFromProject`, `create/update/deleteAssetVersion`, `create/update/deleteRendition`, `attachFile`, `detachFile` |
@@ -54,12 +54,11 @@ Conventions:
 
 ## Examples
 
-Let another system in (administrators). The token is only in this answer; the system then sends
-it as `Authorization: Bearer mbs_...`:
+Let another system in (administrators). The name is the system's username at the identity
+provider; it then signs in with its own token from there, which must carry the service group:
 
 ```graphql
 mutation { createServiceAccount(input: {name: "ingest", admin: true}) { id } }
-mutation { createServiceToken(input: {serviceAccount: "ingest", name: "production"}) { token serviceToken { id expiresAt } } }
 ```
 
 Register a file (administrators; typically an ingest tool):

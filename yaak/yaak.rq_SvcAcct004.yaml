@@ -9,23 +9,16 @@ authentication: {}
 authenticationType: null
 body:
   query: |
-    query($s: String!) {
-      serviceAccounts { id name isAdmin active }
-      serviceTokens(serviceAccount: $s) { id name createdBy createdAt expiresAt lastUsedAt revokedAt }
-    }
-  variables: |-
-    {
-      "s": "${[ service_account ]}"
-    }
+    { serviceAccounts { id name externalId isAdmin active } }
 bodyType: graphql
-description: lastUsedAt is updated at most once a minute.
+description: externalId is "service|<name>" until the account signs in for the first time, then the subject of its token.
 headers:
 - enabled: true
   name: Content-Type
   value: application/json
   id: SvcHdr0004
 method: POST
-name: Service accounts and tokens (admin)
+name: Service accounts (admin)
 sortPriority: 4000.0
 url: ${[ base_url ]}/query
 urlParameters: []

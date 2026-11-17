@@ -38,16 +38,6 @@ func (r *mutationResolver) SetServiceAccountActive(ctx context.Context, serviceA
 	return one(r.AccessSvc.SetServiceAccountActive(ctx, serviceAccount, active))
 }
 
-// CreateServiceToken is the resolver for the createServiceToken field.
-func (r *mutationResolver) CreateServiceToken(ctx context.Context, input access.ServiceTokenInput) (*access.NewServiceToken, error) {
-	return one(r.AccessSvc.CreateServiceToken(ctx, input))
-}
-
-// RevokeServiceToken is the resolver for the revokeServiceToken field.
-func (r *mutationResolver) RevokeServiceToken(ctx context.Context, id string) (*sqlc.ServiceToken, error) {
-	return one(r.AccessSvc.RevokeServiceToken(ctx, id))
-}
-
 // Me is the resolver for the me field.
 func (r *queryResolver) Me(ctx context.Context) (*sqlc.AppUser, error) {
 	return one(r.AccessSvc.Me(ctx))
@@ -56,11 +46,6 @@ func (r *queryResolver) Me(ctx context.Context) (*sqlc.AppUser, error) {
 // ServiceAccounts is the resolver for the serviceAccounts field.
 func (r *queryResolver) ServiceAccounts(ctx context.Context) ([]*sqlc.AppUser, error) {
 	return many(r.AccessSvc.ServiceAccounts(ctx))
-}
-
-// ServiceTokens is the resolver for the serviceTokens field.
-func (r *queryResolver) ServiceTokens(ctx context.Context, serviceAccount string) ([]*sqlc.ServiceToken, error) {
-	return many(r.AccessSvc.ServiceTokens(ctx, serviceAccount))
 }
 
 // Users is the resolver for the users field.

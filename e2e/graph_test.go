@@ -328,13 +328,12 @@ func TestDatabaseFailuresAreContained(t *testing.T) {
 			return map[string]any{"in": map[string]any{"itemId": item.ID, "typeId": 1, "projectId": w.projectA}}
 		}},
 		{"refresh from vidispine", refreshFromVidispine, id(imported)},
-		{"service lists", `query($s: String!) { serviceAccounts { id } serviceTokens(serviceAccount: $s) { id } }`, fixed(map[string]any{"s": machine.sub})},
+		{"service accounts", `{ serviceAccounts { id } }`, fixed(nil)},
+		{"make service account", createServiceAccount, func() map[string]any {
+			return map[string]any{"in": map[string]any{"name": "sweep-" + unique(), "user": signIn(t).id}}
+		}},
 		{"create service account", createServiceAccount, func() map[string]any { return map[string]any{"in": map[string]any{"name": "sweep-" + unique()}} }},
 		{"service account active", setServiceActive, fixed(map[string]any{"s": machine.sub, "a": true})},
-		{"create service token", createServiceToken, fixed(map[string]any{"in": map[string]any{"serviceAccount": machine.id, "name": "sweep"}})},
-		{"revoke service token", revokeServiceToken, func() map[string]any {
-			return map[string]any{"id": newServiceToken(t, w.admin, machine.sub).ServiceToken.ID}
-		}},
 	}
 
 	sweep := func(as access.Principal, ops []operation) {
@@ -385,7 +384,13 @@ func TestDatabaseFailuresAreContained(t *testing.T) {
 		},
 		"sweep": func(svc *access.Service) error { _, err := svc.Sweep(context.Background()); return err },
 		"service sign in": func(svc *access.Service) error {
-			_, _, err := svc.ServiceSignIn(context.Background(), machine.token)
+			_, err := svc.SignIn(context.Background(), access.Identity{Subject: serviceSub(machine.sub), Username: machine.sub, Service: true, Groups: []string{"fault-machines"}})
+			return err
+		},
+		"first service sign in": func(svc *access.Service) error {
+			name := "sweep-first-" + unique()
+			newServiceAccount(t, w.admin, name, false)
+			_, err := svc.SignIn(context.Background(), access.Identity{Subject: serviceSub(name), Username: name, Service: true})
 			return err
 		},
 		"create group": func(svc *access.Service) error {

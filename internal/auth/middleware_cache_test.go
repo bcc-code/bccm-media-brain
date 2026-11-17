@@ -28,7 +28,7 @@ func cachingServer(t *testing.T) (*clock, *fakeUsers, func(token string) int, fu
 		return send(h, request{remote: "10.0.0.1:1", headers: map[string]string{"Authorization": token}})
 	}
 	sign := func(sub string, life time.Duration) string {
-		return iss.Sign(map[string]any{"iss": iss.URL, "aud": authtest.Audience, "sub": sub, "exp": c.now().Add(life).Unix()})
+		return iss.Sign(map[string]any{"iss": iss.URL, "aud": authtest.Audience, "sub": sub, "exp": c.now().Add(life).Unix(), "groups": []string{authtest.UserGroup}})
 	}
 	return c, users, call, sign
 }
@@ -60,21 +60,6 @@ func TestCachedUserIsLookedUpAgainAfterTheTTL(t *testing.T) {
 		c.advance(step.advance)
 		if status := call(token); status != 200 || users.signIns != step.signIns {
 			t.Fatalf("after %v: status %d, %d sign-ins, want 200 and %d", step.advance, status, users.signIns, step.signIns)
-		}
-	}
-}
-
-func TestCachedServiceAccountDoesNotOutliveTheToken(t *testing.T) {
-	c, users, call, _ := cachingServer(t)
-	users.serviceExpires = c.now().Add(10 * time.Second)
-	for _, step := range []struct {
-		advance time.Duration
-		signIns int
-	}{{0, 1}, {9 * time.Second, 1}, {2 * time.Second, 2}} {
-		c.advance(step.advance)
-		if status := call("Bearer mbs_abc"); status != 200 || users.serviceSignIns != step.signIns {
-			t.Fatalf("after %v: status %d, %d sign-ins, want %d (the token is checked again once it expired)",
-				step.advance, status, users.serviceSignIns, step.signIns)
 		}
 	}
 }

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"slices"
 	"sync"
 	"time"
 
@@ -19,6 +20,10 @@ import (
 
 // ErrInvalidToken covers every reason a token is not accepted.
 var ErrInvalidToken = errors.New("auth: invalid token")
+
+// ErrNotAllowed is a valid token of someone who is not let in: it carries neither the group
+// of people nor the group of service accounts.
+var ErrNotAllowed = errors.New("auth: the token has neither the user group nor the service group")
 
 const (
 	leeway        = 30 * time.Second
@@ -46,6 +51,10 @@ type JWKSVerifier struct {
 	Audience    string
 	JWKSURL     string
 	GroupsClaim string
+	// UserGroup is the group whose members are let in as people; ServiceGroup the one whose
+	// members are service accounts. An empty name matches nobody.
+	UserGroup    string
+	ServiceGroup string
 
 	now func() time.Time // nil: time.Now
 
@@ -81,6 +90,7 @@ func (v *JWKSVerifier) Verify(ctx context.Context, raw string) (access.Identity,
 	id := access.Identity{Subject: std.Subject, Expires: std.Expiry.Time().Add(leeway)}
 	id.Email, _ = extra["email"].(string)
 	id.Name, _ = extra["name"].(string)
+	id.Username, _ = extra["preferred_username"].(string)
 	switch groups := extra[v.GroupsClaim].(type) {
 	case string:
 		id.Groups = []string{groups}
@@ -90,6 +100,15 @@ func (v *JWKSVerifier) Verify(ctx context.Context, raw string) (access.Identity,
 				id.Groups = append(id.Groups, s)
 			}
 		}
+	}
+	// The service group wins over the user group: a machine must not get in as a person,
+	// who needs no account made in advance.
+	switch {
+	case v.ServiceGroup != "" && slices.Contains(id.Groups, v.ServiceGroup):
+		id.Service = true
+	case v.UserGroup != "" && slices.Contains(id.Groups, v.UserGroup):
+	default:
+		return access.Identity{}, ErrNotAllowed
 	}
 	return id, nil
 }

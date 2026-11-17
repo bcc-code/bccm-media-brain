@@ -62,17 +62,17 @@ func TestSignInCreatesAndUpdatesTheUser(t *testing.T) {
 		}
 		return out
 	}
-	if got := groups(); strings.Join(got, ",") != "crew-a,crew-b" {
+	if got := groups(); strings.Join(got, ",") != "crew-a,crew-b,"+authtest.UserGroup {
 		t.Fatalf("groups after first sign-in = %v", got)
 	}
 
 	// A later token with a new name and other groups updates the same user.
-	u.token = issuer.Token(u.sub, map[string]any{"email": u.email, "name": "Renamed", "groups": []string{"crew-b", "crew-c"}})
+	u.token = issuer.Token(u.sub, map[string]any{"email": u.email, "name": "Renamed", "groups": []string{"crew-b", "crew-c", authtest.UserGroup}})
 	u.must(t, `{ me { id name } }`, nil, &me)
 	if me.Me.ID != u.id || me.Me.Name != "Renamed" {
 		t.Fatalf("after update: %+v", me.Me)
 	}
-	if got := groups(); strings.Join(got, ",") != "crew-b,crew-c" {
+	if got := groups(); strings.Join(got, ",") != "crew-b,crew-c,"+authtest.UserGroup {
 		t.Fatalf("groups after second sign-in = %v", got)
 	}
 }

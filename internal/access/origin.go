@@ -11,8 +11,8 @@ type Origin struct {
 	// Client is the address the request came from: what the proxy reports where one is
 	// trusted to, otherwise the peer itself. It is recorded, never used to decide anything.
 	Client string
-	// User and Token are who the request was authenticated as; empty when it was refused.
-	User, Token string
+	// User is who the request was authenticated as; empty when it was refused.
+	User string
 }
 
 type originKey struct{}

@@ -2,70 +2,67 @@ package access
 
 import (
 	"context"
-	"crypto/rand"
 	"errors"
-	"io"
+	"fmt"
 	"strings"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 
 	"github.com/bcc-media/mediabrain/internal/db"
 	"github.com/bcc-media/mediabrain/internal/db/sqlc"
 	"github.com/bcc-media/mediabrain/internal/domain"
 )
 
-// Service manages users, groups, grants, service accounts and their tokens.
+// Service manages users, groups, grants and service accounts.
 type Service struct {
 	q  sqlc.Querier
 	tx db.TxRunner
-	// rand is where service tokens come from.
-	rand io.Reader
 }
 
 func NewService(q sqlc.Querier, tx db.TxRunner) *Service {
-	return &Service{q: q, tx: tx, rand: rand.Reader}
-}
-
-// WithRand makes service tokens come from r, so dev data is the same for the same seed.
-func (s *Service) WithRand(r io.Reader) *Service {
-	s.rand = r
-	return s
+	return &Service{q: q, tx: tx}
 }
 
 // Identity is what the auth proxy's token says about the caller.
 type Identity struct {
 	Subject string
-	Email   string
-	Name    string
-	Groups  []string
+	// Username is the identity provider's name for the account. Only a service account's
+	// first sign-in reads it; Subject is the key everywhere else.
+	Username string
+	Email    string
+	Name     string
+	Groups   []string
+	// Service says the token is a machine client's: it carries the service group.
+	Service bool
 	// Expires is when the proof of this identity (the token) stops being accepted. Whoever
 	// remembers the identity must forget it by then. Zero: it may not be remembered at all.
 	Expires time.Time
 }
 
-// SignIn creates or updates the user for a verified identity and syncs their SSO groups.
+// SignIn returns the principal of a verified identity and syncs its SSO groups. A person is
+// created or updated from the token. A service account is never created here: it must exist.
 func (s *Service) SignIn(ctx context.Context, id Identity) (Principal, error) {
 	if strings.TrimSpace(id.Subject) == "" {
 		return Principal{}, domain.ErrUnauthenticated
 	}
+	// A service account that has not signed in yet is stored under this prefix, so a token
+	// with such a subject would become it without the check of its username.
+	if strings.HasPrefix(id.Subject, serviceSubject) {
+		return Principal{}, fmt.Errorf("%w: the subject %q is reserved", domain.ErrForbidden, id.Subject)
+	}
 	var p Principal
 	err := s.tx.InTx(ctx, func(q sqlc.Querier) error {
-		email := domain.Blank(&id.Email)
-		if email != nil {
-			// email is unique; a token cannot take over the address of another account.
-			other, err := q.GetUserByEmail(ctx, *email)
-			if err == nil && other.ExternalID != id.Subject {
-				email = nil
-			} else if err != nil && !errors.Is(domain.FromPG(err), domain.ErrNotFound) {
-				return err
-			}
+		signIn := person
+		if id.Service {
+			signIn = serviceAccountOf
 		}
-		u, err := q.UpsertUser(ctx, sqlc.UpsertUserParams{ExternalID: id.Subject, Email: email, Name: domain.Blank(&id.Name)})
+		u, err := signIn(ctx, q, id)
 		if err != nil {
 			return err
 		}
-		// A subject that happens to equal a service account's external id must not become it.
-		if !u.Active || u.Kind == sqlc.UserKindService {
-			return domain.ErrForbidden
+		if !u.Active {
+			return fmt.Errorf("%w: %s is switched off", domain.ErrForbidden, u.ID)
 		}
 		keep := []string{}
 		for _, name := range id.Groups {
@@ -88,6 +85,58 @@ func (s *Service) SignIn(ctx context.Context, id Identity) (Principal, error) {
 		return err
 	})
 	return p, err
+}
+
+func person(ctx context.Context, q sqlc.Querier, id Identity) (sqlc.AppUser, error) {
+	email := domain.Blank(&id.Email)
+	if email != nil {
+		// email is unique; a token cannot take over the address of another account.
+		other, err := q.GetUserByEmail(ctx, *email)
+		if err == nil && other.ExternalID != id.Subject {
+			email = nil
+		} else if err != nil && !errors.Is(domain.FromPG(err), domain.ErrNotFound) {
+			return sqlc.AppUser{}, err
+		}
+	}
+	u, err := q.UpsertUser(ctx, sqlc.UpsertUserParams{ExternalID: id.Subject, Email: email, Name: domain.Blank(&id.Name)})
+	if err != nil {
+		return sqlc.AppUser{}, err
+	}
+	// The transaction is rolled back, so the upsert above did not change the account.
+	if u.Kind == sqlc.UserKindService {
+		return sqlc.AppUser{}, fmt.Errorf("%w: %s is a service account, and the token lacks the service group", domain.ErrForbidden, u.ID)
+	}
+	return u, nil
+}
+
+// serviceAccountOf finds the service account of a token: by its subject, or at its first
+// sign-in by the username it was created under, which binds it to the subject.
+func serviceAccountOf(ctx context.Context, q sqlc.Querier, id Identity) (sqlc.AppUser, error) {
+	for attempt := 0; ; attempt++ {
+		u, err := q.GetUserByExternalID(ctx, id.Subject)
+		if err == nil {
+			if u.Kind != sqlc.UserKindService {
+				return sqlc.AppUser{}, fmt.Errorf("%w: %s signed in as a person before; an administrator has to make it a service account", domain.ErrForbidden, u.ID)
+			}
+			return u, nil
+		}
+		if !errors.Is(err, pgx.ErrNoRows) {
+			return sqlc.AppUser{}, err
+		}
+		username := strings.TrimSpace(id.Username)
+		if username == "" || attempt > 0 {
+			return sqlc.AppUser{}, fmt.Errorf("%w: no service account %q", domain.ErrForbidden, username)
+		}
+		u, err = q.BindServiceAccount(ctx, sqlc.BindServiceAccountParams{ExternalID: id.Subject, Pending: serviceSubject + username})
+		if err == nil {
+			return u, nil
+		}
+		// No row: there is no such account, or a request at the same moment has just bound
+		// it, which the second look by subject finds.
+		if !errors.Is(err, pgx.ErrNoRows) {
+			return sqlc.AppUser{}, domain.FromPG(err)
+		}
+	}
 }
 
 // Impersonate resolves a user by id or email without a token. Debug mode only.

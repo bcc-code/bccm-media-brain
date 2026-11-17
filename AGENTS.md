@@ -37,8 +37,8 @@ internal/db/            pgx pool, embedded goose migrations
   queries/              sqlc query files
   sqlc/                 GENERATED, do not edit
 internal/domain/        shared errors, paging and input rules
-internal/access/        principals, permission levels, grants, asset_access refresh; users, groups, service accounts and tokens
-internal/auth/          verifies the proxy's JWT or a service token, trusted proxies, debug bypass (authtest/: test issuer)
+internal/access/        principals, permission levels, grants, asset_access refresh; users, groups and service accounts
+internal/auth/          verifies the proxy's JWT and its groups, trusted proxies, debug bypass (authtest/: test issuer)
 internal/<domain>/      domain services over sqlc.Querier: project, file, asset, subtitle, vidispineimport
 internal/graph/         gqlgen resolvers (hand-written), dataloaders, error presenter, server setup
   schema/*.graphqls     GraphQL schema (source of truth)
@@ -86,7 +86,7 @@ Live reload caveats:
 | Run once, no reload | `make run` |
 | Dev data: list / run scenario | `make seed-list` / `make seed s=catalog args="-reset -seed 42 assets=20"` |
 | System administrator | `make admin-grant u=me@example.com` / `make admin-revoke u=...` (the user must have signed in once) |
-| Machine clients (service accounts) | `make service-create n=ingest args="-admin"` / `make service-token n=ingest` (prints the token once) / `make service-revoke t=TK-...` / `make service-list` |
+| Machine clients (service accounts) | `make service-create n=ingest args="-admin"` (`n` is the account's authentik username; `-user US-...` turns an account that signed in as a person into it) / `make service-list` |
 | Vidispine: import one item / refresh | `make vidispine-import id=VX-123 args="-type 1 -project PJ-..."` / `make vidispine-refresh a=AS-...` (needs `VIDISPINE_*`) |
 | Format | `make fmt` |
 | Wipe data / rebuild schema | `make reset-data` / `make db-reset` |
@@ -178,7 +178,7 @@ need no updates. The one exception: reference tables that a migration seeds (`as
 - Config goes through `internal/config` (env + `.env`). Add new settings there, in
   `.env.example`, and in this file. Current settings: `DATABASE_URL`, `HTTP_ADDR`, `AUTO_MIGRATE`,
   `GRAPHQL_PLAYGROUND`, `DEBUG`, `DEBUG_USER`, `DEBUG_ALLOW_REMOTE`, `LOG_FORMAT`, `LOG_LEVEL`, and for sign-in `AUTH_ISSUER`,
-  `AUTH_AUDIENCE`, `AUTH_JWKS_URL`, `AUTH_TRUSTED_PROXIES`, `AUTH_HEADER`, `AUTH_SERVICE_HEADER`, `AUTH_CLIENT_HEADER`, `AUTH_GROUPS_CLAIM`, and for
+  `AUTH_AUDIENCE`, `AUTH_JWKS_URL`, `AUTH_TRUSTED_PROXIES`, `AUTH_USER_GROUP`, `AUTH_SERVICE_GROUP`, `AUTH_HEADER`, `AUTH_CLIENT_HEADER`, `AUTH_GROUPS_CLAIM`, and for
   the Vidispine import `VIDISPINE_URL`, `VIDISPINE_USERNAME`, `VIDISPINE_PASSWORD` (optional, all or none).
 - **Security is not optional.** Every query and mutation is authenticated and checks permissions
   in its domain service. Reading something without access must look exactly like "not found".
