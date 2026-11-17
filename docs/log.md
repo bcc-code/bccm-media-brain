@@ -22,6 +22,9 @@ Newest first. Each entry: what changed, why, and what was left out on purpose.
   `AUTH_SERVICE_HEADER` from the settings. The `service_token` table is dropped (migration
   `00016`); existing service accounts stay and sign in by name. A deployment must set
   `AUTH_USER_GROUP` or the server does not start. Audit records no longer carry `token`.
+- From the self-review: the first sign-in of a service account is audited
+  (`service_account.first_sign_in`, with the subject that took it); an administrator cannot
+  convert their own account; the server refuses one group named for both roles.
 - What an account may do is unchanged: grants and `is_admin`. Left out: roles narrower than
   administrator for machines (an ingest tool still has to be one), telling machines from
   people by anything but the group, and a way to delete a service account (switch it off).

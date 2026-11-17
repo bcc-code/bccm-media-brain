@@ -95,6 +95,7 @@ func TestServiceAccounts(t *testing.T) {
 
 	// The first token with that username is the account, and from then on its subject is.
 	sub := serviceSub(name)
+	lines := auditLog(t)
 	var me meJSON
 	user{token: serviceToken(sub, name)}.must(t, whoAmI, nil, &me)
 	if me.Me.ID != a.ID || me.Me.Kind != "SERVICE" || me.Me.ExternalID != sub || me.Me.Name != name {
@@ -104,6 +105,10 @@ func TestServiceAccounts(t *testing.T) {
 	user{token: serviceToken(sub, "renamed-"+name)}.must(t, whoAmI, nil, &me)
 	if me.Me.ID != a.ID || me.Me.Name != name {
 		t.Fatalf("after a rename = %+v", me.Me)
+	}
+	// Which subject took the account is on record, once.
+	if got := lines(); len(got) != 1 || got[0]["action"] != "service_account.first_sign_in" || got[0]["user"] != a.ID || got[0]["subject"] != sub {
+		t.Fatalf("audit log = %v, want the first sign-in only", got)
 	}
 	// Somebody else who takes the old username does not get the account.
 	refused(t, "another subject under the same username", serviceToken("machine|impostor-"+unique(), name))
@@ -192,6 +197,7 @@ func TestMakeAPersonAServiceAccount(t *testing.T) {
 		return map[string]any{"in": map[string]any{"name": name, "admin": true, "user": user}}
 	}
 	w.admin.fails(t, "NOT_FOUND", createServiceAccount, vars("US-00000000000000000000000000"))
+	w.admin.fails(t, "INVALID_INPUT", createServiceAccount, vars(w.admin.id))
 	var acc struct {
 		CreateServiceAccount struct {
 			ID, Kind, ExternalID, Name string

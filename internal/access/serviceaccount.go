@@ -44,6 +44,10 @@ func (s *Service) CreateServiceAccount(ctx context.Context, in ServiceAccountInp
 	}
 	var u sqlc.AppUser
 	if in.User != nil {
+		// Whoever does this would be a machine afterwards and could not undo it.
+		if p, _ := From(ctx); p.UserID == *in.User {
+			return sqlc.AppUser{}, domain.InvalidField("user", "you cannot make your own account a service account")
+		}
 		// No row also when the user is a service account already: there is nothing to make.
 		u, err = s.q.MakeServiceAccount(ctx, sqlc.MakeServiceAccountParams{ID: *in.User, Name: name, IsAdmin: in.Admin})
 	} else {

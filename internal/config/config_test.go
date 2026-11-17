@@ -83,6 +83,11 @@ func TestValidate(t *testing.T) {
 	partial := full
 	partial.AuthTrustedProxies = ""
 	// Without a group of people nobody could be told from a stranger with a valid token.
+	same := full
+	same.AuthServiceGroup = full.AuthUserGroup
+	if err := same.Validate(); !errors.Is(err, ErrAuthGroupsEqual) {
+		t.Fatalf("one group for both: err = %v", err)
+	}
 	open := full
 	open.AuthUserGroup = ""
 	for _, c := range []Config{{}, partial, open} {

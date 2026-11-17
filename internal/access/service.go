@@ -52,12 +52,15 @@ func (s *Service) SignIn(ctx context.Context, id Identity) (Principal, error) {
 		return Principal{}, fmt.Errorf("%w: the subject %q is reserved", domain.ErrForbidden, id.Subject)
 	}
 	var p Principal
+	var first bool
 	err := s.tx.InTx(ctx, func(q sqlc.Querier) error {
-		signIn := person
-		if id.Service {
-			signIn = serviceAccountOf
+		var u sqlc.AppUser
+		var err error
+		if first = false; id.Service {
+			u, first, err = serviceAccountOf(ctx, q, id)
+		} else {
+			u, err = person(ctx, q, id)
 		}
-		u, err := signIn(ctx, q, id)
 		if err != nil {
 			return err
 		}
@@ -84,6 +87,10 @@ func (s *Service) SignIn(ctx context.Context, id Identity) (Principal, error) {
 		p, err = principalOf(ctx, q, u)
 		return err
 	})
+	if err == nil && first {
+		// From now on this subject is the account, whatever username its tokens carry.
+		_ = Audited(With(ctx, p), nil, "service_account.first_sign_in", p.UserID, "subject", id.Subject)
+	}
 	return p, err
 }
 
@@ -110,31 +117,32 @@ func person(ctx context.Context, q sqlc.Querier, id Identity) (sqlc.AppUser, err
 }
 
 // serviceAccountOf finds the service account of a token: by its subject, or at its first
-// sign-in by the username it was created under, which binds it to the subject.
-func serviceAccountOf(ctx context.Context, q sqlc.Querier, id Identity) (sqlc.AppUser, error) {
+// sign-in by the username it was created under, which binds it to the subject. It reports
+// whether this was that first sign-in.
+func serviceAccountOf(ctx context.Context, q sqlc.Querier, id Identity) (sqlc.AppUser, bool, error) {
 	for attempt := 0; ; attempt++ {
 		u, err := q.GetUserByExternalID(ctx, id.Subject)
 		if err == nil {
 			if u.Kind != sqlc.UserKindService {
-				return sqlc.AppUser{}, fmt.Errorf("%w: %s signed in as a person before; an administrator has to make it a service account", domain.ErrForbidden, u.ID)
+				return sqlc.AppUser{}, false, fmt.Errorf("%w: %s signed in as a person before; an administrator has to make it a service account", domain.ErrForbidden, u.ID)
 			}
-			return u, nil
+			return u, false, nil
 		}
 		if !errors.Is(err, pgx.ErrNoRows) {
-			return sqlc.AppUser{}, err
+			return sqlc.AppUser{}, false, err
 		}
 		username := strings.TrimSpace(id.Username)
 		if username == "" || attempt > 0 {
-			return sqlc.AppUser{}, fmt.Errorf("%w: no service account %q", domain.ErrForbidden, username)
+			return sqlc.AppUser{}, false, fmt.Errorf("%w: no service account %q", domain.ErrForbidden, username)
 		}
 		u, err = q.BindServiceAccount(ctx, sqlc.BindServiceAccountParams{ExternalID: id.Subject, Pending: serviceSubject + username})
 		if err == nil {
-			return u, nil
+			return u, true, nil
 		}
 		// No row: there is no such account, or a request at the same moment has just bound
 		// it, which the second look by subject finds.
 		if !errors.Is(err, pgx.ErrNoRows) {
-			return sqlc.AppUser{}, domain.FromPG(err)
+			return sqlc.AppUser{}, false, domain.FromPG(err)
 		}
 	}
 }

@@ -104,10 +104,13 @@ done in authentik.
   refused, and so is a token with the service group whose subject is a person.
 - An account that signed in as a person before it was put in the service group is turned into
   a service account in place, keeping its id and grants: `createServiceAccount` with `user`,
-  or `mediabrain service create -user US-... <name>`.
+  or `mediabrain service create -user US-... <name>`. There is no way back through the API,
+  so an administrator cannot do this to their own account.
 - Until its first sign-in an account is stored under `service|<name>`. A token whose subject
   starts with `service|` is refused, so no token can be such an account without the match on
   its username.
+- The first sign-in is in the audit log (`service_account.first_sign_in`, with the subject
+  that took the account).
 - A refused machine client gets HTTP 403 whatever the reason; the reason is in the log
   (`auth: request refused`).
 - An accepted token is cached for one minute like a person's (and never past its expiry), so
@@ -260,7 +263,8 @@ to every caller. Dev-data scenarios and the CLI run as an explicit system princi
     and never decides anything. Set the header only if the proxy overwrites it: a proxy that
     passes a client's `X-Forwarded-For` along lets the client write its own audit trail.
     Changes made outside a request (command line, sweeper) have neither field.
-  - Not recorded: reads, sign-ins that create or update a user, the sweeper, data generated
+  - Not recorded: reads, sign-ins that create or update a user (the first sign-in of a
+    service account is recorded), the sweeper, data generated
     by dev-data scenarios, and attempts on objects the caller cannot see: those answer
     `NOT_FOUND` like any wrong id, by decision (system review, finding SEC-08). The log is
     the only store; there is no audit table.

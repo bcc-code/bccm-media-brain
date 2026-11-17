@@ -49,6 +49,10 @@ var ErrVidispineIncomplete = errors.New("config: VIDISPINE_URL needs VIDISPINE_U
 // ErrAuthNotConfigured is returned when the AUTH_* settings are missing outside debug mode.
 var ErrAuthNotConfigured = errors.New("config: AUTH_ISSUER, AUTH_AUDIENCE, AUTH_JWKS_URL, AUTH_TRUSTED_PROXIES and AUTH_USER_GROUP are required unless DEBUG=true")
 
+// ErrAuthGroupsEqual is returned when one group is named for both people and service accounts.
+// The service group wins, so everyone would need an account made in advance.
+var ErrAuthGroupsEqual = errors.New("config: AUTH_USER_GROUP and AUTH_SERVICE_GROUP must be different groups")
+
 // AuthConfigured reports whether tokens can be verified.
 func (c Config) AuthConfigured() bool {
 	return c.AuthIssuer != "" && c.AuthAudience != "" && c.AuthJWKSURL != "" && c.AuthTrustedProxies != "" && c.AuthUserGroup != ""
@@ -62,6 +66,9 @@ var ErrDebugNotLocal = errors.New("config: DEBUG=true needs HTTP_ADDR on a loopb
 func (c Config) Validate() error {
 	if !c.Debug && !c.AuthConfigured() {
 		return ErrAuthNotConfigured
+	}
+	if c.AuthUserGroup != "" && c.AuthUserGroup == c.AuthServiceGroup {
+		return ErrAuthGroupsEqual
 	}
 	if c.Debug && !c.DebugAllowRemote && !LoopbackHost(c.HTTPAddr) {
 		return ErrDebugNotLocal
