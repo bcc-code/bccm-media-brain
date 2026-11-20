@@ -17,6 +17,7 @@ and choose this folder. Yaak keeps the files in sync, so changes you make show u
 | `program_id`, `project_id`, `location_id`, `file_id`, `copy_id`, `asset_id`, `version_id`, `rendition_id`, `track_id`, `grant_id` | Ids used by the requests. Paste them in from the response of the matching "Create ..." request |
 | `vidispine_item_id` | The Vidispine item to import, e.g. `VX-123` |
 | `service_account` | The name of a machine client: its username at the identity provider |
+| `service_password` | The password of the account the workspace signs in as (OAuth2 against `auth.bcc.media`, in *Workspace Settings → Authentication*). A secret: set it in a private environment of your own, never in "Global Variables", which is committed. For `make dev` alone, switch the workspace's authentication off instead |
 
 ## Typical run on an empty database
 

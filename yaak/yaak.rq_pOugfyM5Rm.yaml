@@ -2,7 +2,7 @@ type: http_request
 model: http_request
 id: rq_pOugfyM5Rm
 createdAt: 2026-11-10T23:30:00
-updatedAt: 2026-11-10T23:30:00
+updatedAt: 2026-11-17T13:50:38.624829
 workspaceId: wk_tPlK1TUEUQ
 folderId: fl_olovTz0eCf
 authentication: {}
@@ -17,6 +17,14 @@ headers:
   name: Content-Type
   value: application/json
   id: B0LhZnYl91
+- enabled: false
+  name: Authorization
+  value: ''
+  id: KyesW3xhgY
+- enabled: true
+  name: ''
+  value: ''
+  id: eXnTUJuR3q
 method: POST
 name: Me
 sortPriority: 1000.0

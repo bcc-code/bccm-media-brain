@@ -2,13 +2,11 @@ type: folder
 model: folder
 id: fl_2oyt2p4sIh
 createdAt: 2026-11-10T23:30:00
-updatedAt: 2026-11-10T23:30:00
+updatedAt: 2026-11-20T10:41:09.818288
 workspaceId: wk_tPlK1TUEUQ
 folderId: null
-authentication:
-  disabled: true
-  token: ${[ token ]}
-authenticationType: bearer
+authentication: {}
+authenticationType: null
 description: ''
 headers:
 - enabled: true
