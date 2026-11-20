@@ -65,7 +65,9 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-info}
       AUTH_ISSUER: ${AUTH_ISSUER:?set AUTH_ISSUER}
       AUTH_AUDIENCE: ${AUTH_AUDIENCE:?set AUTH_AUDIENCE}
-      AUTH_JWKS_URL: ${AUTH_JWKS_URL:?set AUTH_JWKS_URL}
+      # One of the two: the secret for authentik's forward auth, the URL for an issuer with keys.
+      AUTH_JWKS_URL: ${AUTH_JWKS_URL:-}
+      AUTH_HS256_SECRET: ${AUTH_HS256_SECRET:-}
       # Defaults to this file's network, which is where the proxy is expected to be.
       AUTH_TRUSTED_PROXIES: ${AUTH_TRUSTED_PROXIES:-172.30.80.0/24}
       AUTH_HEADER: ${AUTH_HEADER:-}

@@ -2,6 +2,25 @@
 
 Newest first. Each entry: what changed, why, and what was left out on purpose.
 
+## 2026-11-20 — Tokens of authentik's forward auth are accepted (HS256)
+
+- The first deployment refused every request with `invalid token: malformed`. authentik's
+  proxy provider cannot have a signing key: it signs `X-authentik-jwt` with the provider's
+  client secret (HS256) and its key URL answers `{}`. MediaBrain accepted asymmetric
+  algorithms only, so sign-in through forward auth, the documented setup, could not work.
+- `AUTH_HS256_SECRET` (the client secret, at least 32 characters) makes the verifier accept
+  HS256 tokens signed with it. It stands in for `AUTH_JWKS_URL`, which is now optional; with
+  both set, both kinds of token are accepted. A token that names HS256 is checked against the
+  secret only, and without the setting HS256 is refused as before.
+- The cost, accepted: the secret signs as well as verifies, so reading it from MediaBrain's
+  environment is enough to sign in as anyone. The alternative was an OAuth2/OpenID provider
+  with the web UI doing the sign-in itself, a much larger change.
+- The refusal in the log now says why a token could not be read: the algorithm that is not
+  accepted (quoted and cut to 20 characters, since the caller chooses it), or that the value
+  is no JWT. The client still gets `unauthorized` and nothing else.
+- Left out: a proxy provider of MediaBrain's own. The shared domain-wide one still means every
+  app behind it sees tokens that are valid here (see `docs/security.md`).
+
 ## 2026-11-20 — A web UI starts: the service accounts page
 
 - `web/` is now a Nuxt app (static, no server rendering) with Tailwind and Ark UI. Its first

@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -35,11 +36,13 @@ func TestLoadFrom(t *testing.T) {
 				"LOG_FORMAT": "json", "LOG_LEVEL": "debug",
 				"AUTH_HEADER": "X-Token", "AUTH_USER_GROUP": "people", "AUTH_SERVICE_GROUP": "machines", "AUTH_TRUSTED_PROXIES": "10.0.0.0/8", "AUTH_ISSUER": "https://idp",
 				"AUTH_AUDIENCE": "mb", "AUTH_JWKS_URL": "https://idp/keys", "AUTH_GROUPS_CLAIM": "roles", "AUTH_CLIENT_HEADER": "X-Real-IP",
+				"AUTH_HS256_SECRET": "shared",
 			},
 			want: Config{
 				DatabaseURL: "postgres://x", HTTPAddr: ":9000", Debug: true, DebugUser: "dev@example.test", DebugAllowRemote: true, Playground: true, LogFormat: "json", LogLevel: slog.LevelDebug,
 				AuthHeader: "X-Token", AuthUserGroup: "people", AuthServiceGroup: "machines", AuthTrustedProxies: "10.0.0.0/8", AuthIssuer: "https://idp",
 				AuthAudience: "mb", AuthJWKSURL: "https://idp/keys", AuthGroupsClaim: "roles", AuthClientHeader: "X-Real-IP",
+				AuthHS256Secret: "shared",
 			},
 		},
 		{name: "bad auto migrate", env: map[string]string{"DATABASE_URL": "x", "AUTO_MIGRATE": "nope"}, anyErr: true},
@@ -79,6 +82,22 @@ func TestValidate(t *testing.T) {
 	}
 	if err := (Config{Debug: true, HTTPAddr: "127.0.0.1:8080"}).Validate(); err != nil {
 		t.Fatalf("debug without auth: %v", err)
+	}
+	// An issuer that signs with a shared secret publishes no keys, so the secret stands in for
+	// the key URL.
+	secret := full
+	secret.AuthJWKSURL, secret.AuthHS256Secret = "", strings.Repeat("s", MinHS256Secret)
+	if err := secret.Validate(); err != nil {
+		t.Fatalf("a secret instead of a key URL: %v", err)
+	}
+	secret.AuthHS256Secret = strings.Repeat("s", MinHS256Secret-1)
+	if err := secret.Validate(); !errors.Is(err, ErrAuthSecretShort) {
+		t.Fatalf("a short secret: err = %v", err)
+	}
+	neither := full
+	neither.AuthJWKSURL = ""
+	if err := neither.Validate(); !errors.Is(err, ErrAuthNotConfigured) {
+		t.Fatalf("neither a key URL nor a secret: err = %v", err)
 	}
 	partial := full
 	partial.AuthTrustedProxies = ""

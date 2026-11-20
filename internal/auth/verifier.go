@@ -3,12 +3,14 @@ package auth
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -39,18 +41,24 @@ const (
 	jwksHTTPTimeout = 10 * time.Second
 )
 
-// Only asymmetric algorithms: a shared secret would let anyone holding it mint tokens.
+// The algorithms accepted with published keys: asymmetric ones only.
 var algorithms = []jose.SignatureAlgorithm{
 	jose.RS256, jose.RS384, jose.RS512, jose.PS256, jose.PS384, jose.PS512,
 	jose.ES256, jose.ES384, jose.ES512, jose.EdDSA,
 }
 
-// JWKSVerifier checks tokens against the keys published at a JWKS URL.
+// JWKSVerifier checks tokens against the keys published at a JWKS URL, against a shared secret,
+// or both.
 type JWKSVerifier struct {
 	Issuer      string
 	Audience    string
 	JWKSURL     string
 	GroupsClaim string
+	// Secret, when set, also accepts tokens signed with it (HS256). authentik's forward auth
+	// signs that way, with the provider's client secret, and publishes no keys. Whoever holds
+	// the secret can sign in as anyone, so it is opt-in and every other algorithm still needs
+	// a published key.
+	Secret []byte
 	// UserGroup is the group whose members are let in as people; ServiceGroup the one whose
 	// members are service accounts. An empty name matches nobody.
 	UserGroup    string
@@ -67,13 +75,18 @@ type JWKSVerifier struct {
 }
 
 func (v *JWKSVerifier) Verify(ctx context.Context, raw string) (access.Identity, error) {
-	tok, err := jwt.ParseSigned(raw, algorithms)
+	accepted := v.accepted()
+	tok, err := jwt.ParseSigned(raw, accepted)
 	if err != nil || len(tok.Headers) == 0 {
-		return access.Identity{}, fmt.Errorf("%w: malformed", ErrInvalidToken)
+		return access.Identity{}, fmt.Errorf("%w: %s", ErrInvalidToken, whyUnparsed(raw, accepted))
 	}
-	key, err := v.key(ctx, tok.Headers[0].KeyID)
-	if err != nil {
-		return access.Identity{}, err
+	// The key follows the algorithm, never the other way round: a token that names HS256 is
+	// checked against the secret only, so a published public key cannot be used as one.
+	var key any = v.Secret
+	if tok.Headers[0].Algorithm != string(jose.HS256) {
+		if key, err = v.key(ctx, tok.Headers[0].KeyID); err != nil {
+			return access.Identity{}, err
+		}
 	}
 	var std jwt.Claims
 	extra := map[string]any{}
@@ -111,6 +124,40 @@ func (v *JWKSVerifier) Verify(ctx context.Context, raw string) (access.Identity,
 		return access.Identity{}, ErrNotAllowed
 	}
 	return id, nil
+}
+
+// accepted lists the algorithms this verifier has a key source for.
+func (v *JWKSVerifier) accepted() []jose.SignatureAlgorithm {
+	var out []jose.SignatureAlgorithm
+	if v.JWKSURL != "" {
+		out = append(out, algorithms...)
+	}
+	if len(v.Secret) > 0 {
+		out = append(out, jose.HS256)
+	}
+	return out
+}
+
+// whyUnparsed tells a token signed with an algorithm that is not accepted (an identity
+// provider without a signing key signs with a shared secret, HS256) from a value that is no
+// token at all, such as the wrong header. The log is where a deployment finds out which.
+func whyUnparsed(raw string, accepted []jose.SignatureAlgorithm) string {
+	parts := strings.Split(raw, ".")
+	if len(parts) != 3 {
+		return fmt.Sprintf("malformed: not a signed JWT (%d parts instead of 3)", len(parts))
+	}
+	var header struct {
+		Alg string `json:"alg"`
+	}
+	b, err := base64.RawURLEncoding.DecodeString(parts[0])
+	if err != nil || json.Unmarshal(b, &header) != nil || header.Alg == "" {
+		return "malformed: the header is not that of a JWT"
+	}
+	if !slices.Contains(accepted, jose.SignatureAlgorithm(header.Alg)) {
+		// The name comes from the caller, so it is quoted and cut.
+		return fmt.Sprintf("signed with %.20q, which is not accepted (HS256 needs AUTH_HS256_SECRET, the others AUTH_JWKS_URL)", header.Alg)
+	}
+	return "malformed"
 }
 
 // key returns the signing key with the given id from a key set that is at most jwksMaxAge old.

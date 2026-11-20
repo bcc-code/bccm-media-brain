@@ -10,6 +10,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-jose/go-jose/v4"
+	"github.com/go-jose/go-jose/v4/jwt"
+
 	"github.com/bcc-media/mediabrain/internal/access"
 	"github.com/bcc-media/mediabrain/internal/auth/authtest"
 	"github.com/bcc-media/mediabrain/internal/domain"
@@ -368,5 +371,72 @@ func TestMiddlewareRecordsTheClient(t *testing.T) {
 		if origin.Client != c.want || origin.User != c.user || origin.RequestID != "r1" {
 			t.Errorf("%s: client %q, user %q; want %q, %q", name, origin.Client, origin.User, c.want, c.user)
 		}
+	}
+}
+
+// A deployment reads the refusal in the log, so it must tell the wrong header from a provider
+// that signs with a shared secret.
+func TestWhyUnparsed(t *testing.T) {
+	enc := func(s string) string { return base64.RawURLEncoding.EncodeToString([]byte(s)) }
+	for token, want := range map[string]string{
+		"session-cookie-value":                                    "1 parts instead of 3",
+		"!!!.e30.sig":                                             "the header is not that of a JWT",
+		enc(`{"typ":"JWT"}`) + ".e30.sig":                         "the header is not that of a JWT",
+		enc(`{"alg":"HS256"}`) + ".e30.sig":                       `signed with "HS256", which is not accepted`,
+		enc(`{"alg":"`+strings.Repeat("x", 99)+`"}`) + ".e30.sig": `signed with "` + strings.Repeat("x", 20) + `", which`,
+		enc(`{"alg":"RS256"}`) + ".!!!.sig":                       "malformed",
+	} {
+		_, err := (&JWKSVerifier{JWKSURL: "unused"}).Verify(context.Background(), token)
+		if !errors.Is(err, ErrInvalidToken) || !strings.Contains(err.Error(), want) {
+			t.Errorf("%.30s: err = %v, want %q", token, err, want)
+		}
+	}
+}
+
+// authentik's forward auth signs with the provider's client secret and publishes no keys.
+func TestVerifySharedSecret(t *testing.T) {
+	iss := authtest.NewIssuer()
+	defer iss.Close()
+	ctx := context.Background()
+	secret := []byte(strings.Repeat("s", 32))
+	sign := func(key []byte) string {
+		signer, err := jose.NewSigner(jose.SigningKey{Algorithm: jose.HS256, Key: key}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		token, err := jwt.Signed(signer).Claims(map[string]any{
+			"iss": iss.URL, "aud": authtest.Audience, "sub": "sub-1", "exp": time.Now().Add(time.Hour).Unix(),
+			"groups": []string{authtest.UserGroup},
+		}).Serialize()
+		if err != nil {
+			t.Fatal(err)
+		}
+		return token
+	}
+
+	only := &JWKSVerifier{Issuer: iss.URL, Audience: authtest.Audience, GroupsClaim: "groups", UserGroup: authtest.UserGroup, Secret: secret}
+	if id, err := only.Verify(ctx, sign(secret)); err != nil || id.Subject != "sub-1" {
+		t.Fatalf("token signed with the secret = %+v, %v", id, err)
+	}
+	if _, err := only.Verify(ctx, sign([]byte(strings.Repeat("x", 32)))); !errors.Is(err, ErrInvalidToken) || !strings.Contains(err.Error(), "bad signature") {
+		t.Fatalf("another secret: err = %v", err)
+	}
+	// Without a key URL there is nothing to check an asymmetric signature against.
+	if _, err := only.Verify(ctx, iss.Token("sub-1", nil)); !errors.Is(err, ErrInvalidToken) || !strings.Contains(err.Error(), "not accepted") {
+		t.Fatalf("a published-key token with only a secret: err = %v", err)
+	}
+
+	// The secret is opt-in: a verifier that was given none refuses HS256 whatever it is signed with.
+	if _, err := verifier(iss).Verify(ctx, sign(secret)); !errors.Is(err, ErrInvalidToken) || !strings.Contains(err.Error(), `"HS256"`) {
+		t.Fatalf("HS256 without a secret: err = %v", err)
+	}
+
+	both := verifier(iss)
+	both.Secret = secret
+	if _, err := both.Verify(ctx, sign(secret)); err != nil {
+		t.Fatalf("secret beside keys: %v", err)
+	}
+	if _, err := both.Verify(ctx, iss.Token("sub-2", nil)); err != nil {
+		t.Fatalf("published key beside a secret: %v", err)
 	}
 }

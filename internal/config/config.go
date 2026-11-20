@@ -33,6 +33,7 @@ type Config struct {
 	AuthIssuer         string // AUTH_ISSUER: expected "iss"
 	AuthAudience       string // AUTH_AUDIENCE: expected "aud"
 	AuthJWKSURL        string // AUTH_JWKS_URL: where the proxy's signing keys are published
+	AuthHS256Secret    string // AUTH_HS256_SECRET: shared secret of an issuer that signs with HS256 and publishes no keys
 	AuthGroupsClaim    string // AUTH_GROUPS_CLAIM (default "groups"): claim listing SSO groups
 	AuthUserGroup      string // AUTH_USER_GROUP: group whose members are let in as people
 	AuthServiceGroup   string // AUTH_SERVICE_GROUP: group whose members are service accounts (optional: without it none can sign in)
@@ -47,7 +48,14 @@ type Config struct {
 var ErrVidispineIncomplete = errors.New("config: VIDISPINE_URL needs VIDISPINE_USERNAME and VIDISPINE_PASSWORD")
 
 // ErrAuthNotConfigured is returned when the AUTH_* settings are missing outside debug mode.
-var ErrAuthNotConfigured = errors.New("config: AUTH_ISSUER, AUTH_AUDIENCE, AUTH_JWKS_URL, AUTH_TRUSTED_PROXIES and AUTH_USER_GROUP are required unless DEBUG=true")
+var ErrAuthNotConfigured = errors.New("config: AUTH_ISSUER, AUTH_AUDIENCE, AUTH_TRUSTED_PROXIES, AUTH_USER_GROUP and one of AUTH_JWKS_URL and AUTH_HS256_SECRET are required unless DEBUG=true")
+
+// MinHS256Secret is the length of the HS256 key itself: a shorter secret can be guessed from
+// one token.
+const MinHS256Secret = 32
+
+// ErrAuthSecretShort is returned for an AUTH_HS256_SECRET that is too short to sign with.
+var ErrAuthSecretShort = errors.New("config: AUTH_HS256_SECRET must be at least 32 characters")
 
 // ErrAuthGroupsEqual is returned when one group is named for both people and service accounts.
 // The service group wins, so everyone would need an account made in advance.
@@ -55,7 +63,7 @@ var ErrAuthGroupsEqual = errors.New("config: AUTH_USER_GROUP and AUTH_SERVICE_GR
 
 // AuthConfigured reports whether tokens can be verified.
 func (c Config) AuthConfigured() bool {
-	return c.AuthIssuer != "" && c.AuthAudience != "" && c.AuthJWKSURL != "" && c.AuthTrustedProxies != "" && c.AuthUserGroup != ""
+	return c.AuthIssuer != "" && c.AuthAudience != "" && (c.AuthJWKSURL != "" || c.AuthHS256Secret != "") && c.AuthTrustedProxies != "" && c.AuthUserGroup != ""
 }
 
 // ErrDebugNotLocal is returned when debug mode would be reachable from other machines.
@@ -69,6 +77,9 @@ func (c Config) Validate() error {
 	}
 	if c.AuthUserGroup != "" && c.AuthUserGroup == c.AuthServiceGroup {
 		return ErrAuthGroupsEqual
+	}
+	if c.AuthHS256Secret != "" && len(c.AuthHS256Secret) < MinHS256Secret {
+		return ErrAuthSecretShort
 	}
 	if c.Debug && !c.DebugAllowRemote && !LoopbackHost(c.HTTPAddr) {
 		return ErrDebugNotLocal
@@ -147,7 +158,7 @@ func LoadFrom(lookup func(string) (string, bool)) (Config, error) {
 		"DEBUG_USER":  &cfg.DebugUser,
 		"AUTH_HEADER": &cfg.AuthHeader, "AUTH_CLIENT_HEADER": &cfg.AuthClientHeader, "AUTH_TRUSTED_PROXIES": &cfg.AuthTrustedProxies,
 		"AUTH_ISSUER": &cfg.AuthIssuer, "AUTH_AUDIENCE": &cfg.AuthAudience,
-		"AUTH_JWKS_URL": &cfg.AuthJWKSURL, "AUTH_GROUPS_CLAIM": &cfg.AuthGroupsClaim,
+		"AUTH_JWKS_URL": &cfg.AuthJWKSURL, "AUTH_HS256_SECRET": &cfg.AuthHS256Secret, "AUTH_GROUPS_CLAIM": &cfg.AuthGroupsClaim,
 		"AUTH_USER_GROUP": &cfg.AuthUserGroup, "AUTH_SERVICE_GROUP": &cfg.AuthServiceGroup,
 		"VIDISPINE_URL": &cfg.VidispineURL, "VIDISPINE_USERNAME": &cfg.VidispineUsername, "VIDISPINE_PASSWORD": &cfg.VidispinePassword,
 	} {

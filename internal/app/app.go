@@ -88,7 +88,7 @@ func New(ctx context.Context, cfg config.Config) (*App, error) {
 	if cfg.AuthConfigured() {
 		opts.Auth.Verifier = &auth.JWKSVerifier{
 			Issuer: cfg.AuthIssuer, Audience: cfg.AuthAudience, JWKSURL: cfg.AuthJWKSURL, GroupsClaim: cfg.AuthGroupsClaim,
-			UserGroup: cfg.AuthUserGroup, ServiceGroup: cfg.AuthServiceGroup,
+			UserGroup: cfg.AuthUserGroup, ServiceGroup: cfg.AuthServiceGroup, Secret: []byte(cfg.AuthHS256Secret),
 		}
 	}
 	if cfg.Debug {

@@ -7,8 +7,10 @@ every request. MediaBrain:
 
 1. accepts `/query` requests only from **trusted proxy addresses** (`AUTH_TRUSTED_PROXIES`),
 2. reads the JWT from `AUTH_HEADER` (default `X-authentik-jwt`, `Bearer ` optional),
-3. **verifies it itself** against the keys at `AUTH_JWKS_URL`: signature (asymmetric algorithms
-   only), issuer, audience, expiry. A reachable port and a forged header are not enough,
+3. **verifies it itself**: signature, issuer, audience, expiry. A reachable port and a forged
+   header are not enough. The signature is checked against the keys at `AUTH_JWKS_URL`
+   (asymmetric algorithms only), or against `AUTH_HS256_SECRET` for an issuer that signs with a
+   shared secret and publishes no keys, which is what authentik's forward auth does,
 4. decides from the token's groups (`AUTH_GROUPS_CLAIM`) whether its holder is let in, and as
    what:
 
@@ -22,8 +24,8 @@ every request. MediaBrain:
    from the token are marked `sso`; leaving a group at the identity provider removes the
    membership at the next sign-in. The two groups above are synced like any other.
 
-The server **refuses to start** without `AUTH_ISSUER`, `AUTH_AUDIENCE`, `AUTH_JWKS_URL`,
-`AUTH_TRUSTED_PROXIES` and `AUTH_USER_GROUP`, unless `DEBUG=true`. `AUTH_SERVICE_GROUP` is
+The server **refuses to start** without `AUTH_ISSUER`, `AUTH_AUDIENCE`, `AUTH_TRUSTED_PROXIES`,
+`AUTH_USER_GROUP` and one of `AUTH_JWKS_URL` and `AUTH_HS256_SECRET`, unless `DEBUG=true`. `AUTH_SERVICE_GROUP` is
 optional: without it no machine client can sign in.
 
 ### The proxy: Traefik with authentik
@@ -34,7 +36,7 @@ at `https://auth.bcc.media`. The defaults match what it sends, so a deployment s
 | Setting | Value |
 |---|---|
 | `AUTH_ISSUER` | `https://auth.bcc.media/application/o/<app-slug>/` (compared exactly, with the trailing slash) |
-| `AUTH_JWKS_URL` | `https://auth.bcc.media/application/o/<app-slug>/jwks/` |
+| `AUTH_HS256_SECRET` | the client secret of the authentik proxy provider |
 | `AUTH_AUDIENCE` | the client ID of the authentik proxy provider |
 | `AUTH_TRUSTED_PROXIES` | the address or network of Traefik |
 | `AUTH_USER_GROUP` | the authentik group of the people who may use MediaBrain |
@@ -59,6 +61,16 @@ at `https://auth.bcc.media`. The defaults match what it sends, so a deployment s
   here too (same issuer and audience) until they expire. An app that is compromised could send
   one to MediaBrain over any route that reaches it. A proxy provider of MediaBrain's own gives
   its tokens an audience no other app sees.
+- **A proxy provider has no signing key.** authentik signs its token with the provider's client
+  secret (HS256), and the key URL (`.../<app-slug>/jwks/`) answers `{}`. So forward auth needs
+  `AUTH_HS256_SECRET`, at least 32 characters, and no `AUTH_JWKS_URL`. The secret signs as well
+  as verifies: whoever reads it from MediaBrain's environment can sign in as anyone, an
+  administrator included. Keep it where the database password is kept. HS256 is accepted only
+  when the secret is set, and a token that names HS256 is checked against the secret and
+  nothing else. An OAuth2/OpenID provider with a signing key needs `AUTH_JWKS_URL` instead;
+  both may be set, and then both kinds of token are accepted.
+- The log line `auth: request refused` names an algorithm that is not accepted, or says that
+  the value is no JWT at all (the wrong `AUTH_HEADER`).
 - Sign-out is authentik's: `https://auth.bcc.media/outpost.goauthentik.io/sign_out`.
 
 Details worth knowing:
@@ -275,7 +287,8 @@ to every caller. Dev-data scenarios and the CLI run as an explicit system princi
 
 `e2e/access_test.go` runs every operation as users with no grant, each level, group and inherited
 grants, and expired or revoked grants. `e2e/auth_test.go` and `internal/auth` cover tokens
-(missing, malformed, expired, wrong issuer or audience, foreign key, tampered, `alg: none`),
+(missing, malformed, expired, wrong issuer or audience, foreign key, tampered, `alg: none`,
+HS256 with and without the shared secret),
 the two groups, untrusted proxies, inactive users and the debug bypass. `e2e/service_test.go`
 covers service accounts: the first sign-in and what follows it, every way a machine client is
 refused and that a refusal writes nothing, grants applying to them, and that an administrator
