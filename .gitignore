@@ -8,9 +8,14 @@
 .idea/
 .vscode/
 
-# web (Vue, later)
+# web (Nuxt)
 /web/node_modules/
-/web/dist/
+/web/.nuxt/
+/web/.output/
+/web/.data/
+/web/dist
+/web/coverage/
+/internal/webui/dist/
 /tmp/
 
 # local media for trying things out

@@ -9,4 +9,8 @@ docs
 yaak
 web/node_modules
 web/dist
+web/.nuxt
+web/.output
+web/coverage
+internal/webui/dist
 deploy

@@ -1,0 +1,46 @@
+@import "tailwindcss";
+@import "@fontsource-variable/geist";
+@import "@fontsource-variable/geist-mono";
+
+/* The BCC Media Tools look: dark, neutral, borders instead of shadows. Colour appears only as
+   status. Values are that design system's tokens. */
+@theme {
+  --font-sans: "Geist Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono Variable", ui-monospace, Menlo, Consolas, monospace;
+
+  --color-background: #0a0a0a;
+  --color-foreground: #fafafa;
+  --color-card: #171717;
+  --color-raised: #1f1f1f;
+  --color-muted-foreground: #a1a1a1;
+  --color-border: #262626;
+  --color-border-strong: #404040;
+  --color-ring: #a3a3a3;
+  --color-primary: #fafafa;
+  --color-primary-foreground: #171717;
+  --color-accent: #262626;
+  --color-destructive: #f87171;
+  --color-success: #4ade80;
+  --color-warning: #fbbf24;
+
+  --radius-control: 0.5rem;
+  --radius-card: 0.875rem;
+}
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+  }
+  body {
+    background: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    font-size: 0.875rem;
+    line-height: 1.5;
+  }
+}
+
+@utility focus-ring {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--color-background), 0 0 0 4px var(--color-ring);
+}

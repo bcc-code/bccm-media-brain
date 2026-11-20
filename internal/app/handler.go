@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"errors"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"github.com/bcc-media/mediabrain/internal/auth"
 	"github.com/bcc-media/mediabrain/internal/config"
 	"github.com/bcc-media/mediabrain/internal/graph"
+	"github.com/bcc-media/mediabrain/internal/webui"
 )
 
 // maxBody leaves room for a 5 MB subtitle file as a JSON string.
@@ -39,6 +41,9 @@ type HandlerOptions struct {
 	Playground bool         // serve the GraphQL playground at / and allow introspection
 	Auth       auth.Options // how /query callers are authenticated
 	Debug      http.Handler // if non-nil, mounted at /debug/ (dev only)
+	// WebUI is the web UI's static build, served at /admin/ if non-nil. The files need no
+	// sign-in: they hold no data, and everything the page shows comes from /query.
+	WebUI fs.FS
 	// LocalOnly refuses requests whose Host is not localhost or a loopback IP. Debug mode on a
 	// loopback listener sets it: without it, a site whose name is re-pointed at 127.0.0.1 (DNS
 	// rebinding) would be same-origin with the server and could use the token-less sign-in.
@@ -53,6 +58,7 @@ type HandlerOptions struct {
 //	POST /query    GraphQL endpoint (authenticated)
 //	GET  /         GraphQL playground (if enabled)
 //	     /debug/   debug UI + dev-data API (if enabled)
+//	GET  /admin/   web UI (if the binary carries it)
 func NewHandler(r *graph.Resolver, db Pinger, opts HandlerOptions) http.Handler {
 	mux := http.NewServeMux()
 
@@ -80,6 +86,9 @@ func NewHandler(r *graph.Resolver, db Pinger, opts HandlerOptions) http.Handler 
 	}
 	if opts.Debug != nil {
 		mux.Handle("/debug/", http.StripPrefix("/debug", opts.Debug))
+	}
+	if opts.WebUI != nil {
+		mux.Handle("GET /admin/", http.StripPrefix("/admin", webui.Handler(opts.WebUI)))
 	}
 	return logRequests(slog.Default(), http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		w.Header().Set("X-Content-Type-Options", "nosniff")

@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"testing/fstest"
 	"time"
 
 	"github.com/bcc-media/mediabrain/internal/access"
@@ -142,6 +143,26 @@ func TestDebugMount(t *testing.T) {
 	off := NewHandler(&graph.Resolver{}, okPing, HandlerOptions{})
 	if rec := do(t, off, http.MethodGet, "/debug/", ""); rec.Code != http.StatusNotFound {
 		t.Fatalf("debug off = %d", rec.Code)
+	}
+}
+
+func TestWebUIMount(t *testing.T) {
+	build := fstest.MapFS{"index.html": {Data: []byte("<html>app</html>")}}
+	on := NewHandler(&graph.Resolver{}, okPing, HandlerOptions{WebUI: build})
+	for _, path := range []string{"/admin/", "/admin/service-accounts"} {
+		if rec := do(t, on, http.MethodGet, path, ""); rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "app") {
+			t.Fatalf("%s = %d %q", path, rec.Code, rec.Body)
+		}
+	}
+	if rec := do(t, on, http.MethodGet, "/admin", ""); rec.Code != http.StatusTemporaryRedirect || rec.Header().Get("Location") != "/admin/" {
+		t.Fatalf("/admin = %d to %q, want a redirect to /admin/", rec.Code, rec.Header().Get("Location"))
+	}
+	if rec := do(t, on, http.MethodPost, "/admin/", ""); rec.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("POST /admin/ = %d", rec.Code)
+	}
+	off := NewHandler(&graph.Resolver{}, okPing, HandlerOptions{})
+	if rec := do(t, off, http.MethodGet, "/admin/", ""); rec.Code != http.StatusNotFound {
+		t.Fatalf("without a web UI = %d", rec.Code)
 	}
 }
 

@@ -6,7 +6,7 @@ MIGRATIONS := internal/db/migrations
 MB         := go run ./cmd/mediabrain
 
 .PHONY: help dev db-up db-down db-reset migrate-up migrate-down migrate-status migrate-new \
-        seed seed-list reset-data admin-grant admin-revoke service-create service-list vidispine-import vidispine-refresh generate fmt run build docker-build prod-config vet test test-e2e cover check hooks clean
+        seed seed-list reset-data admin-grant admin-revoke service-create service-list vidispine-import vidispine-refresh generate fmt run build docker-build prod-config vet test test-e2e cover check web-install web-dev web-check web-build hooks clean
 
 help: ## Show targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  %-16s %s\n",$$1,$$2}'
@@ -76,8 +76,8 @@ generate: ## Regenerate sqlc + gqlgen code
 	go tool sqlc generate
 	go tool gqlgen generate
 
-build: ## Build the server binary into bin/
-	go build -o bin/mediabrain ./cmd/mediabrain
+build: web-build ## Build the server binary, web UI included, into bin/ (needs Node and pnpm)
+	go build -tags webui -o bin/mediabrain ./cmd/mediabrain
 
 run: ## Run the server once, without live reload
 	$(MB) serve
@@ -103,8 +103,22 @@ cover: ## Unit + e2e with coverage gate (>= 90%)
 
 check: vet cover ## Everything required before committing
 
+web-install: ## Install the web UI's dependencies (pnpm)
+	cd web && pnpm install
+
+web-dev: ## Web UI dev server on :3000/admin/, forwarding /query to the API of `make dev`
+	cd web && pnpm dev
+
+web-check: ## Web UI: type-check, unit tests with the >= 90% coverage gate, build
+	cd web && pnpm typecheck && pnpm test && pnpm build
+
+web-build: ## Build the web UI and copy it to where a `-tags webui` build embeds it
+	cd web && pnpm build
+	rm -rf internal/webui/dist
+	cp -R web/.output/public internal/webui/dist
+
 hooks: ## Install the git pre-commit hook (runs make check)
 	git config core.hooksPath scripts/githooks
 
 clean:
-	rm -rf bin coverage tmp
+	rm -rf bin coverage tmp internal/webui/dist

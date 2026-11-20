@@ -24,6 +24,7 @@ import (
 	"github.com/bcc-media/mediabrain/internal/project"
 	"github.com/bcc-media/mediabrain/internal/subtitle"
 	"github.com/bcc-media/mediabrain/internal/vidispineimport"
+	"github.com/bcc-media/mediabrain/internal/webui"
 )
 
 const (
@@ -100,6 +101,7 @@ func New(ctx context.Context, cfg config.Config) (*App, error) {
 		store.Vidispine = vidispineSrc
 		opts.Debug = devdata.Handler(store)
 	}
+	opts.WebUI = webui.Files()
 	srv := &http.Server{
 		Handler:           NewHandler(resolver, pool, opts),
 		ReadHeaderTimeout: 10 * time.Second,

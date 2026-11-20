@@ -2,6 +2,27 @@
 
 Newest first. Each entry: what changed, why, and what was left out on purpose.
 
+## 2026-11-20 — A web UI starts: the service accounts page
+
+- `web/` is now a Nuxt app (static, no server rendering) with Tailwind and Ark UI. Its first
+  page lists service accounts with their sign-in state and role, switches one off or on, and
+  creates one (optionally from a user that signed in as a person). It uses the existing
+  `serviceAccounts`, `createServiceAccount` and `setServiceAccountActive`; the API is unchanged.
+- Why this page first: it is the part of permission management that is complete in the API.
+  Grants and users need more from it (names on grants, inherited grants, a user search).
+- The look is the BCC Media Tools design system's tokens, written as Tailwind theme values.
+- Tests: Vitest with a 90% coverage gate over the API client, the composable, the form and the
+  page (`make web-check`).
+- The build is embedded in the binary and served at `/admin/` (`internal/webui`), so the page and
+  `/query` share an origin behind the same proxy and there is one thing to deploy. The embed is
+  behind the `webui` build tag: `make build` and the image use it, while `go build`, `make dev`
+  and `make check` need no Node and have no `/admin/`. `/admin` rather than `/` because the
+  playground is at `/`, and other pages will follow.
+- Left out: the other admin pages, a light theme, browser tests, and `make check` running the
+  web checks. "Waiting for first sign-in" is
+  worked out in the page from `externalId` (`service|...`), the same rule as `access.Pending`;
+  a field on `User` would be the better source.
+
 ## 2026-11-20 — Subtitle imports record their origin and model
 
 - bcc-media-flows imports Whisper transcripts, and they arrived as `IMPORT` with no trace of the

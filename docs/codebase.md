@@ -168,10 +168,42 @@ maps domain errors to HTTP statuses. Every non-GET route is behind `guard` (same
 `GET /api/token` (`tokenOf`, `debugToken` in e2e). A debug action that changes anything must be a
 POST, never a GET.
 
+## Web UI
+
+`web/` is a Nuxt app without server rendering: the build is static files, sign-in stays the
+proxy's, and all data comes from `/query` on the same origin. In development the Nuxt server
+forwards `/query` to the API (`nitro.devProxy` in `nuxt.config.ts`), and `DEBUG_USER` makes those
+requests an administrator's.
+
+- `app/utils/graphql.ts`: the one way to call the API. It throws `ApiError` with the error's
+  `code`, `field` and `reason`, so a form shows a refusal beside the field it is about.
+- `app/composables/use<Thing>.ts`: the queries and mutations of one area, with their state.
+  A page only renders it.
+- Components are Ark UI parts styled with Tailwind; the colours and radii are `@theme` tokens in
+  `app/assets/css/main.css` (the BCC Media Tools look).
+- Code under test imports what it uses (`vue`, composables, components) instead of relying on
+  Nuxt's auto-imports, so tests run in plain Vitest without starting Nuxt. `app.vue` and
+  `pages/index.vue` are Nuxt wiring only and outside the coverage gate.
+- `make web-check` is separate from `make check`, which does not need Node.
+
+The Go server serves the build at `/admin/` (`app.baseURL` in `nuxt.config.ts`), from inside the
+binary:
+
+- `internal/webui` embeds `internal/webui/dist`, a copy of `web/.output/public` that
+  `make web-build` and the `Dockerfile` put there (it is not committed). The embed is behind the
+  `webui` build tag, so `go build`, `make dev` and `make check` work without Node and then have
+  no `/admin/`. `make build` and the image build with the tag.
+- `webui.Handler` answers `index.html` for any path that is not a file, because the routes are
+  the browser's. A missing file under `_nuxt/` is a 404 instead. Files under `_nuxt/` are named
+  after their content and cached for good, except `_nuxt/builds/`; everything else is `no-cache`.
+- The files need no sign-in in the Go server: they hold no data, and the page gets everything
+  from `/query`. In a deployment the proxy asks for sign-in before either.
+- In development use `make web-dev` (`http://localhost:3000/admin/`), not the embedded build.
+
 ## Deployment
 
-`Dockerfile` builds the one binary (migrations and the debug UI are embedded, so nothing else is
-copied). `deploy/docker-compose.yml` is only the dev Postgres; `deploy/docker-compose.prod.yml`
+`Dockerfile` builds the web UI in a Node stage and then the one binary (migrations, the debug UI
+and the web UI are embedded, so nothing else is copied). `deploy/docker-compose.yml` is only the dev Postgres; `deploy/docker-compose.prod.yml`
 is the deployment. A new setting that production needs goes in its `environment` block and in
 `deploy/.env.prod.example`. Compose substitutes from the shell's environment, so its variables
 must not share a name with a dev setting that means something else (`MEDIABRAIN_DATABASE_URL`).

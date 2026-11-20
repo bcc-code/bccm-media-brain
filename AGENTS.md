@@ -15,7 +15,9 @@ Guidance for AI coding agents (and humans) working in this repository.
 - **Logging:** `log/slog` only. `LOG_FORMAT=json` for structured output, `LOG_LEVEL` for verbosity.
 - **Config:** environment variables, with `.env` loaded by the binary itself
   (`godotenv`; real env vars win; override path with `MEDIABRAIN_ENV_FILE`).
-- **Web UI:** Vue, planned. `web/` is a placeholder.
+- **Web UI:** Nuxt (static, no server rendering), Tailwind and Ark UI in `web/`. It talks only to
+  `/query`. `make build` and the image embed its build in the binary (`internal/webui`, build tag
+  `webui`), served at `/admin/`. So far: the service accounts page.
 
 **[`docs/`](docs/README.md) records what has been built and why**: architecture, data model, API,
 security, and a dated log. Read it before changing behaviour, and update it in the same change.
@@ -44,6 +46,7 @@ internal/graph/         gqlgen resolvers (hand-written), dataloaders, error pres
   schema/*.graphqls     GraphQL schema (source of truth)
   loader/, scalar/      generic batching loader; Date and JSON scalars
   generated/, model/models_gen.go   GENERATED, do not edit
+internal/webui/         serves the web UI's build at /admin/; embeds it under the `webui` build tag
 internal/fake/          gofakeit-based, seedable fake input builders (tests + dev data)
 internal/devdata/       dev-data SCENARIOS, debug UI (ui/index.html) and its JSON API
 pkg/vidispine/          Vidispine REST client other Go projects may import; vidispinetest/: fake server
@@ -53,11 +56,12 @@ yaak/                   Yaak API-client workspace with requests for the standard
 deploy/                 docker-compose for local Postgres; docker-compose.prod.yml for a deployment
 Dockerfile              image of the binary
 scripts/                dev bootstrap, codegen-on-change, coverage gate, git hooks
-web/                    future Vue app
+web/                    web UI: Nuxt, Tailwind, Ark UI (see web/README.md)
 ```
 
 HTTP routes: `POST /query` (GraphQL, authenticated), `GET /` (playground, only when
-`GRAPHQL_PLAYGROUND=true`), `GET /healthz`, `/debug/` (dev-data UI + API, only when `DEBUG=true`).
+`GRAPHQL_PLAYGROUND=true`), `GET /healthz`, `/debug/` (dev-data UI + API, only when `DEBUG=true`),
+`GET /admin/` (web UI, only in a binary built with `-tags webui`).
 
 ## Development
 
@@ -94,6 +98,8 @@ Live reload caveats:
 | Migration status / up / down | `make migrate-status` / `migrate-up` / `migrate-down` |
 | Regenerate code | `make generate` |
 | Image / check the production compose file | `make docker-build` / `make prod-config` (needs `deploy/.env.prod`) |
+| Web UI: install / dev server / check | `make web-install` / `make web-dev` (`:3000/admin/`, needs `make dev`) / `make web-check` (types, tests with ≥ 90% coverage, build) |
+| Binary with the web UI embedded | `make build` (needs Node and pnpm; `make web-build` only copies the build to `internal/webui/dist`) |
 | Unit tests | `make test` (no docker) |
 | E2E tests | `make test-e2e` (needs docker) |
 | **Pre-commit check** | **`make check`** (go vet + unit + e2e + ≥ 90% coverage gate) |

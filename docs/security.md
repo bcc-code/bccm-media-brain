@@ -231,6 +231,8 @@ to every caller. Dev-data scenarios and the CLI run as an explicit system princi
 ## Hardening
 
 - Schema introspection and the playground are off unless `GRAPHQL_PLAYGROUND=true`.
+- The web UI at `/admin/` is static files the server gives to anyone who reaches it: they hold
+  no data and no secret, and the page gets everything from `/query`, which signs the caller in.
 - **Query cost.** One operation may cost at most 1 000 000, where a list counts its selection
   once per item it may return (`internal/graph/complexity.go`; the sums the limit was chosen
   from are in `complexity_test.go`). The number is roughly how many values the answer could
