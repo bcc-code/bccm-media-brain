@@ -2,6 +2,20 @@
 
 Newest first. Each entry: what changed, why, and what was left out on purpose.
 
+## 2026-11-20 — Subtitle imports record their origin and model
+
+- bcc-media-flows imports Whisper transcripts, and they arrived as `IMPORT` with no trace of the
+  model. `ImportSubtitlesInput` now takes `origin` (`IMPORT`, the default, or `ASR`) and `model`
+  (e.g. `nb-whisper-large`, at most 200 characters, blank means none), and `SubtitleTrack` has
+  `model`. Migration `00017` adds the nullable `subtitle_track.model` column.
+- `MANUAL` is refused on import with an invalid `origin`: only `editSubtitles` writes manual
+  revisions, so the origin keeps telling a person's edit from a machine's text. Each revision
+  keeps its own model, and an edit has none.
+- Dev data: `subtitle-revisions` starts from an ASR transcript, and `edge-cases` has an ASR
+  track whose model name is as long as allowed.
+- Left out: a list of known models (the caller names its model freely), and filtering tracks
+  by origin or model.
+
 ## 2026-11-17 — Service accounts sign in with the identity provider's token; two groups decide who gets in
 
 - MediaBrain issued its own tokens (`mbs_...`) for machine clients, a second credential system

@@ -87,6 +87,9 @@ every import and every edit writes a **new revision** that points at its parent,
   stops two editors from silently overwriting each other.
 - Cues store start/end in milliseconds, text and an optional speaker. Import reads SRT and
   WebVTT; export writes both (SRT has no place for the speaker, so it is dropped).
+- `origin` says where a revision came from: `import` or `asr` from `importSubtitles`, `manual`
+  only from `editSubtitles`. `model` (nullable) names the model that produced the text, such as
+  the Whisper model of an ASR transcript; each revision keeps its own, so an edit has none.
 - `asset_id` on tracks and cues is a copy kept for permission filtering and later search.
 
 ## Reference data

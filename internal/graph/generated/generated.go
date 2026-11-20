@@ -337,6 +337,7 @@ type ComplexityRoot struct {
 		ID           func(childComplexity int) int
 		Kind         func(childComplexity int) int
 		Language     func(childComplexity int) int
+		Model        func(childComplexity int) int
 		Origin       func(childComplexity int) int
 		ParentID     func(childComplexity int) int
 		RenditionID  func(childComplexity int) int
@@ -2050,6 +2051,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.SubtitleTrack.Language(childComplexity), true
+	case "SubtitleTrack.model":
+		if e.ComplexityRoot.SubtitleTrack.Model == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SubtitleTrack.Model(childComplexity), true
 	case "SubtitleTrack.origin":
 		if e.ComplexityRoot.SubtitleTrack.Origin == nil {
 			break
@@ -2917,6 +2924,8 @@ type SubtitleTrack {
   language: String
   kind: TrackKind!
   origin: TrackOrigin!
+  "The model that produced the text, such as the speech recognition model of an ASR import. Edits have none."
+  model: String
   revision: Int!
   "The revision this one replaced."
   parentId: ID
@@ -2946,6 +2955,10 @@ input ImportSubtitlesInput {
   content: String!
   "The registered file the text came from, if any. It is attached to the subtitle rendition, so the caller needs DOWNLOAD_ORIGINAL on it."
   sourceFileId: ID
+  "IMPORT (the default) or ASR. MANUAL revisions come only from editSubtitles."
+  origin: TrackOrigin
+  "The model that produced the text, e.g. \"nb-whisper-large\". At most 200 characters."
+  model: String
 }
 
 input SubtitleCueInput {
@@ -3431,6 +3444,8 @@ func (ec *executionContext) childFields_SubtitleTrack(ctx context.Context, field
 		return ec.fieldContext_SubtitleTrack_kind(ctx, field)
 	case "origin":
 		return ec.fieldContext_SubtitleTrack_origin(ctx, field)
+	case "model":
+		return ec.fieldContext_SubtitleTrack_model(ctx, field)
 	case "revision":
 		return ec.fieldContext_SubtitleTrack_revision(ctx, field)
 	case "parentId":
@@ -11078,6 +11093,29 @@ func (ec *executionContext) fieldContext_SubtitleTrack_origin(_ context.Context,
 	return graphql.NewScalarFieldContext("SubtitleTrack", field, false, false, "TrackOrigin")
 }
 
+func (ec *executionContext) _SubtitleTrack_model(ctx context.Context, field graphql.CollectedField, obj *sqlc.SubtitleTrack) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SubtitleTrack_model(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Model, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_SubtitleTrack_model(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SubtitleTrack", field, false, false, "String")
+}
+
 func (ec *executionContext) _SubtitleTrack_revision(ctx context.Context, field graphql.CollectedField, obj *sqlc.SubtitleTrack) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -13242,7 +13280,7 @@ func (ec *executionContext) unmarshalInputImportSubtitlesInput(ctx context.Conte
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"versionId", "language", "kind", "format", "content", "sourceFileId"}
+	fieldsInOrder := [...]string{"versionId", "language", "kind", "format", "content", "sourceFileId", "origin", "model"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -13291,6 +13329,20 @@ func (ec *executionContext) unmarshalInputImportSubtitlesInput(ctx context.Conte
 				return it, err
 			}
 			it.SourceFileID = data
+		case "origin":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("origin"))
+			data, err := ec.unmarshalOTrackOrigin2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐTrackOrigin(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Origin = data
+		case "model":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("model"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Model = data
 		}
 	}
 	return it, nil
@@ -15752,6 +15804,11 @@ func (ec *executionContext) _SubtitleTrack(ctx context.Context, sel ast.Selectio
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
+		case "model":
+			out.Values[i] = ec._SubtitleTrack_model(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
 		case "revision":
 			out.Values[i] = ec._SubtitleTrack_revision(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -18061,6 +18118,38 @@ var (
 		sqlc.TrackKindSubtitle:   "SUBTITLE",
 		sqlc.TrackKindCc:         "CC",
 		sqlc.TrackKindTranscript: "TRANSCRIPT",
+	}
+)
+
+func (ec *executionContext) unmarshalOTrackOrigin2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐTrackOrigin(ctx context.Context, v any) (*sqlc.TrackOrigin, error) {
+	if v == nil {
+		return nil, nil
+	}
+	tmp, err := graphql.UnmarshalString(v)
+	res := unmarshalOTrackOrigin2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐTrackOrigin[tmp]
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOTrackOrigin2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐTrackOrigin(ctx context.Context, sel ast.SelectionSet, v *sqlc.TrackOrigin) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	_ = sel
+	_ = ctx
+	res := graphql.MarshalString(marshalOTrackOrigin2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐTrackOrigin[*v])
+	return res
+}
+
+var (
+	unmarshalOTrackOrigin2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐTrackOrigin = map[string]sqlc.TrackOrigin{
+		"IMPORT": sqlc.TrackOriginImport,
+		"ASR":    sqlc.TrackOriginAsr,
+		"MANUAL": sqlc.TrackOriginManual,
+	}
+	marshalOTrackOrigin2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐTrackOrigin = map[sqlc.TrackOrigin]string{
+		sqlc.TrackOriginImport: "IMPORT",
+		sqlc.TrackOriginAsr:    "ASR",
+		sqlc.TrackOriginManual: "MANUAL",
 	}
 )
 

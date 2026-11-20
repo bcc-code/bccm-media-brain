@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"strconv"
+	"unicode/utf8"
 
 	"github.com/bcc-media/mediabrain/internal/access"
 	"github.com/bcc-media/mediabrain/internal/db"
@@ -34,6 +35,28 @@ type ImportInput struct {
 	Format       Format
 	Content      string
 	SourceFileID *string
+	Origin       *sqlc.TrackOrigin
+	Model        *string
+}
+
+// MaxModelLength is the longest model name an import accepts, in characters.
+const MaxModelLength = 200
+
+// provenance checks where imported text came from. MANUAL is refused because only Edit writes
+// manual revisions.
+func provenance(in ImportInput) (sqlc.TrackOrigin, *string, error) {
+	origin := sqlc.TrackOriginImport
+	if in.Origin != nil {
+		origin = *in.Origin
+	}
+	if origin != sqlc.TrackOriginImport && origin != sqlc.TrackOriginAsr {
+		return "", nil, domain.InvalidField("origin", "origin must be IMPORT or ASR; edits are MANUAL")
+	}
+	model := domain.Blank(in.Model)
+	if model != nil && utf8.RuneCountInString(*model) > MaxModelLength {
+		return "", nil, domain.InvalidField("model", "model must be at most %d characters", MaxModelLength)
+	}
+	return origin, model, nil
 }
 
 // Import parses subtitle text and stores it as the newest revision for its language on the
@@ -51,6 +74,10 @@ func (s *Service) Import(ctx context.Context, in ImportInput) (sqlc.SubtitleTrac
 		return sqlc.SubtitleTrack{}, domain.InvalidField("kind", "unknown kind")
 	}
 	language := domain.Blank(in.Language)
+	origin, model, err := provenance(in)
+	if err != nil {
+		return sqlc.SubtitleTrack{}, err
+	}
 
 	var track sqlc.SubtitleTrack
 	err = s.tx.InTx(ctx, func(q sqlc.Querier) error {
@@ -83,7 +110,7 @@ func (s *Service) Import(ctx context.Context, in ImportInput) (sqlc.SubtitleTrac
 		}
 		track, err = addRevision(ctx, q, sqlc.CreateSubtitleTrackParams{
 			RenditionID: r.ID, AssetID: v.AssetID, SourceFileID: in.SourceFileID, Language: language,
-			Kind: kind, Origin: sqlc.TrackOriginImport, CreatedBy: p.UserRef(),
+			Kind: kind, Origin: origin, Model: model, CreatedBy: p.UserRef(),
 		}, cues)
 		if err != nil || in.SourceFileID == nil {
 			return err

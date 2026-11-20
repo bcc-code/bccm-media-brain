@@ -140,3 +140,30 @@ func TestLatestOnly(t *testing.T) {
 		t.Fatalf("latest = %+v", got)
 	}
 }
+
+func TestProvenance(t *testing.T) {
+	asr, manual := sqlc.TrackOriginAsr, sqlc.TrackOriginManual
+	if origin, model, err := provenance(ImportInput{}); err != nil || origin != sqlc.TrackOriginImport || model != nil {
+		t.Fatalf("default = %v %v %v", origin, model, err)
+	}
+	if origin, model, err := provenance(ImportInput{Origin: &asr, Model: ptr("  nb-whisper-large ")}); err != nil || origin != asr || *model != "nb-whisper-large" {
+		t.Fatalf("asr = %v %v %v", origin, model, err)
+	}
+	if _, model, err := provenance(ImportInput{Model: ptr("  ")}); err != nil || model != nil {
+		t.Fatalf("blank model = %v %v", model, err)
+	}
+	if _, _, err := provenance(ImportInput{Model: ptr(strings.Repeat("ø", MaxModelLength))}); err != nil {
+		t.Fatalf("longest model: %v", err)
+	}
+	for name, in := range map[string]ImportInput{
+		"manual":     {Origin: &manual},
+		"unknown":    {Origin: ptr(sqlc.TrackOrigin("robot"))},
+		"long model": {Model: ptr(strings.Repeat("x", MaxModelLength+1))},
+	} {
+		if _, _, err := provenance(in); !errors.Is(err, domain.ErrInvalidInput) || domain.DetailOf(err).Field == "" {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
+}
+
+func ptr[T any](v T) *T { return &v }

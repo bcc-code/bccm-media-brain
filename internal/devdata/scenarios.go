@@ -52,7 +52,7 @@ var registry = []Scenario{
 	},
 	{
 		Name:        "subtitle-revisions",
-		Description: "One asset whose subtitles were imported and then edited several times.",
+		Description: "One asset whose subtitles were transcribed by speech recognition and then edited several times.",
 		Params: []Param{
 			{Name: "edits", Label: "Edits", Type: Int, Default: "3", Min: ptr(0), Max: ptr(50)},
 			{Name: "cues", Label: "Cues", Type: Int, Default: "40", Min: ptr(1), Max: ptr(5000)},
@@ -376,9 +376,10 @@ func runSubtitleRevisions(ctx context.Context, env Env, v Values) (string, error
 	if err != nil {
 		return "", err
 	}
-	language := "en"
+	language, origin, model := "en", sqlc.TrackOriginAsr, f.TranscriptionModel()
 	track, err := s.subtitles.Import(ctx, subtitle.ImportInput{
 		VersionID: version.ID, Language: &language, Format: subtitle.VTT, Content: content, SourceFileID: &source.ID,
+		Origin: &origin, Model: &model,
 	})
 	if err != nil {
 		return "", err
@@ -457,18 +458,24 @@ func runEdgeCases(ctx context.Context, env Env, _ Values) (string, error) {
 		}
 	}
 
-	// Subtitles: overlapping cues, one very long cue, and the special language codes.
+	// Subtitles: overlapping cues, one very long cue, the special language codes, and an ASR
+	// track whose model name is as long as an import accepts.
 	overlapping := []subtitle.Cue{
 		{StartMs: 0, EndMs: 5000, Text: "First speaker keeps talking"},
 		{StartMs: 2000, EndMs: 4000, Text: "Second speaker interrupts"},
 		{StartMs: 4500, EndMs: 9000, Text: strings.Repeat("A very long cue. ", 200)},
 		{StartMs: 86_400_000, EndMs: 86_401_000, Text: "A cue 24 hours in"},
 	}
-	for _, language := range []string{"zxx", "und"} {
-		text, _ := subtitle.Render(subtitle.SRT, overlapping)
-		if _, err := s.importSRT(ctx, version.ID, language, text); err != nil {
-			return "", err
-		}
+	text, _ := subtitle.Render(subtitle.SRT, overlapping)
+	if _, err := s.importSRT(ctx, version.ID, "zxx", text); err != nil {
+		return "", err
+	}
+	language, asr := "und", sqlc.TrackOriginAsr
+	model := strings.Repeat("ø", subtitle.MaxModelLength)
+	if _, err := s.subtitles.Import(ctx, subtitle.ImportInput{
+		VersionID: version.ID, Language: &language, Format: subtitle.SRT, Content: text, Origin: &asr, Model: &model,
+	}); err != nil {
+		return "", err
 	}
 	return fmt.Sprintf("created %d assets with awkward titles, 2 structural edge cases, 1 empty file and 2 subtitle tracks", len(titles)), nil
 }

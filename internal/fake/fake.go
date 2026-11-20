@@ -169,6 +169,11 @@ func (x *Faker) VTT(n int) string {
 	return text
 }
 
+// TranscriptionModel names a speech recognition model, as an ASR import records it.
+func (x *Faker) TranscriptionModel() string {
+	return Pick(x, "nb-whisper-large", "nb-whisper-medium", "whisper-large-v3", "whisper-large-v3-turbo")
+}
+
 // VidispineItem is an item as the Vidispine API of a Cantemo Portal describes it.
 type VidispineItem struct {
 	ID     string

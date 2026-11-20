@@ -10,8 +10,8 @@ import (
 )
 
 const createSubtitleTrack = `-- name: CreateSubtitleTrack :one
-INSERT INTO subtitle_track (rendition_id, asset_id, source_file_id, language, kind, origin, revision, parent_id, created_by)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, rendition_id, asset_id, source_file_id, language, kind, origin, revision, parent_id, created_by, created_at
+INSERT INTO subtitle_track (rendition_id, asset_id, source_file_id, language, kind, origin, model, revision, parent_id, created_by)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id, rendition_id, asset_id, source_file_id, language, kind, origin, revision, parent_id, created_by, created_at, model
 `
 
 type CreateSubtitleTrackParams struct {
@@ -21,6 +21,7 @@ type CreateSubtitleTrackParams struct {
 	Language     *string     `json:"language"`
 	Kind         TrackKind   `json:"kind"`
 	Origin       TrackOrigin `json:"origin"`
+	Model        *string     `json:"model"`
 	Revision     int32       `json:"revision"`
 	ParentID     *string     `json:"parent_id"`
 	CreatedBy    *string     `json:"created_by"`
@@ -34,6 +35,7 @@ func (q *Queries) CreateSubtitleTrack(ctx context.Context, arg CreateSubtitleTra
 		arg.Language,
 		arg.Kind,
 		arg.Origin,
+		arg.Model,
 		arg.Revision,
 		arg.ParentID,
 		arg.CreatedBy,
@@ -51,6 +53,7 @@ func (q *Queries) CreateSubtitleTrack(ctx context.Context, arg CreateSubtitleTra
 		&i.ParentID,
 		&i.CreatedBy,
 		&i.CreatedAt,
+		&i.Model,
 	)
 	return i, err
 }
@@ -68,7 +71,7 @@ func (q *Queries) DeleteSubtitleTrack(ctx context.Context, id string) (int64, er
 }
 
 const getSubtitleTrack = `-- name: GetSubtitleTrack :one
-SELECT id, rendition_id, asset_id, source_file_id, language, kind, origin, revision, parent_id, created_by, created_at FROM subtitle_track WHERE id = $1
+SELECT id, rendition_id, asset_id, source_file_id, language, kind, origin, revision, parent_id, created_by, created_at, model FROM subtitle_track WHERE id = $1
 `
 
 func (q *Queries) GetSubtitleTrack(ctx context.Context, id string) (SubtitleTrack, error) {
@@ -86,6 +89,7 @@ func (q *Queries) GetSubtitleTrack(ctx context.Context, id string) (SubtitleTrac
 		&i.ParentID,
 		&i.CreatedBy,
 		&i.CreatedAt,
+		&i.Model,
 	)
 	return i, err
 }
@@ -101,7 +105,7 @@ type InsertSubtitleCuesParams struct {
 }
 
 const latestSubtitleTrack = `-- name: LatestSubtitleTrack :one
-SELECT id, rendition_id, asset_id, source_file_id, language, kind, origin, revision, parent_id, created_by, created_at FROM subtitle_track WHERE rendition_id = $1 ORDER BY revision DESC LIMIT 1
+SELECT id, rendition_id, asset_id, source_file_id, language, kind, origin, revision, parent_id, created_by, created_at, model FROM subtitle_track WHERE rendition_id = $1 ORDER BY revision DESC LIMIT 1
 `
 
 func (q *Queries) LatestSubtitleTrack(ctx context.Context, renditionID string) (SubtitleTrack, error) {
@@ -119,12 +123,13 @@ func (q *Queries) LatestSubtitleTrack(ctx context.Context, renditionID string) (
 		&i.ParentID,
 		&i.CreatedBy,
 		&i.CreatedAt,
+		&i.Model,
 	)
 	return i, err
 }
 
 const listAssetTracks = `-- name: ListAssetTracks :many
-SELECT id, rendition_id, asset_id, source_file_id, language, kind, origin, revision, parent_id, created_by, created_at FROM subtitle_track WHERE asset_id = $1 ORDER BY rendition_id, revision DESC
+SELECT id, rendition_id, asset_id, source_file_id, language, kind, origin, revision, parent_id, created_by, created_at, model FROM subtitle_track WHERE asset_id = $1 ORDER BY rendition_id, revision DESC
 `
 
 func (q *Queries) ListAssetTracks(ctx context.Context, assetID string) ([]SubtitleTrack, error) {
@@ -148,6 +153,7 @@ func (q *Queries) ListAssetTracks(ctx context.Context, assetID string) ([]Subtit
 			&i.ParentID,
 			&i.CreatedBy,
 			&i.CreatedAt,
+			&i.Model,
 		); err != nil {
 			return nil, err
 		}
@@ -160,7 +166,7 @@ func (q *Queries) ListAssetTracks(ctx context.Context, assetID string) ([]Subtit
 }
 
 const listRenditionTracks = `-- name: ListRenditionTracks :many
-SELECT id, rendition_id, asset_id, source_file_id, language, kind, origin, revision, parent_id, created_by, created_at FROM subtitle_track WHERE rendition_id = ANY($1::text[]) ORDER BY rendition_id, revision DESC
+SELECT id, rendition_id, asset_id, source_file_id, language, kind, origin, revision, parent_id, created_by, created_at, model FROM subtitle_track WHERE rendition_id = ANY($1::text[]) ORDER BY rendition_id, revision DESC
 `
 
 func (q *Queries) ListRenditionTracks(ctx context.Context, renditionIds []string) ([]SubtitleTrack, error) {
@@ -184,6 +190,7 @@ func (q *Queries) ListRenditionTracks(ctx context.Context, renditionIds []string
 			&i.ParentID,
 			&i.CreatedBy,
 			&i.CreatedAt,
+			&i.Model,
 		); err != nil {
 			return nil, err
 		}

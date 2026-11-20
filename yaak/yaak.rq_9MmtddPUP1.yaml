@@ -10,7 +10,7 @@ authenticationType: null
 body:
   query: |
     mutation($in: ImportSubtitlesInput!) {
-      importSubtitles(input: $in) { id renditionId language kind origin revision parentId }
+      importSubtitles(input: $in) { id renditionId language kind origin model revision parentId }
     }
   variables: |-
     {

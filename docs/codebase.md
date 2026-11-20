@@ -60,7 +60,9 @@ A new service, or a new dependency of one, must be added to all of them:
   (`bump_revision`): every UPDATE of a row of the six revisioned tables is one revision, so a
   query must not write the column, and an UPDATE that should not count as an edit (a cached
   value, a backfill in a migration) has to disable the trigger or live in another table.
-- Subtitle import always adds a revision; only SRT and WebVTT parse.
+- Subtitle import always adds a revision; only SRT and WebVTT parse. An import's `origin` is
+  `IMPORT` or `ASR` (`MANUAL` is refused: only `Edit` writes it), and `model` belongs to the
+  revision, so an edit has none.
 - `language.alt_codes` holds 3-letter codes, but no query reads it yet.
 - The id prefix `ST` is `subtitle_track`.
 - Postgres cannot drop an enum value: a migration that adds one rebuilds the type in its Down

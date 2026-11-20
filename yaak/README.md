@@ -24,7 +24,7 @@ and choose this folder. Yaak keeps the files in sync, so changes you make show u
 2. *Programs and projects*: Create program → Create project.
 3. *Files and storage*: Create storage location → Register file.
 4. *Assets*: Create asset → Create version → Create rendition → Attach file to rendition.
-5. *Subtitles*: Import subtitles → Track with cues → Edit subtitles → Export track.
+5. *Subtitles*: Import subtitles (or Import ASR transcript) → Track with cues → Edit subtitles → Export track.
 6. *Access*: `make seed s=access` adds a persona per permission level (it wipes the data first).
    Grant access to one of them, then change `user` to their email to see what they see.
 7. *Vidispine*: with `VIDISPINE_URL`, `VIDISPINE_USERNAME` and `VIDISPINE_PASSWORD` set on the server, put an
