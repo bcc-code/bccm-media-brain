@@ -18,6 +18,9 @@ Newest first. Each entry: what changed, why, and what was left out on purpose.
 - The refusal in the log now says why a token could not be read: the algorithm that is not
   accepted (quoted and cut to 20 characters, since the caller chooses it), or that the value
   is no JWT. The client still gets `unauthorized` and nothing else.
+- `LOG_LEVEL=debug` logs what a refused token said beside what was expected (issuer,
+  audience, expiry, subject, groups), never the token. The first deployment had the right
+  secret and the wrong issuer, and the refusal alone did not say what the token carried.
 - Left out: a proxy provider of MediaBrain's own. The shared domain-wide one still means every
   app behind it sees tokens that are valid here (see `docs/security.md`).
 

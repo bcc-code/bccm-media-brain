@@ -98,6 +98,11 @@ func (v *JWKSVerifier) Verify(ctx context.Context, raw string) (access.Identity,
 	}
 	expected := jwt.Expected{Issuer: v.Issuer, AnyAudience: jwt.Audience{v.Audience}, Time: v.clock()}
 	if err := std.ValidateWithLeeway(expected, leeway); err != nil {
+		// What the token says against what was expected, for setting up a deployment. The
+		// signature is good, so these are the issuer's values. Debug only: they name a person.
+		slog.DebugContext(ctx, "auth: a signed token's claims were refused", "reason", err.Error(),
+			"iss", std.Issuer, "want_iss", v.Issuer, "aud", []string(std.Audience), "want_aud", v.Audience,
+			"exp", std.Expiry.Time(), "sub", std.Subject)
 		return access.Identity{}, fmt.Errorf("%w: %v", ErrInvalidToken, err)
 	}
 	id := access.Identity{Subject: std.Subject, Expires: std.Expiry.Time().Add(leeway)}
@@ -121,6 +126,8 @@ func (v *JWKSVerifier) Verify(ctx context.Context, raw string) (access.Identity,
 		id.Service = true
 	case v.UserGroup != "" && slices.Contains(id.Groups, v.UserGroup):
 	default:
+		slog.DebugContext(ctx, "auth: a valid token has neither group", "claim", v.GroupsClaim, "groups", id.Groups,
+			"user_group", v.UserGroup, "service_group", v.ServiceGroup, "sub", id.Subject)
 		return access.Identity{}, ErrNotAllowed
 	}
 	return id, nil

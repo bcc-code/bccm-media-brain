@@ -71,6 +71,11 @@ at `https://auth.bcc.media`. The defaults match what it sends, so a deployment s
   both may be set, and then both kinds of token are accepted.
 - The log line `auth: request refused` names an algorithm that is not accepted, or says that
   the value is no JWT at all (the wrong `AUTH_HEADER`).
+- With `LOG_LEVEL=debug`, a token whose signature is good but whose claims are refused is
+  logged with what it said and what was expected (`iss`/`want_iss`, `aud`/`want_aud`, `exp`,
+  `sub`), and a token with neither group with its groups and the two group names. That is how
+  a wrong `AUTH_ISSUER`, `AUTH_AUDIENCE` or group name is found. The token itself is never
+  logged. These lines name a person, so the level is for setting up, not for running.
 - Sign-out is authentik's: `https://auth.bcc.media/outpost.goauthentik.io/sign_out`.
 
 Details worth knowing:

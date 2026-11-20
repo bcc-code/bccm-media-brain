@@ -1,9 +1,11 @@
 package auth
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -438,5 +440,36 @@ func TestVerifySharedSecret(t *testing.T) {
 	}
 	if _, err := both.Verify(ctx, iss.Token("sub-2", nil)); err != nil {
 		t.Fatalf("published key beside a secret: %v", err)
+	}
+}
+
+// At LOG_LEVEL=debug a refusal shows what the token said, which is how a deployment finds a
+// wrong issuer, audience or group name. At any other level nothing of the token is logged.
+func TestRefusedClaimsAreLoggedAtDebugOnly(t *testing.T) {
+	iss := authtest.NewIssuer()
+	defer iss.Close()
+	v := verifier(iss)
+	wrongIssuer := iss.Sign(map[string]any{"iss": "https://other.example/", "aud": authtest.Audience, "sub": "s", "exp": time.Now().Add(time.Hour).Unix()})
+	noGroup := iss.Token("s", map[string]any{"groups": []string{"visitors"}})
+
+	logged := func(level slog.Level) string {
+		var buf bytes.Buffer
+		defer slog.SetDefault(slog.Default())
+		slog.SetDefault(slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: level})))
+		_, _ = v.Verify(context.Background(), wrongIssuer)
+		_, _ = v.Verify(context.Background(), noGroup)
+		return buf.String()
+	}
+	debug := logged(slog.LevelDebug)
+	for _, want := range []string{"iss=https://other.example/", "want_iss=" + iss.URL, "want_aud=" + authtest.Audience, "groups=[visitors]", "user_group=" + authtest.UserGroup} {
+		if !strings.Contains(debug, want) {
+			t.Errorf("debug log lacks %q:\n%s", want, debug)
+		}
+	}
+	if strings.Contains(debug, wrongIssuer) || strings.Contains(debug, noGroup) {
+		t.Error("the token itself was logged")
+	}
+	if info := logged(slog.LevelInfo); info != "" {
+		t.Errorf("logged above debug: %s", info)
 	}
 }
