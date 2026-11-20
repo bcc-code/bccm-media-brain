@@ -204,7 +204,10 @@ who manage programs (create/delete), storage locations and files, and who import
 - First administrator: `mediabrain admin grant <email>` (`make admin-grant u=...`). The user must
   have signed in once; promoting an address nobody has proven they own would be a takeover path.
 - Further ones: `setUserAdmin` (administrators only, and not service accounts).
-- A service account is made an administrator when it is created (`admin: true`, `-admin`).
+- A service account is made an administrator when it is created (`admin: true`, `-admin`), or
+  later with the same `setUserAdmin` and its id (the switch on the web UI's service accounts
+  page, or `mediabrain admin grant US-...`). Like any change to a user it takes up to a minute
+  to apply.
 
 ## Permissions
 

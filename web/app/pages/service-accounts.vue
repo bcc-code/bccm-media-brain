@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
-import { Switch } from '@ark-ui/vue/switch'
+import AccountSwitch from '../components/AccountSwitch.vue'
 import CreateServiceAccountForm from '../components/CreateServiceAccountForm.vue'
 import { awaitsFirstSignIn, useServiceAccounts } from '../composables/useServiceAccounts'
 
-const { accounts, loading, loaded, error, saving, load, create, setActive } = useServiceAccounts()
+const { accounts, loading, loaded, error, saving, load, create, setActive, setAdmin } = useServiceAccounts()
 
 onMounted(load)
 
@@ -68,27 +68,28 @@ const badge = 'inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 te
                     </span>
                   </td>
                   <td :class="td">
-                    <span v-if="a.isAdmin" :class="[badge, 'border-border-strong']">Administrator</span>
-                    <span v-else class="text-muted-foreground">Grants only</span>
+                    <div class="flex items-center gap-2.5">
+                      <AccountSwitch
+                        data-test="admin"
+                        :checked="a.isAdmin"
+                        :disabled="saving.has(a.id)"
+                        :label="`${a.name ?? a.id} administrator`"
+                        @change="(on) => setAdmin(a.id, on)"
+                      />
+                      <span :class="a.isAdmin ? 'font-medium' : 'text-muted-foreground'">
+                        {{ a.isAdmin ? 'Administrator' : 'Grants only' }}
+                      </span>
+                    </div>
                   </td>
                   <td :class="[td, 'font-mono text-[13px]']">{{ a.createdAt.slice(0, 10) }}</td>
                   <td :class="td">
-                    <Switch.Root
-                      class="inline-flex items-center"
+                    <AccountSwitch
+                      data-test="active"
                       :checked="a.active"
                       :disabled="saving.has(a.id)"
-                      @checked-change="(d) => setActive(a.id, d.checked)"
-                    >
-                      <Switch.Control
-                        class="inline-flex h-5 w-9 cursor-pointer items-center rounded-full bg-border-strong p-0.5 transition-colors data-[state=checked]:bg-primary data-[disabled]:cursor-default data-[disabled]:opacity-50 data-[focus-visible]:focus-ring"
-                      >
-                        <Switch.Thumb
-                          class="size-4 rounded-full bg-foreground transition-transform data-[state=checked]:translate-x-4 data-[state=checked]:bg-primary-foreground"
-                        />
-                      </Switch.Control>
-                      <Switch.Label class="sr-only">{{ a.name }} active</Switch.Label>
-                      <Switch.HiddenInput />
-                    </Switch.Root>
+                      :label="`${a.name ?? a.id} active`"
+                      @change="(on) => setActive(a.id, on)"
+                    />
                   </td>
                 </tr>
                 <tr v-if="loaded && accounts.length === 0">
@@ -102,7 +103,7 @@ const badge = 'inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 te
           </div>
         </div>
         <p class="text-xs text-muted-foreground">
-          Switching an account off takes up to a minute to apply. An account that is not an administrator can do nothing until it has grants.
+          A change takes up to a minute to apply. An account that is not an administrator can do nothing until it has grants.
         </p>
       </section>
 

@@ -2,6 +2,15 @@
 
 Newest first. Each entry: what changed, why, and what was left out on purpose.
 
+## 2026-11-20 — The service accounts page changes who is an administrator
+
+- The first account made on the deployment was created without the administrator flag, and
+  the page had no way to change it. The Role column is now a switch. It calls `setUserAdmin`
+  with the account's id, which already worked for service accounts; an e2e test now holds
+  that, since the page depends on it. No API change.
+- Left out: giving an account grants from this page. The API lists grants per object, not per
+  account, so the page could add a grant but not show or remove the ones an account has.
+
 ## 2026-11-20 — Tokens of authentik's forward auth are accepted (HS256)
 
 - The first deployment refused every request with `invalid token: malformed`. authentik's

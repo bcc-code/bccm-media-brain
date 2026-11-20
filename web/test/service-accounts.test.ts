@@ -64,12 +64,35 @@ describe('service accounts page', () => {
       json({ data: { serviceAccounts: [account()] } }),
       json({ data: { setServiceAccountActive: account({ active: false }) } }),
     )
-    const box = page.get('[data-test=account] input[type=checkbox]')
+    const box = page.get('[data-test=active] input[type=checkbox]')
     expect((box.element as HTMLInputElement).checked).toBe(true)
     await box.trigger('click')
     await flushPromises()
     expect(sent[1]?.variables).toEqual({ serviceAccount: 'US-1', active: false })
     expect((box.element as HTMLInputElement).checked).toBe(false)
+    page.unmount()
+  })
+
+  it('makes an account an administrator and back', async () => {
+    const { page, sent } = await mountPage(
+      json({ data: { serviceAccounts: [account({ name: null })] } }),
+      json({ data: { setUserAdmin: account({ name: null, isAdmin: true }) } }),
+      apiError('forbidden', { code: 'FORBIDDEN' }),
+    )
+    const row = page.get('[data-test=account]')
+    const box = page.get('[data-test=admin] input[type=checkbox]')
+    expect(row.text()).toContain('Grants only')
+    await box.trigger('click')
+    await flushPromises()
+    expect(sent[1]?.query).toContain('setUserAdmin')
+    expect(sent[1]?.variables).toEqual({ user: 'US-1', admin: true })
+    expect(row.text()).toContain('Administrator')
+    // A refusal leaves the account as the server has it and says why.
+    await box.trigger('click')
+    await flushPromises()
+    expect(sent[2]?.variables).toEqual({ user: 'US-1', admin: false })
+    expect(page.get('[role=alert]').text()).toContain('forbidden')
+    expect(row.text()).toContain('Administrator')
     page.unmount()
   })
 

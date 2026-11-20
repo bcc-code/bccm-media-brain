@@ -348,3 +348,33 @@ func TestServiceCLI(t *testing.T) {
 		t.Fatalf("me = %+v", me.Me)
 	}
 }
+
+// A service account's administrator flag is changed after it was created, with the operation
+// that does it for people. The web UI's switch relies on this.
+func TestServiceAccountAdminCanBeChanged(t *testing.T) {
+	admin := signInAdmin(t)
+	svc := signInService(t, false)
+	// A new token each time: an accepted token is cached for a minute.
+	again := func() user { return user{token: serviceToken(serviceSub(svc.sub), svc.sub)} }
+	const users = `{ users { nodes { id } } }`
+	const setAdmin = `mutation($u: String!, $a: Boolean!) { setUserAdmin(user: $u, admin: $a) { id kind isAdmin } }`
+	var out struct {
+		SetUserAdmin struct {
+			ID, Kind string
+			IsAdmin  bool
+		}
+	}
+
+	again().fails(t, "FORBIDDEN", users, nil)
+	admin.must(t, setAdmin, map[string]any{"u": svc.id, "a": true}, &out)
+	if out.SetUserAdmin.ID != svc.id || out.SetUserAdmin.Kind != "SERVICE" || !out.SetUserAdmin.IsAdmin {
+		t.Fatalf("promoted = %+v", out.SetUserAdmin)
+	}
+	again().must(t, users, nil, nil)
+
+	admin.must(t, setAdmin, map[string]any{"u": svc.id, "a": false}, &out)
+	if out.SetUserAdmin.IsAdmin {
+		t.Fatalf("demoted = %+v", out.SetUserAdmin)
+	}
+	again().fails(t, "FORBIDDEN", users, nil)
+}

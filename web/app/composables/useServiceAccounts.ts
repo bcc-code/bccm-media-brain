@@ -32,7 +32,7 @@ export function useServiceAccounts(fetcher?: Fetcher) {
   const loading = ref(false)
   const loaded = ref(false)
   const error = ref<ApiError | null>(null)
-  /** Ids of the accounts whose switch is waiting for the server. */
+  /** Ids of the accounts with a change waiting for the server. */
   const saving = ref<Set<string>>(new Set())
 
   async function load() {
@@ -68,18 +68,13 @@ export function useServiceAccounts(fetcher?: Fetcher) {
     return made
   }
 
-  async function setActive(id: string, active: boolean) {
+  /** Sends a mutation that answers the changed account and puts the answer in the list. */
+  async function change(id: string, mutation: string, variables: Record<string, unknown>) {
     error.value = null
     saving.value = new Set(saving.value).add(id)
     try {
-      const data = await gql<{ setServiceAccountActive: ServiceAccount }>(
-        `mutation SetServiceAccountActive($serviceAccount: String!, $active: Boolean!) {
-          setServiceAccountActive(serviceAccount: $serviceAccount, active: $active) { ${FIELDS} }
-        }`,
-        { serviceAccount: id, active },
-        fetcher,
-      )
-      const updated = data.setServiceAccountActive
+      const data = await gql<Record<string, ServiceAccount>>(mutation, variables, fetcher)
+      const updated = Object.values(data)[0]!
       accounts.value = accounts.value.map((a) => (a.id === updated.id ? updated : a))
     } catch (e) {
       error.value = e as ApiError
@@ -90,5 +85,26 @@ export function useServiceAccounts(fetcher?: Fetcher) {
     }
   }
 
-  return { accounts, loading, loaded, error, saving, load, create, setActive }
+  function setActive(id: string, active: boolean) {
+    return change(
+      id,
+      `mutation SetServiceAccountActive($serviceAccount: String!, $active: Boolean!) {
+        setServiceAccountActive(serviceAccount: $serviceAccount, active: $active) { ${FIELDS} }
+      }`,
+      { serviceAccount: id, active },
+    )
+  }
+
+  /** setUserAdmin is the one operation for people and service accounts alike. */
+  function setAdmin(id: string, admin: boolean) {
+    return change(
+      id,
+      `mutation SetUserAdmin($user: String!, $admin: Boolean!) {
+        setUserAdmin(user: $user, admin: $admin) { ${FIELDS} }
+      }`,
+      { user: id, admin },
+    )
+  }
+
+  return { accounts, loading, loaded, error, saving, load, create, setActive, setAdmin }
 }

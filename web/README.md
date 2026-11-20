@@ -4,7 +4,8 @@ The MediaBrain web UI: [Nuxt](https://nuxt.com) without server rendering,
 [Tailwind CSS](https://tailwindcss.com) and [Ark UI](https://ark-ui.com). It talks only to the
 API's GraphQL endpoint, `/query`, on its own origin.
 
-Pages so far: **Service accounts** (`/service-accounts`): list, create, switch off and on.
+Pages so far: **Service accounts** (`/service-accounts`): list, create, switch off and on, make
+an administrator or not.
 Administrators only, as the API decides.
 
 ## Development

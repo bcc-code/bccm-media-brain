@@ -74,6 +74,20 @@ describe('useServiceAccounts', () => {
     expect(s.accounts.value.map((a) => a.active)).toEqual([false, true])
   })
 
+  it('makes an account an administrator with the operation for all users', async () => {
+    const promoted = account({ isAdmin: true })
+    const { fetcher, sent } = fakeFetch(json({ data: { setUserAdmin: promoted } }))
+    const s = useServiceAccounts(fetcher)
+    s.accounts.value = [account(), account({ id: 'US-2' })]
+    const pending = s.setAdmin('US-1', true)
+    expect(s.saving.value.has('US-1')).toBe(true)
+    await pending
+    expect(sent[0]?.query).toContain('setUserAdmin')
+    expect(sent[0]?.variables).toEqual({ user: 'US-1', admin: true })
+    expect(s.accounts.value.map((a) => a.isAdmin)).toEqual([true, false])
+    expect(s.saving.value.size).toBe(0)
+  })
+
   it('leaves the account as it was when the switch is refused', async () => {
     const { fetcher } = fakeFetch(apiError('not found', { code: 'NOT_FOUND' }))
     const s = useServiceAccounts(fetcher)

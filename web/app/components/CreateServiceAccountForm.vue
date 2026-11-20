@@ -71,7 +71,7 @@ const input =
         <Checkbox.Label class="font-medium">System administrator</Checkbox.Label>
         <Checkbox.HiddenInput />
       </Checkbox.Root>
-      <p class="pl-[26px] text-xs text-muted-foreground">Needed to register files. Cannot be changed later.</p>
+      <p class="pl-[26px] text-xs text-muted-foreground">Needed to register files. Can be changed in the list.</p>
     </div>
 
     <Field.Root class="flex flex-col gap-1.5" :invalid="failedField === 'user'">
