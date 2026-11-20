@@ -2,18 +2,11 @@ type: workspace
 model: workspace
 id: wk_tPlK1TUEUQ
 createdAt: 2026-11-10T23:30:00
-updatedAt: 2026-11-17T21:26:27.353971
+updatedAt: 2026-11-20T13:24:12.760710
 authentication:
-  accessTokenUrl: https://auth.bcc.media/application/o/token/
-  authorizationUrl: https://auth.bcc.media/application/o/authorize/
-  clientId: wgUU5FiPMvcw48WvJNrbOq18GUMzZ1f5rE6cFuni
-  disabled: false
-  grantType: password
   password: ${[ service_password ]}
-  redirectUri: https://
-  usePkce: true
-  username: flows
-authenticationType: oauth2
+  username: ${[ service_account ]}
+authenticationType: basic
 description: Standard operations against the MediaBrain GraphQL API. Set the variables in the Local environment; see yaak/README.md.
 headers: []
 name: MediaBrain

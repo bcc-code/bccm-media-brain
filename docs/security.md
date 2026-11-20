@@ -142,6 +142,14 @@ done in authentik.
   administrator-only. That is more than it needs; see "Not covered yet".
 - Machine clients come through the proxy like everyone else (`AUTH_TRUSTED_PROXIES` applies),
   and the proxy has to accept their token and pass it on in `AUTH_HEADER`.
+- With authentik's forward auth a machine has two ways in, both with an **app password** of the
+  account. It can send the app password as HTTP Basic credentials with each request; the proxy
+  signs the account in itself (the provider's "Intercept header authentication"). This is what
+  the Yaak workspace does. Or it can fetch a token from
+  `https://auth.bcc.media/application/o/token/` (`grant_type=client_credentials` with
+  `client_id`, `username`, `password`) and send it as a bearer token. The request must ask for
+  `scope=openid profile email`: `groups` comes with `profile`, and a token without it is
+  refused for having neither group.
 
 ### Debug bypass (development only)
 

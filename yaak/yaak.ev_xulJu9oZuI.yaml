@@ -3,7 +3,7 @@ model: environment
 id: ev_xulJu9oZuI
 workspaceId: wk_tPlK1TUEUQ
 createdAt: 2026-11-10T23:30:00
-updatedAt: 2026-11-20T10:32:14.251401
+updatedAt: 2026-11-20T13:24:22.339163
 name: Global Variables
 public: true
 base: true
@@ -68,7 +68,7 @@ variables:
   id: Ct7mItemId
 - enabled: true
   name: service_account
-  value: ingest
+  value: flows
   id: SvcAcctNam
 - enabled: true
   name: service_password

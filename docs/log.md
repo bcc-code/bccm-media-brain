@@ -21,6 +21,11 @@ Newest first. Each entry: what changed, why, and what was left out on purpose.
 - `LOG_LEVEL=debug` logs what a refused token said beside what was expected (issuer,
   audience, expiry, subject, groups), never the token. The first deployment had the right
   secret and the wrong issuer, and the refusal alone did not say what the token carried.
+- Machine clients, found while setting up the same deployment: a token fetched without
+  `scope=openid profile email` has no `groups` claim and is refused. The Yaak workspace now
+  signs in with HTTP Basic credentials (the account's app password), which authentik's proxy
+  turns into a token itself, and every folder inherits that one setting. Both ways in are in
+  `docs/security.md`.
 - Left out: a proxy provider of MediaBrain's own. The shared domain-wide one still means every
   app behind it sees tokens that are valid here (see `docs/security.md`).
 

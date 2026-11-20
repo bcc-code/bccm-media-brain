@@ -13,11 +13,22 @@ and choose this folder. Yaak keeps the files in sync, so changes you make show u
 |---|---|
 | `base_url` | Server address, `http://localhost:8080` by default |
 | `user` | Who to act as in debug mode (sent as `X-Debug-User`): an email or user id. The default `admin@example.test` is the `DEBUG_USER` of `.env.example`, which the server creates as an administrator when missing, so it works on an empty database. Other users must exist (`make seed s=access` creates one per permission level) |
-| `token` | Only for a deployed server, and only if its auth proxy accepts a bearer token from API clients: point `base_url` at the proxy and enable the bearer authentication on the folders. Not needed for `make dev` |
+| `token` | Not used as shipped: every folder and request inherits the workspace's authentication (*Workspace Settings*), so sign-in is set in one place. Kept for a bearer setup of your own |
 | `program_id`, `project_id`, `location_id`, `file_id`, `copy_id`, `asset_id`, `version_id`, `rendition_id`, `track_id`, `grant_id` | Ids used by the requests. Paste them in from the response of the matching "Create ..." request |
 | `vidispine_item_id` | The Vidispine item to import, e.g. `VX-123` |
-| `service_account` | The name of a machine client: its username at the identity provider |
-| `service_password` | The password of the account the workspace signs in as (OAuth2 against `auth.bcc.media`, in *Workspace Settings → Authentication*). A secret: set it in a private environment of your own, never in "Global Variables", which is committed. For `make dev` alone, switch the workspace's authentication off instead |
+| `service_account` | The name of a machine client: its username at the identity provider. Also the username the workspace signs in with on a deployed server (see below) |
+| `service_password` | That account's authentik **app password**, for a deployed server. A secret: set it in a private environment of your own, never in "Global Variables", which is committed. Empty for `make dev` |
+
+## Signing in
+
+Sign-in is set once, on the workspace (*Workspace Settings*): every folder and request inherits
+it. It is HTTP Basic authentication with `service_account` and `service_password`.
+
+- **`make dev`**: nothing to set. The server ignores the header and requests run as `user`.
+- **A deployed server**: point `base_url` at it and put the account's app password into
+  `service_password`. authentik's proxy takes the Basic credentials, signs the account in and
+  forwards its token, so the account must be in the service group and exist in MediaBrain as a
+  service account (`docs/security.md`, "Machine clients").
 
 ## Typical run on an empty database
 
