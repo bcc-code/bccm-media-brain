@@ -85,11 +85,12 @@ describe('subtitles page', () => {
     )
     const base = page.get('[data-test=base]')
     expect(base.findAll('option').map((o) => o.attributes('value'))).toEqual(['', 'ST-1'])
+    expect(base.findAll('option').map((o) => o.text())).toEqual(['Nothing', 'Revision 1 · ASR · nb-whisper · 2026-11-20'])
     await base.setValue('ST-1')
     await flushPromises()
     expect(kinds(page)).toEqual(['same Hello | Hello', 'change [wrold] | [Anna: world]'])
     expect(page.get('[data-test=details]').text()).toBe('Revision 1 → 2: +1 −1 cues')
-    expect(page.findAll('[data-test=comparison] th').map((h) => h.text())).toEqual(['Revision 1', 'Revision 2'])
+    expect(page.findAll('[data-test=comparison] th').map((h) => h.text())).toEqual(['Revision 1 · nb-whisper', 'Revision 2'])
 
     await page.get('[data-test=changes-only] input[type=checkbox]').trigger('click')
     expect(kinds(page)).toEqual(['change [wrold] | [Anna: world]'])

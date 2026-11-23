@@ -39,7 +39,7 @@ function retimed(p: Pair): boolean {
 }
 
 function revisionLabel(r: Revision): string {
-  return `Revision ${r.revision} · ${r.origin} · ${r.createdAt.slice(0, 10)}`
+  return [`Revision ${r.revision}`, r.origin, r.model, r.createdAt.slice(0, 10)].filter(Boolean).join(' · ')
 }
 
 const input =
@@ -183,8 +183,9 @@ const pane = (p: Pair, s: 'older' | 'newer') => (p.kind === 'change' ? (p[s] ? s
                 </colgroup>
                 <thead>
                   <tr>
-                    <th :class="th" colspan="2">Revision {{ comparison.from.revision }}</th>
-                    <th :class="[th, 'border-l border-border']" colspan="2">Revision {{ comparison.to.revision }}</th>
+                    <th v-for="(r, k) in [comparison.from, comparison.to]" :key="r.id" :class="[th, { 'border-l border-border': k === 1 }]" colspan="2">
+                      Revision {{ r.revision }}<span v-if="r.model" class="normal-case tracking-normal"> · {{ r.model }}</span>
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
