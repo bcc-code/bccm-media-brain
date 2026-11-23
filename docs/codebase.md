@@ -184,6 +184,10 @@ requests an administrator's.
 - Code under test imports what it uses (`vue`, composables, components) instead of relying on
   Nuxt's auto-imports, so tests run in plain Vitest without starting Nuxt. `app.vue` and
   `pages/index.vue` are Nuxt wiring only and outside the coverage gate.
+- A page under test is listed in `coverage.include` of `vitest.config.ts`, and gets its link in
+  `app.vue`.
+- `app/utils/diff.ts` compares two lists by a key (the subtitles page: cues of two revisions).
+  It is a table of the changed middle, so its memory is bounded by `MAX_CELLS`.
 - `make web-check` is separate from `make check`, which does not need Node.
 
 The Go server serves the build at `/admin/` (`app.baseURL` in `nuxt.config.ts`), from inside the

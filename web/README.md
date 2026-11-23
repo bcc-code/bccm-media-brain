@@ -8,6 +8,10 @@ Pages so far: **Service accounts** (`/service-accounts`): list, create, switch o
 an administrator or not.
 Administrators only, as the API decides.
 
+**Subtitles** (`/subtitles`): open an asset by its id or a legacy id (`VX-123`), browse its
+subtitle tracks and their revisions, and compare two revisions of a track. Read-only, for anyone
+who may view the asset.
+
 ## Development
 
 ```sh

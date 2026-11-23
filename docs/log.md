@@ -2,6 +2,23 @@
 
 Newest first. Each entry: what changed, why, and what was left out on purpose.
 
+## 2026-11-23 — Web UI: browse an asset's subtitles and compare revisions
+
+- `/admin/subtitles` takes an asset id or a legacy id (a Vidispine `VX-…`), lists the asset's
+  subtitle tracks (one per subtitle rendition: language and kind) with every revision, and shows
+  the cues of the chosen revision. There was no way to look at a revision's text, or at what an
+  edit or a new ASR run changed, short of writing GraphQL by hand. No API change: the page uses
+  `asset`, `assets(filter: {legacyId})`, `subtitleTracks(history: true)` and `cues`.
+- "Compare with" shows the difference between two revisions of a track, cue by cue, always from
+  the older to the newer: removed cues, added cues, and the unchanged ones between them unless
+  "Changes only" is on. A cue is unchanged when its times, text and speaker are; "Ignore timing"
+  leaves the times out, since a new ASR run moves most of them by a few milliseconds.
+- A legacy id is not unique, so several assets can match; the page then lists them to pick from.
+- The diff is computed in the browser (`web/app/utils/diff.ts`), on cues the page has already
+  read. Revisions never change, so each one's cues are read once per visit.
+- Left out: differences inside a cue's text (an edited cue is one removed and one added row),
+  editing, export, a link that opens a given asset, and comparing across tracks.
+
 ## 2026-11-20 — The service accounts page changes who is an administrator
 
 - The first account made on the deployment was created without the administrator flag, and

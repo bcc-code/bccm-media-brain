@@ -1,5 +1,6 @@
 import { vi } from 'vitest'
 import type { ServiceAccount } from '../app/composables/useServiceAccounts'
+import type { Cue, Revision } from '../app/composables/useSubtitles'
 
 export function account(over: Partial<ServiceAccount> = {}): ServiceAccount {
   return {
@@ -32,4 +33,28 @@ export function fakeFetch(...answers: (Response | Error)[]) {
     return next
   })
   return { fetcher: fetcher as unknown as typeof fetch, sent }
+}
+
+export function revision(over: Partial<Revision> = {}): Revision {
+  return {
+    id: 'ST-1',
+    renditionId: 'RE-nb',
+    language: 'nb',
+    kind: 'SUBTITLE',
+    origin: 'IMPORT',
+    model: null,
+    revision: 1,
+    createdBy: null,
+    createdAt: '2026-11-20T08:00:00Z',
+    ...over,
+  }
+}
+
+export function cue(seq: number, text: string, over: Partial<Cue> = {}): Cue {
+  return { seq, startMs: seq * 1000, endMs: seq * 1000 + 900, text, speaker: null, ...over }
+}
+
+/** The answer to one page of a revision's cues. */
+export function cuePage(cues: Cue[], endCursor: string | null = null): Response {
+  return json({ data: { subtitleTrack: { cues: { nodes: cues, pageInfo: { hasNextPage: endCursor !== null, endCursor } } } } })
 }

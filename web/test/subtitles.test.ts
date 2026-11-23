@@ -1,0 +1,157 @@
+import { flushPromises, mount } from '@vue/test-utils'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import Page from '../app/pages/subtitles.vue'
+import { apiError, cue, cuePage, fakeFetch, json, revision } from './helpers'
+
+afterEach(() => vi.unstubAllGlobals())
+
+const asset = { id: 'AS-1', title: 'Evening news', legacyIds: ['VX-123'] }
+const history = [
+  revision({ id: 'ST-2', revision: 2, origin: 'MANUAL', createdBy: 'US-7' }),
+  revision({ id: 'ST-1', revision: 1, origin: 'ASR', model: 'nb-whisper' }),
+  revision({ id: 'ST-9', renditionId: 'RE-zz', language: null, kind: 'TRANSCRIPT' }),
+]
+const newer = [cue(1, 'Hello'), cue(2, 'world', { speaker: 'Anna' })]
+const older = [cue(1, 'Hello'), cue(2, 'wrold')]
+
+async function openPage(id: string, ...answers: (Response | Error)[]) {
+  const { fetcher, sent } = fakeFetch(...answers)
+  vi.stubGlobal('fetch', fetcher)
+  const page = mount(Page, { attachTo: document.body })
+  await page.get('input[placeholder="AS-… or VX-123"]').setValue(id)
+  await page.get('form').trigger('submit')
+  await flushPromises()
+  return { page, sent }
+}
+
+const kinds = (page: Awaited<ReturnType<typeof openPage>>['page']) =>
+  page.findAll('[data-test=cue]').map((r) => `${r.attributes('data-kind')} ${r.findAll('td')[2]!.text()}`)
+
+describe('subtitles page', () => {
+  it('does not search without an id', async () => {
+    const { page, sent } = await openPage('  ')
+    expect(page.get('button[type=submit]').attributes('disabled')).toBeDefined()
+    expect(sent).toHaveLength(0)
+    page.unmount()
+  })
+
+  it('shows the tracks of an asset and the cues of the newest revision', async () => {
+    const { page } = await openPage(
+      'AS-1',
+      json({ data: { asset } }),
+      json({ data: { subtitleTracks: history } }),
+      cuePage(newer),
+      cuePage([]),
+    )
+    expect(page.get('[data-test=asset]').text()).toContain('Evening news')
+    expect(page.get('[data-test=asset]').text()).toContain('AS-1 · VX-123')
+    const tracks = page.findAll('[data-test=track]')
+    expect(tracks.map((t) => t.text())).toEqual(['nb · SUBTITLE2 revisions', 'No language · TRANSCRIPT1 revision'])
+    expect(tracks[0]!.attributes('aria-current')).toBe('true')
+    expect((page.get('[data-test=shown]').element as HTMLSelectElement).value).toBe('ST-2')
+    expect(page.get('[data-test=shown]').text()).toContain('Revision 2 · MANUAL · 2026-11-20')
+    expect(page.get('[data-test=details]').text()).toBe('ST-2 · by US-7 · 2026-11-20T08:00:00Z · 2 cues')
+    expect(kinds(page)).toEqual(['same Hello', 'same Anna: world'])
+    expect(page.get('[data-test=cue]').text()).toContain('00:00:01.000 → 00:00:01.900')
+    expect(page.find('[data-test=ignore-timing]').exists()).toBe(false)
+
+    await tracks[1]!.trigger('click')
+    await flushPromises()
+    expect(tracks[1]!.attributes('aria-current')).toBe('true')
+    expect(page.text()).toContain('No cues.')
+    expect(page.get('[data-test=base]').attributes('disabled')).toBeDefined()
+    page.unmount()
+  })
+
+  it('shows the difference between two revisions', async () => {
+    const { page } = await openPage(
+      'VX-123',
+      json({ data: { assets: { nodes: [asset] } } }),
+      json({ data: { subtitleTracks: history } }),
+      cuePage(newer),
+      cuePage(older),
+    )
+    const base = page.get('[data-test=base]')
+    expect(base.findAll('option').map((o) => o.attributes('value'))).toEqual(['', 'ST-1'])
+    await base.setValue('ST-1')
+    await flushPromises()
+    expect(kinds(page)).toEqual(['same Hello', 'removed wrold', 'added Anna: world'])
+    expect(page.get('[data-test=details]').text()).toBe('Revision 1 → 2: +1 −1 cues')
+    expect(page.findAll('[data-test=cue]').map((r) => r.find('td').text())).toEqual(['', '−', '+'])
+
+    await page.get('[data-test=changes-only] input[type=checkbox]').trigger('click')
+    expect(kinds(page)).toEqual(['removed wrold', 'added Anna: world'])
+
+    // Showing the older revision ends the comparison with itself.
+    await page.get('[data-test=shown]').setValue('ST-1')
+    await flushPromises()
+    expect(kinds(page)).toEqual(['same Hello', 'same wrold'])
+    expect(page.get('[data-test=details]').text()).toContain('nb-whisper')
+    page.unmount()
+  })
+
+  it('says when two revisions do not differ once timing is left out', async () => {
+    const { page } = await openPage(
+      'AS-1',
+      json({ data: { asset } }),
+      json({ data: { subtitleTracks: history } }),
+      cuePage([cue(1, 'Hello', { startMs: 1040 })]),
+      cuePage([cue(1, 'Hello')]),
+    )
+    await page.get('[data-test=base]').setValue('ST-1')
+    await flushPromises()
+    await page.get('[data-test=changes-only] input[type=checkbox]').trigger('click')
+    expect(kinds(page)).toHaveLength(2)
+    await page.get('[data-test=ignore-timing] input[type=checkbox]').trigger('click')
+    expect(kinds(page)).toHaveLength(0)
+    expect(page.text()).toContain('No differences.')
+    page.unmount()
+  })
+
+  it('lets the user pick among assets with the same legacy id', async () => {
+    const { page, sent } = await openPage(
+      'VX-123',
+      json({ data: { assets: { nodes: [asset, { id: 'AS-2', title: 'Copy', legacyIds: ['VX-123'] }] } } }),
+      json({ data: { subtitleTracks: [] } }),
+    )
+    const choices = page.findAll('[data-test=candidate]')
+    expect(choices.map((c) => c.text())).toEqual(['Evening newsAS-1', 'CopyAS-2'])
+    await choices[1]!.trigger('click')
+    await flushPromises()
+    expect(sent[1]?.variables).toEqual({ assetId: 'AS-2' })
+    expect(page.get('[data-test=asset]').text()).toContain('Copy')
+    expect(page.get('[data-test=no-tracks]').text()).toBe('This asset has no subtitles.')
+    page.unmount()
+  })
+
+  it('says when no asset matches and shows a refusal', async () => {
+    const { page } = await openPage('VX-404', json({ data: { assets: { nodes: [] } } }), apiError('boom', { code: 'INTERNAL' }))
+    expect(page.find('[data-test=not-found]').exists()).toBe(true)
+    await page.get('form').trigger('submit')
+    await flushPromises()
+    expect(page.find('[data-test=not-found]').exists()).toBe(false)
+    expect(page.get('[role=alert]').text()).toBe('boom')
+    page.unmount()
+  })
+
+  it('says Loading while the first cues are on their way', async () => {
+    let answer!: (r: Response) => void
+    const slow = new Promise<Response>((resolve) => (answer = resolve))
+    const { fetcher } = fakeFetch(json({ data: { asset } }), json({ data: { subtitleTracks: history } }))
+    const fetchAll = vi.fn((url: RequestInfo | URL, init?: RequestInit) =>
+      String(init?.body).includes('SubtitleCues') ? slow : fetcher(url, init),
+    )
+    vi.stubGlobal('fetch', fetchAll)
+    const page = mount(Page, { attachTo: document.body })
+    await page.get('input').setValue('AS-1')
+    await page.get('form').trigger('submit')
+    await flushPromises()
+    // The asset is not shown before its tracks, and those select a revision whose cues are slow.
+    expect(page.get('button[type=submit]').text()).toBe('Opening…')
+    answer(cuePage(newer))
+    await flushPromises()
+    expect(page.get('button[type=submit]').text()).toBe('Open')
+    expect(kinds(page)).toHaveLength(2)
+    page.unmount()
+  })
+})

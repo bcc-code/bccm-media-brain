@@ -10,6 +10,13 @@
         >
           Service accounts
         </NuxtLink>
+        <NuxtLink
+          to="/subtitles"
+          class="rounded-control px-3 py-1.5 font-medium text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:focus-ring"
+          active-class="bg-accent !text-foreground"
+        >
+          Subtitles
+        </NuxtLink>
       </nav>
     </header>
     <NuxtPage />
