@@ -33,9 +33,11 @@ const pairs = computed<Pair[]>(() => {
   return changesOnly.value ? all.filter((p) => p.kind !== 'same') : all
 })
 
-/** Whether the two sides of a row differ in their timing, which "Ignore timing" lets through as unchanged. */
+/** Whether the two sides of a row say the same and only their timing differs. */
 function retimed(p: Pair): boolean {
-  return !!p.older && !!p.newer && (p.older.cue.startMs !== p.newer.cue.startMs || p.older.cue.endMs !== p.newer.cue.endMs)
+  if (!p.older || !p.newer) return false
+  if (p.older.text.some((t) => t.changed) || p.newer.text.some((t) => t.changed)) return false
+  return p.older.cue.startMs !== p.newer.cue.startMs || p.older.cue.endMs !== p.newer.cue.endMs
 }
 
 /** The Vidispine item of a `VX-…` legacy id, in MediaBanken. */
@@ -195,9 +197,9 @@ const pane = (p: Pair, s: 'older' | 'newer') => (p.kind === 'change' ? (p[s] ? s
             <div class="overflow-x-auto">
               <table v-if="comparison" class="w-full min-w-[900px] table-fixed border-collapse" data-test="comparison">
                 <colgroup>
-                  <col class="w-[11.5rem]" />
+                  <col class="w-[8.5rem]" />
                   <col />
-                  <col class="w-[11.5rem]" />
+                  <col class="w-[8.5rem]" />
                   <col />
                 </colgroup>
                 <thead>

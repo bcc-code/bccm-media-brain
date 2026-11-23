@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { timecode, trackLabel, useSubtitles } from '../app/composables/useSubtitles'
+import { overlapping, sideBySide, timecode, trackLabel, useSubtitles, type Cue, type Pair } from '../app/composables/useSubtitles'
+import { diff } from '../app/utils/diff'
 import { apiError, cue, cuePage, fakeFetch, json, revision } from './helpers'
 
 const asset = { id: 'AS-1', title: 'Evening news', legacyIds: ['VX-123'] }
@@ -219,5 +220,48 @@ describe('useSubtitles', () => {
     await Promise.all([first, second])
     expect(s.error.value).toBeNull()
     expect(s.shownCues.value.map((c) => c.text)).toEqual(['two'])
+  })
+})
+
+/** A cue from `from` to `to` seconds. */
+const at = (text: string, from: number, to: number): Cue => cue(0, text, { startMs: from * 1000, endMs: to * 1000 })
+
+describe('overlapping', () => {
+  it('groups the cues whose times chain together', () => {
+    const groups = overlapping([at('a', 0, 2), at('b', 3, 5), at('c', 10, 12)], [at('A', 1, 4), at('B', 7, 8), at('C', 11, 13)])
+    expect(groups.map((g) => g.removed.map((c) => c.text).join('') + '|' + g.added.map((c) => c.text).join(''))).toEqual([
+      'ab|A',
+      '|B',
+      'c|C',
+    ])
+  })
+
+  it('keeps cues that only touch apart', () => {
+    expect(overlapping([at('a', 0, 2)], [at('A', 2, 3)])).toHaveLength(2)
+  })
+})
+
+describe('sideBySide', () => {
+  const show = (pairs: Pair[]) =>
+    pairs.map((p) => {
+      const side = (x: Pair['older']) => (x ? x.text.map((t) => (t.changed ? `[${t.text}]` : t.text)).join('') : '-')
+      return `${side(p.older)} | ${side(p.newer)}`
+    })
+  const sbs = (older: Cue[], newer: Cue[]) => show(sideBySide(diff(older, newer, (c) => c.text)))
+
+  it('lines changed cues up by time, not by position', () => {
+    // The older revision has a song the newer one left out.
+    expect(sbs([at('la la', 0, 2), at('la di', 2, 4), at('Hei verden', 5, 7)], [at('Hei verda', 5, 7)])).toEqual([
+      'la la | -',
+      'la di | -',
+      'Hei [verden] | Hei [verda]',
+    ])
+  })
+
+  it('compares the words of a cue split in two with both halves', () => {
+    expect(sbs([at('Og så kommer det nye liv fram.', 0, 4)], [at('Og så kommer', 0, 2), at('det nye liv fram!', 2, 4)])).toEqual([
+      'Og så kommer det nye liv fram[.] | Og så kommer',
+      '- | det nye liv fram[!]',
+    ])
   })
 })

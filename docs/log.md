@@ -8,16 +8,20 @@ Newest first. Each entry: what changed, why, and what was left out on purpose.
   of changed cues is put next to its replacement, and the words that differ are marked. A
   one-word ASR correction ("Oskar" → "Oscar") used to be a whole removed cue and a whole added
   cue, often far apart, and the reader had to spot the word by eye.
-- The words of a whole run are compared as one sequence (`wordDiff` in `web/app/utils/diff.ts`),
-  so a cue that was split or merged, or a word that moved into the next cue, is not a change.
+- The words of cues that overlap in time are compared as one sequence (`wordDiff` in
+  `web/app/utils/diff.ts`), so a cue that was split or merged, or a word that moved into the
+  next cue, is not a change.
   Whitespace is compared as one space, so re-wrapping a line marks nothing.
 - With "Ignore timing", a cue whose text matched but whose times moved shows its timecodes marked.
 - The revision pickers and the two column headers name the model of a revision that has one
   (`nb-whisper-large` …), since revisions of one ASR origin differ mostly by model.
 - A `VX-…` legacy id on the asset card links to its item in MediaBanken
   (`https://vault.bcc.media/item/VX-…`, new tab).
-- Left out: pairing cues one to one inside a run (the run is laid out row by row, and the side
-  with fewer cues gets empty cells).
+- Changed cues are lined up by time: cues of the two sides that overlap share rows, and a cue
+  with nothing at its time on the other side gets a row of its own (an ASR run that skipped a
+  song). Laying a run out by position put 12:20 next to 18:36. Words are compared only between
+  cues that overlap: a run can span most of a transcript, too long to compare word by word.
+- Timecodes are marked only on a row whose text is the same on both sides.
 
 ## 2026-11-23 — Web UI: browse an asset's subtitles and compare revisions
 

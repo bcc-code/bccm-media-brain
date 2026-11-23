@@ -53,19 +53,48 @@ export function cueText(c: Cue): string {
   return c.speaker ? `${c.speaker}: ${c.text}` : c.text
 }
 
-/** The rows of a diff side by side: each hunk of changes as removed cues next to added ones, words marked. */
+/**
+ * The cues of a hunk of changes in groups that overlap in time, in order: the cues of both sides
+ * whose times chain into one stretch. A group with one side empty is a cue the other revision has
+ * nothing for at that time.
+ */
+export function overlapping(removed: Cue[], added: Cue[]): { removed: Cue[]; added: Cue[] }[] {
+  const all = [...removed.map((cue) => ({ cue, side: 'removed' as const })), ...added.map((cue) => ({ cue, side: 'added' as const }))]
+  // Stable, so cues that start together keep their revision's order.
+  all.sort((x, y) => x.cue.startMs - y.cue.startMs)
+  const groups: { removed: Cue[]; added: Cue[] }[] = []
+  let end = -Infinity
+  for (const { cue, side } of all) {
+    if (cue.startMs >= end) groups.push({ removed: [], added: [] })
+    groups[groups.length - 1]![side].push(cue)
+    end = Math.max(end, cue.endMs)
+  }
+  return groups
+}
+
+/**
+ * The rows of a diff side by side. Changed cues are lined up by time: those that overlap share
+ * rows and have their changed words marked. Words are compared per group, not per hunk, since a
+ * hunk can span a whole transcript, too long to compare word by word.
+ */
 export function sideBySide(rows: DiffRow<Cue>[]): Pair[] {
   const out: Pair[] = []
+  const plain = (cue: Cue) => ({ cue, text: [{ text: cueText(cue), changed: false }] })
   for (const h of hunks(rows)) {
     if (h.kind === 'same') {
-      const plain = (cue: Cue) => ({ cue, text: [{ text: cueText(cue), changed: false }] })
       out.push({ kind: 'same', older: plain(h.older), newer: plain(h.newer) })
       continue
     }
-    const words = wordDiff(h.removed.map(cueText), h.added.map(cueText))
-    for (let i = 0; i < Math.max(h.removed.length, h.added.length); i++) {
-      const side = (cues: Cue[], text: Segment[][]) => (i < cues.length ? { cue: cues[i]!, text: text[i]! } : null)
-      out.push({ kind: 'change', older: side(h.removed, words.older), newer: side(h.added, words.newer) })
+    for (const g of overlapping(h.removed, h.added)) {
+      // Alone at its time, a cue has nothing to compare with: its tint says enough.
+      const words =
+        g.removed.length && g.added.length
+          ? wordDiff(g.removed.map(cueText), g.added.map(cueText))
+          : { older: g.removed.map((c) => plain(c).text), newer: g.added.map((c) => plain(c).text) }
+      for (let i = 0; i < Math.max(g.removed.length, g.added.length); i++) {
+        const side = (cues: Cue[], text: Segment[][]) => (i < cues.length ? { cue: cues[i]!, text: text[i]! } : null)
+        out.push({ kind: 'change', older: side(g.removed, words.older), newer: side(g.added, words.newer) })
+      }
     }
   }
   return out
