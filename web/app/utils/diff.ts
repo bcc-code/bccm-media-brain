@@ -2,6 +2,8 @@ export interface DiffRow<T> {
   kind: 'same' | 'removed' | 'added'
   /** Of an unchanged row, the item of the newer list. */
   item: T
+  /** Of an unchanged row, the item of the older list, which `key` may find equal but not identical. */
+  older?: T
 }
 
 /** The table of the changed middle holds two bytes per cell: this is 32 MB. */
@@ -28,7 +30,8 @@ export function diff<T>(older: T[], newer: T[], key: (item: T) => string, maxCel
 
   const rows: DiffRow<T>[] = []
   const push = (kind: DiffRow<T>['kind'], item: T) => rows.push({ kind, item })
-  for (let j = 0; j < start; j++) push('same', newer[j]!)
+  const same = (i: number, j: number) => rows.push({ kind: 'same', item: newer[j]!, older: older[i]! })
+  for (let j = 0; j < start; j++) same(j, j)
 
   const n = endA - start
   const m = endB - start
@@ -51,7 +54,7 @@ export function diff<T>(older: T[], newer: T[], key: (item: T) => string, maxCel
     let j = 0
     while (i < n && j < m) {
       if (a[start + i] === b[start + j]) {
-        push('same', newer[start + j]!)
+        same(start + i, start + j)
         i++
         j++
       } else if (lcs[(i + 1) * width + j]! >= lcs[i * width + j + 1]!) {
@@ -64,6 +67,68 @@ export function diff<T>(older: T[], newer: T[], key: (item: T) => string, maxCel
     while (j < m) push('added', newer[start + j++]!)
   }
 
-  for (let j = endB; j < newer.length; j++) push('same', newer[j]!)
+  for (let j = endB; j < newer.length; j++) same(j - endB + endA, j)
   return rows
+}
+
+export type Hunk<T> = { kind: 'same'; older: T; newer: T } | { kind: 'change'; removed: T[]; added: T[] }
+
+/** The rows of a diff with each run of changed rows gathered into one hunk. */
+export function hunks<T>(rows: DiffRow<T>[]): Hunk<T>[] {
+  const out: Hunk<T>[] = []
+  for (const r of rows) {
+    if (r.kind === 'same') {
+      out.push({ kind: 'same', older: r.older!, newer: r.item })
+      continue
+    }
+    let last = out[out.length - 1]
+    if (last?.kind !== 'change') out.push((last = { kind: 'change', removed: [], added: [] }))
+    last[r.kind].push(r.item)
+  }
+  return out
+}
+
+/** Words, single punctuation marks and runs of whitespace, so that "si" and "si:" differ by the colon alone. */
+export function tokens(text: string): string[] {
+  return text.match(/\s+|[\p{L}\p{N}]+|[^\s\p{L}\p{N}]/gu) ?? []
+}
+
+export interface Segment {
+  text: string
+  changed: boolean
+}
+
+const isSpace = (s: string) => /^\s/.test(s)
+
+/**
+ * The word-level difference between two runs of texts (the cues of one hunk), as segments per
+ * text. The words of a run are compared as one sequence, so a word that moved into the next cue
+ * is not a change. Whitespace is compared as one space and never marked by itself: re-wrapping a
+ * line is not a change of wording.
+ */
+export function wordDiff(older: string[], newer: string[]): { older: Segment[][]; newer: Segment[][] } {
+  const flat = (texts: string[]) => texts.flatMap((t, at) => tokens(t).map((text) => ({ text, at })))
+  const raw = { older: older.map((): Segment[] => []), newer: newer.map((): Segment[] => []) }
+  for (const r of diff(flat(older), flat(newer), (t) => (isSpace(t.text) ? ' ' : t.text))) {
+    if (r.kind === 'same') {
+      raw.older[r.older!.at]!.push({ text: r.older!.text, changed: false })
+      raw.newer[r.item.at]!.push({ text: r.item.text, changed: false })
+    } else {
+      const t = r.item
+      raw[r.kind === 'removed' ? 'older' : 'newer'][t.at]!.push({ text: t.text, changed: !isSpace(t.text) })
+    }
+  }
+  return { older: raw.older.map(merged), newer: raw.newer.map(merged) }
+}
+
+/** Adjacent segments of the same kind joined; whitespace between two changes joins them into one. */
+function merged(segs: Segment[]): Segment[] {
+  const out: Segment[] = []
+  segs.forEach((s, i) => {
+    const changed = s.changed || (isSpace(s.text) && !!segs[i - 1]?.changed && !!segs[i + 1]?.changed)
+    const last = out[out.length - 1]
+    if (last?.changed === changed) last.text += s.text
+    else out.push({ text: s.text, changed })
+  })
+  return out
 }

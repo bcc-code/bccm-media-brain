@@ -2,6 +2,19 @@
 
 Newest first. Each entry: what changed, why, and what was left out on purpose.
 
+## 2026-11-23 — Subtitle comparison side by side, word by word
+
+- Comparing two revisions now shows the older one on the left and the newer on the right. Each run
+  of changed cues is put next to its replacement, and the words that differ are marked. A
+  one-word ASR correction ("Oskar" → "Oscar") used to be a whole removed cue and a whole added
+  cue, often far apart, and the reader had to spot the word by eye.
+- The words of a whole run are compared as one sequence (`wordDiff` in `web/app/utils/diff.ts`),
+  so a cue that was split or merged, or a word that moved into the next cue, is not a change.
+  Whitespace is compared as one space, so re-wrapping a line marks nothing.
+- With "Ignore timing", a cue whose text matched but whose times moved shows its timecodes marked.
+- Left out: pairing cues one to one inside a run (the run is laid out row by row, and the side
+  with fewer cues gets empty cells).
+
 ## 2026-11-23 — Web UI: browse an asset's subtitles and compare revisions
 
 - `/admin/subtitles` takes an asset id or a legacy id (a Vidispine `VX-…`), lists the asset's

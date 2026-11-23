@@ -139,6 +139,12 @@ describe('useSubtitles', () => {
     const rows = () => s.comparison.value?.rows.map((r) => `${r.kind} ${r.item.text}`)
     expect(rows()).toEqual(want)
     expect(s.comparison.value).toMatchObject({ from: { revision: 1 }, to: { revision: 3 }, added: 2, removed: 1 })
+    expect(s.comparison.value?.pairs.map((p) => `${p.kind} ${p.older?.cue.text ?? '-'} ${p.newer?.cue.text ?? '-'}`)).toEqual([
+      'same Hello Hello',
+      'change wrold world',
+      'same Bye Bye',
+      'change - Thanks',
+    ])
 
     // The other way round is the same comparison.
     await s.show('ST-1')
@@ -161,8 +167,14 @@ describe('useSubtitles', () => {
     expect(s.comparison.value).toMatchObject({ added: 2, removed: 2 })
     s.ignoreTiming.value = true
     expect(s.comparison.value).toMatchObject({ added: 1, removed: 1 })
-    // The unchanged cue is shown as the newer revision has it.
-    expect(s.comparison.value?.rows[0]).toEqual({ kind: 'same', item: cue(1, 'Hello', { startMs: 1040 }) })
+    // An unchanged row carries each revision's own cue, with its own timing.
+    expect(s.comparison.value?.rows[0]).toEqual({ kind: 'same', item: cue(1, 'Hello', { startMs: 1040 }), older: cue(1, 'Hello') })
+    const side = (x: { cue: { text: string }; text: { text: string; changed: boolean }[] } | null) =>
+      x && x.text.map((t) => (t.changed ? `[${t.text}]` : t.text)).join('')
+    expect(s.comparison.value?.pairs.map((p) => [p.kind, side(p.older), side(p.newer)])).toEqual([
+      ['same', 'Hello', 'Hello'],
+      ['change', 'Bye', '[Anna:] Bye'],
+    ])
   })
 
   it('ignores a track, a revision or a comparison that is not there', async () => {

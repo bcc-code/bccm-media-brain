@@ -24,8 +24,20 @@ async function openPage(id: string, ...answers: (Response | Error)[]) {
   return { page, sent }
 }
 
-const kinds = (page: Awaited<ReturnType<typeof openPage>>['page']) =>
-  page.findAll('[data-test=cue]').map((r) => `${r.attributes('data-kind')} ${r.findAll('td')[2]!.text()}`)
+type Page = Awaited<ReturnType<typeof openPage>>['page']
+
+/** A revision by itself: "same <text>"; a comparison: "<kind> <older> | <newer>", changed words in brackets. */
+const kinds = (page: Page) =>
+  page.findAll('[data-test=cue]').map((r) => {
+    if (!r.find('[data-test=old]').exists()) return `${r.attributes('data-kind')} ${r.findAll('td')[1]!.text()}`
+    const side = (name: string) => {
+      const cell = r.get(`[data-test=${name}]`)
+      let html = cell.html()
+      for (const m of cell.findAll('[data-test=changed]')) html = html.replace(m.html(), `[${m.text()}]`)
+      return html.replace(/<[^>]+>/g, '').trim()
+    }
+    return `${r.attributes('data-kind')} ${side('old')} | ${side('new')}`
+  })
 
 describe('subtitles page', () => {
   it('does not search without an id', async () => {
@@ -75,12 +87,12 @@ describe('subtitles page', () => {
     expect(base.findAll('option').map((o) => o.attributes('value'))).toEqual(['', 'ST-1'])
     await base.setValue('ST-1')
     await flushPromises()
-    expect(kinds(page)).toEqual(['same Hello', 'removed wrold', 'added Anna: world'])
+    expect(kinds(page)).toEqual(['same Hello | Hello', 'change [wrold] | [Anna: world]'])
     expect(page.get('[data-test=details]').text()).toBe('Revision 1 → 2: +1 −1 cues')
-    expect(page.findAll('[data-test=cue]').map((r) => r.find('td').text())).toEqual(['', '−', '+'])
+    expect(page.findAll('[data-test=comparison] th').map((h) => h.text())).toEqual(['Revision 1', 'Revision 2'])
 
     await page.get('[data-test=changes-only] input[type=checkbox]').trigger('click')
-    expect(kinds(page)).toEqual(['removed wrold', 'added Anna: world'])
+    expect(kinds(page)).toEqual(['change [wrold] | [Anna: world]'])
 
     // Showing the older revision ends the comparison with itself.
     await page.get('[data-test=shown]').setValue('ST-1')
@@ -101,10 +113,15 @@ describe('subtitles page', () => {
     await page.get('[data-test=base]').setValue('ST-1')
     await flushPromises()
     await page.get('[data-test=changes-only] input[type=checkbox]').trigger('click')
-    expect(kinds(page)).toHaveLength(2)
+    // Text unchanged, timing moved: the timecodes are marked, the words are not.
+    expect(kinds(page)).toEqual(['change Hello | Hello'])
+    expect(page.findAll('[data-test=retimed]')).toHaveLength(2)
     await page.get('[data-test=ignore-timing] input[type=checkbox]').trigger('click')
     expect(kinds(page)).toHaveLength(0)
     expect(page.text()).toContain('No differences.')
+    await page.get('[data-test=changes-only] input[type=checkbox]').trigger('click')
+    expect(kinds(page)).toEqual(['same Hello | Hello'])
+    expect(page.findAll('[data-test=retimed]')).toHaveLength(2)
     page.unmount()
   })
 

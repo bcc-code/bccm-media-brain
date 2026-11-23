@@ -1,5 +1,5 @@
 import { computed, ref } from 'vue'
-import { diff, type DiffRow } from '../utils/diff'
+import { diff, hunks, wordDiff, type DiffRow, type Segment } from '../utils/diff'
 import { ApiError, gql, type Fetcher } from '../utils/graphql'
 
 export interface SubtitleAsset {
@@ -41,6 +41,35 @@ const ASSET = 'id title legacyIds'
 const REVISION = 'id renditionId language kind origin model revision createdBy createdAt'
 /** The API's largest page of cues. */
 const CUE_PAGE = 5000
+
+/** One line of a side-by-side comparison; a side without a cue is null. */
+export interface Pair {
+  kind: 'same' | 'change'
+  older: { cue: Cue; text: Segment[] } | null
+  newer: { cue: Cue; text: Segment[] } | null
+}
+
+export function cueText(c: Cue): string {
+  return c.speaker ? `${c.speaker}: ${c.text}` : c.text
+}
+
+/** The rows of a diff side by side: each hunk of changes as removed cues next to added ones, words marked. */
+export function sideBySide(rows: DiffRow<Cue>[]): Pair[] {
+  const out: Pair[] = []
+  for (const h of hunks(rows)) {
+    if (h.kind === 'same') {
+      const plain = (cue: Cue) => ({ cue, text: [{ text: cueText(cue), changed: false }] })
+      out.push({ kind: 'same', older: plain(h.older), newer: plain(h.newer) })
+      continue
+    }
+    const words = wordDiff(h.removed.map(cueText), h.added.map(cueText))
+    for (let i = 0; i < Math.max(h.removed.length, h.added.length); i++) {
+      const side = (cues: Cue[], text: Segment[][]) => (i < cues.length ? { cue: cues[i]!, text: text[i]! } : null)
+      out.push({ kind: 'change', older: side(h.removed, words.older), newer: side(h.added, words.newer) })
+    }
+  }
+  return out
+}
 
 export function timecode(ms: number): string {
   const p = (n: number, width = 2) => String(n).padStart(width, '0')
@@ -214,7 +243,7 @@ export function useSubtitles(fetcher?: Fetcher) {
   }
 
   /** From the older revision to the newer, whichever of the two is the one shown. */
-  const comparison = computed<{ from: Revision; to: Revision; rows: DiffRow<Cue>[]; added: number; removed: number } | null>(() => {
+  const comparison = computed<{ from: Revision; to: Revision; rows: DiffRow<Cue>[]; pairs: Pair[]; added: number; removed: number } | null>(() => {
     const s = shown.value
     const b = base.value
     if (!s || !b || !baseCues.value) return null
@@ -227,6 +256,7 @@ export function useSubtitles(fetcher?: Fetcher) {
       from: forward ? b : s,
       to: forward ? s : b,
       rows,
+      pairs: sideBySide(rows),
       added: rows.filter((r) => r.kind === 'added').length,
       removed: rows.filter((r) => r.kind === 'removed').length,
     }

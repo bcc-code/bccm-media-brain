@@ -2,7 +2,7 @@
 import { computed, ref } from 'vue'
 import { Field } from '@ark-ui/vue/field'
 import CheckOption from '../components/CheckOption.vue'
-import { timecode, trackLabel, useSubtitles, type Cue, type Revision } from '../composables/useSubtitles'
+import { cueText, timecode, trackLabel, useSubtitles, type Pair, type Revision } from '../composables/useSubtitles'
 
 const {
   asset,
@@ -28,11 +28,15 @@ const {
 const wanted = ref('')
 const changesOnly = ref(false)
 
-/** One table for both views: a revision by itself is rows that are all unchanged. */
-const rows = computed<{ kind: 'same' | 'removed' | 'added'; item: Cue }[]>(() => {
-  if (!comparison.value) return shownCues.value.map((item) => ({ kind: 'same', item }))
-  return changesOnly.value ? comparison.value.rows.filter((r) => r.kind !== 'same') : comparison.value.rows
+const pairs = computed<Pair[]>(() => {
+  const all = comparison.value?.pairs ?? []
+  return changesOnly.value ? all.filter((p) => p.kind !== 'same') : all
 })
+
+/** Whether the two sides of a row differ in their timing, which "Ignore timing" lets through as unchanged. */
+function retimed(p: Pair): boolean {
+  return !!p.older && !!p.newer && (p.older.cue.startMs !== p.newer.cue.startMs || p.older.cue.endMs !== p.newer.cue.endMs)
+}
 
 function revisionLabel(r: Revision): string {
   return `Revision ${r.revision} · ${r.origin} · ${r.createdAt.slice(0, 10)}`
@@ -43,8 +47,11 @@ const input =
 const card = 'rounded-card border border-border bg-card'
 const th = 'px-4 py-2.5 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground'
 const td = 'border-t border-border px-4 py-2 align-top'
-const mark = { same: '', removed: '−', added: '+' }
-const tint = { same: '', removed: 'bg-destructive/10', added: 'bg-success/10' }
+const side = {
+  older: { tint: 'bg-destructive/10', mark: 'bg-destructive/30' },
+  newer: { tint: 'bg-success/10', mark: 'bg-success/30' },
+}
+const pane = (p: Pair, s: 'older' | 'newer') => (p.kind === 'change' ? (p[s] ? side[s].tint : 'empty-cell') : '')
 </script>
 
 <template>
@@ -167,30 +174,58 @@ const tint = { same: '', removed: 'bg-destructive/10', added: 'bg-success/10' }
 
           <div :class="[card, 'overflow-hidden', { 'opacity-60': cuesLoading }]">
             <div class="overflow-x-auto">
-              <table class="w-full min-w-[560px] border-collapse">
+              <table v-if="comparison" class="w-full min-w-[900px] table-fixed border-collapse" data-test="comparison">
+                <colgroup>
+                  <col class="w-[11.5rem]" />
+                  <col />
+                  <col class="w-[11.5rem]" />
+                  <col />
+                </colgroup>
                 <thead>
                   <tr>
-                    <th :class="[th, 'w-8 !px-2']"><span class="sr-only">Change</span></th>
+                    <th :class="th" colspan="2">Revision {{ comparison.from.revision }}</th>
+                    <th :class="[th, 'border-l border-border']" colspan="2">Revision {{ comparison.to.revision }}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="(p, i) in pairs" :key="i" data-test="cue" :data-kind="p.kind">
+                    <template v-for="s in (['older', 'newer'] as const)" :key="s">
+                      <td
+                        :class="[td, pane(p, s), 'whitespace-nowrap font-mono text-[13px] text-muted-foreground', { 'border-l border-border': s === 'newer' }]"
+                      >
+                        <span v-if="p[s]" :class="{ [`${side[s].mark} rounded-sm text-foreground`]: retimed(p) }" :data-test="retimed(p) ? 'retimed' : undefined">
+                          {{ timecode(p[s]!.cue.startMs) }}<br />{{ timecode(p[s]!.cue.endMs) }}
+                        </span>
+                      </td>
+                      <td :class="[td, pane(p, s), 'whitespace-pre-wrap break-words']" :data-test="s === 'older' ? 'old' : 'new'">
+                        <template v-for="(seg, k) in p[s]?.text ?? []" :key="k">
+                          <mark v-if="seg.changed" data-test="changed" :class="[side[s].mark, 'rounded-sm text-foreground']">{{ seg.text }}</mark>
+                          <template v-else>{{ seg.text }}</template>
+                        </template>
+                      </td>
+                    </template>
+                  </tr>
+                  <tr v-if="pairs.length === 0">
+                    <td :class="[td, 'text-muted-foreground']" colspan="4">{{ cuesLoading ? 'Loading…' : 'No differences.' }}</td>
+                  </tr>
+                </tbody>
+              </table>
+              <table v-else class="w-full min-w-[560px] border-collapse">
+                <thead>
+                  <tr>
                     <th :class="[th, 'w-64']">Time</th>
                     <th :class="th">Text</th>
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="(r, i) in rows" :key="i" data-test="cue" :data-kind="r.kind" :class="tint[r.kind]">
-                    <td :class="[td, '!px-2 text-center font-mono', r.kind === 'added' ? 'text-success' : 'text-destructive']">
-                      {{ mark[r.kind] }}
-                    </td>
+                  <tr v-for="(c, i) in shownCues" :key="i" data-test="cue" data-kind="same">
                     <td :class="[td, 'whitespace-nowrap font-mono text-[13px] text-muted-foreground']">
-                      {{ timecode(r.item.startMs) }} → {{ timecode(r.item.endMs) }}
+                      {{ timecode(c.startMs) }} → {{ timecode(c.endMs) }}
                     </td>
-                    <td :class="[td, 'whitespace-pre-wrap']">
-                      <span v-if="r.item.speaker" class="text-muted-foreground">{{ r.item.speaker }}: </span>{{ r.item.text }}
-                    </td>
+                    <td :class="[td, 'whitespace-pre-wrap']">{{ cueText(c) }}</td>
                   </tr>
-                  <tr v-if="rows.length === 0">
-                    <td :class="[td, 'text-muted-foreground']" colspan="3">
-                      {{ cuesLoading ? 'Loading…' : comparison ? 'No differences.' : 'No cues.' }}
-                    </td>
+                  <tr v-if="shownCues.length === 0">
+                    <td :class="[td, 'text-muted-foreground']" colspan="2">{{ cuesLoading ? 'Loading…' : 'No cues.' }}</td>
                   </tr>
                 </tbody>
               </table>
@@ -201,3 +236,10 @@ const tint = { same: '', removed: 'bg-destructive/10', added: 'bg-success/10' }
     </template>
   </main>
 </template>
+
+<style scoped>
+/* The side of a change that has no cue for this line. */
+.empty-cell {
+  background-image: repeating-linear-gradient(135deg, transparent 0 6px, var(--color-border) 6px 7px);
+}
+</style>
