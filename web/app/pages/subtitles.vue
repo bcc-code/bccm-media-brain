@@ -38,6 +38,11 @@ function retimed(p: Pair): boolean {
   return !!p.older && !!p.newer && (p.older.cue.startMs !== p.newer.cue.startMs || p.older.cue.endMs !== p.newer.cue.endMs)
 }
 
+/** The Vidispine item of a `VX-…` legacy id, in MediaBanken. */
+function vaultUrl(id: string): string | null {
+  return /^VX-\d+$/.test(id) ? `https://vault.bcc.media/item/${id}` : null
+}
+
 function revisionLabel(r: Revision): string {
   return [`Revision ${r.revision}`, r.origin, r.model, r.createdAt.slice(0, 10)].filter(Boolean).join(' · ')
 }
@@ -102,7 +107,21 @@ const pane = (p: Pair, s: 'older' | 'newer') => (p.kind === 'change' ? (p[s] ? s
     <template v-if="asset">
       <section :class="[card, 'flex flex-col gap-1 p-6']" aria-label="Asset" data-test="asset">
         <h2 class="text-lg font-medium leading-snug">{{ asset.title }}</h2>
-        <p class="font-mono text-xs text-muted-foreground">{{ [asset.id, ...asset.legacyIds].join(' · ') }}</p>
+        <p class="font-mono text-xs text-muted-foreground">
+          <template v-for="id in [asset.id, ...asset.legacyIds]" :key="id">
+            <template v-if="id !== asset.id"> · </template>
+            <a
+              v-if="vaultUrl(id)"
+              :href="vaultUrl(id)!"
+              target="_blank"
+              rel="noopener noreferrer"
+              data-test="vault"
+              class="underline decoration-border underline-offset-2 hover:text-foreground hover:decoration-current focus-visible:focus-ring"
+              >{{ id }}</a
+            >
+            <template v-else>{{ id }}</template>
+          </template>
+        </p>
       </section>
 
       <p v-if="tracks.length === 0" data-test="no-tracks" class="text-muted-foreground">This asset has no subtitles.</p>

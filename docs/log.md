@@ -14,6 +14,8 @@ Newest first. Each entry: what changed, why, and what was left out on purpose.
 - With "Ignore timing", a cue whose text matched but whose times moved shows its timecodes marked.
 - The revision pickers and the two column headers name the model of a revision that has one
   (`nb-whisper-large` …), since revisions of one ASR origin differ mostly by model.
+- A `VX-…` legacy id on the asset card links to its item in MediaBanken
+  (`https://vault.bcc.media/item/VX-…`, new tab).
 - Left out: pairing cues one to one inside a run (the run is laid out row by row, and the side
   with fewer cues gets empty cells).
 

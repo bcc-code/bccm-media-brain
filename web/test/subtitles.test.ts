@@ -57,6 +57,9 @@ describe('subtitles page', () => {
     )
     expect(page.get('[data-test=asset]').text()).toContain('Evening news')
     expect(page.get('[data-test=asset]').text()).toContain('AS-1 · VX-123')
+    expect(page.findAll('[data-test=vault]').map((a) => [a.text(), a.attributes('href'), a.attributes('target')])).toEqual([
+      ['VX-123', 'https://vault.bcc.media/item/VX-123', '_blank'],
+    ])
     const tracks = page.findAll('[data-test=track]')
     expect(tracks.map((t) => t.text())).toEqual(['nb · SUBTITLE2 revisions', 'No language · TRANSCRIPT1 revision'])
     expect(tracks[0]!.attributes('aria-current')).toBe('true')
