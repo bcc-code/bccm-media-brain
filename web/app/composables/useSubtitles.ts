@@ -265,6 +265,31 @@ export function useSubtitles(fetcher?: Fetcher) {
     return fill()
   }
 
+  const exporting = ref(false)
+
+  /** The shown revision as SRT, with a file name that says which asset, track and revision it is; null on failure. */
+  async function exportShown(): Promise<{ name: string; text: string } | null> {
+    const r = shown.value
+    if (!r || !asset.value) return null
+    exporting.value = true
+    error.value = null
+    try {
+      const data = await gql<{ subtitleTrack: { export: string } | null }>(
+        `query SubtitleExport($id: ID!) { subtitleTrack(id: $id) { export(format: SRT) } }`,
+        { id: r.id },
+        fetcher,
+      )
+      if (!data.subtitleTrack) throw new ApiError('This revision no longer exists.', 'NOT_FOUND')
+      const name = [asset.value.id, r.language, r.kind.toLowerCase(), `r${r.revision}`].filter(Boolean).join('-')
+      return { name: `${name}.srt`, text: data.subtitleTrack.export }
+    } catch (e) {
+      error.value = e as ApiError
+      return null
+    } finally {
+      exporting.value = false
+    }
+  }
+
   /** Compares the shown revision with another of its track; null or '' ends the comparison. */
   function compare(id: string | null) {
     base.value = track.value?.revisions.find((x) => x.id === id && x.id !== shown.value?.id) ?? null
@@ -305,6 +330,8 @@ export function useSubtitles(fetcher?: Fetcher) {
     cuesLoading,
     ignoreTiming,
     comparison,
+    exporting,
+    exportShown,
     open,
     choose,
     selectTrack,

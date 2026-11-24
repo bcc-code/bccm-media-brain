@@ -106,6 +106,36 @@ describe('subtitles page', () => {
     page.unmount()
   })
 
+  it('downloads the shown revision as SRT', async () => {
+    const { page, sent } = await openPage(
+      'AS-1',
+      json({ data: { asset } }),
+      json({ data: { subtitleTracks: history } }),
+      cuePage(newer),
+      json({ data: { subtitleTrack: { export: 'SRT TEXT' } } }),
+      json({ data: { subtitleTrack: null } }),
+    )
+    const blobs: Blob[] = []
+    vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: vi.fn((b: Blob) => (blobs.push(b), 'blob:x')), revokeObjectURL: vi.fn() }))
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+      expect([this.download, this.href]).toEqual(['AS-1-nb-subtitle-r2.srt', 'blob:x'])
+    })
+    await page.get('[data-test=download]').trigger('click')
+    await flushPromises()
+    expect(sent[3]?.variables).toEqual({ id: 'ST-2' })
+    expect(click).toHaveBeenCalledOnce()
+    expect(await blobs[0]!.text()).toBe('SRT TEXT')
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:x')
+
+    // A failed export downloads nothing and says why.
+    await page.get('[data-test=download]').trigger('click')
+    await flushPromises()
+    expect(click).toHaveBeenCalledOnce()
+    expect(page.get('[role=alert]').text()).toContain('no longer exists')
+    click.mockRestore()
+    page.unmount()
+  })
+
   it('says when two revisions do not differ once timing is left out', async () => {
     const { page } = await openPage(
       'AS-1',

@@ -22,6 +22,8 @@ Newest first. Each entry: what changed, why, and what was left out on purpose.
   song). Laying a run out by position put 12:20 next to 18:36. Words are compared only between
   cues that overlap: a run can span most of a transcript, too long to compare word by word.
 - Timecodes are marked only on a row whose text is the same on both sides.
+- "Download SRT" saves the shown revision through the API's `export(format: SRT)`, as
+  `<asset>-<language>-<kind>-r<revision>.srt`. SRT has no speakers, so they are left out.
 
 ## 2026-11-23 — Web UI: browse an asset's subtitles and compare revisions
 

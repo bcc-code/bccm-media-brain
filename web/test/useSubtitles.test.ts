@@ -117,6 +117,29 @@ describe('useSubtitles', () => {
     return { s, sent: fake.sent }
   }
 
+  it('exports the shown revision as SRT', async () => {
+    const { s, sent } = await opened(json({ data: { subtitleTrack: { export: '1\n00:00:01,000 --> 00:00:01,900\nHello\n' } } }))
+    const pending = s.exportShown()
+    expect(s.exporting.value).toBe(true)
+    expect(await pending).toEqual({ name: 'AS-1-en-subtitle-r1.srt', text: '1\n00:00:01,000 --> 00:00:01,900\nHello\n' })
+    expect(s.exporting.value).toBe(false)
+    expect(sent[3]?.query).toContain('export(format: SRT)')
+    expect(sent[3]?.variables).toEqual({ id: 'ST-9' })
+  })
+
+  it('says why an export failed', async () => {
+    const { s } = await opened(json({ data: { subtitleTrack: null } }), apiError('boom', { code: 'INTERNAL' }))
+    expect(await s.exportShown()).toBeNull()
+    expect(s.error.value?.code).toBe('NOT_FOUND')
+    expect(await s.exportShown()).toBeNull()
+    expect(s.error.value?.message).toBe('boom')
+    expect(s.exporting.value).toBe(false)
+  })
+
+  it('exports nothing before a revision is shown', async () => {
+    expect(await useSubtitles(fakeFetch().fetcher).exportShown()).toBeNull()
+  })
+
   it('reads every page of a revision and reads it only once', async () => {
     const { s, sent } = await opened(cuePage([cue(1, 'a')], 'c1'), cuePage([cue(2, 'b')]))
     await s.selectTrack('RE-nb')

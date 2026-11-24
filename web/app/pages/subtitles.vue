@@ -23,6 +23,8 @@ const {
   selectTrack,
   show,
   compare,
+  exporting,
+  exportShown,
 } = useSubtitles()
 
 const wanted = ref('')
@@ -43,6 +45,17 @@ function retimed(p: Pair): boolean {
 /** The Vidispine item of a `VX-…` legacy id, in MediaBanken. */
 function vaultUrl(id: string): string | null {
   return /^VX-\d+$/.test(id) ? `https://vault.bcc.media/item/${id}` : null
+}
+
+async function download() {
+  const file = await exportShown()
+  if (!file) return
+  const url = URL.createObjectURL(new Blob([file.text], { type: 'application/x-subrip;charset=utf-8' }))
+  const a = document.createElement('a')
+  a.href = url
+  a.download = file.name
+  a.click()
+  URL.revokeObjectURL(url)
 }
 
 function revisionLabel(r: Revision): string {
@@ -180,6 +193,16 @@ const pane = (p: Pair, s: 'older' | 'newer') => (p.kind === 'change' ? (p[s] ? s
                 <CheckOption v-model="changesOnly" data-test="changes-only">Changes only</CheckOption>
               </div>
             </template>
+            <button
+              type="button"
+              data-test="download"
+              class="ml-auto h-9 rounded-control border border-border px-4 font-medium hover:bg-accent focus-visible:focus-ring disabled:pointer-events-none disabled:opacity-50"
+              :disabled="exporting"
+              :title="`Download revision ${shown.revision} as SRT (without speakers)`"
+              @click="download"
+            >
+              {{ exporting ? 'Preparing…' : 'Download SRT' }}
+            </button>
           </div>
 
           <p class="font-mono text-xs text-muted-foreground" data-test="details">
