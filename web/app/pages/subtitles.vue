@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { Field } from '@ark-ui/vue/field'
 import CheckOption from '../components/CheckOption.vue'
 import { cueText, timecode, trackLabel, useSubtitles, type Pair, type Revision } from '../composables/useSubtitles'
@@ -25,9 +25,20 @@ const {
   compare,
   exporting,
   exportShown,
+  canDelete,
+  deleting,
+  deleteShown,
 } = useSubtitles()
 
 const wanted = ref('')
+/** The delete button asks once more before it deletes. */
+const confirming = ref(false)
+watch(shown, () => (confirming.value = false))
+
+async function remove() {
+  if (await deleteShown()) confirming.value = false
+}
+
 const changesOnly = ref(false)
 
 const pairs = computed<Pair[]>(() => {
@@ -203,6 +214,40 @@ const pane = (p: Pair, s: 'older' | 'newer') => (p.kind === 'change' ? (p[s] ? s
             >
               {{ exporting ? 'Preparing…' : 'Download SRT' }}
             </button>
+            <template v-if="canDelete">
+              <div v-if="confirming" class="flex h-9 items-center gap-2" data-test="confirm">
+                <span>Delete revision {{ shown.revision }}? This cannot be undone.</span>
+                <button
+                  type="button"
+                  data-test="confirm-delete"
+                  class="h-9 rounded-control bg-destructive px-4 font-medium text-primary-foreground hover:bg-destructive/90 focus-visible:focus-ring disabled:pointer-events-none disabled:opacity-50"
+                  :disabled="deleting"
+                  @click="remove"
+                >
+                  {{ deleting ? 'Deleting…' : 'Delete' }}
+                </button>
+                <button
+                  type="button"
+                  data-test="cancel-delete"
+                  class="h-9 rounded-control border border-border px-4 font-medium hover:bg-accent focus-visible:focus-ring"
+                  :disabled="deleting"
+                  @click="confirming = false"
+                >
+                  Cancel
+                </button>
+              </div>
+              <button
+                v-else
+                type="button"
+                data-test="delete"
+                class="h-9 rounded-control border border-destructive/40 px-4 font-medium text-destructive hover:bg-destructive/10 focus-visible:focus-ring disabled:pointer-events-none disabled:opacity-50"
+                :disabled="track.revisions.length < 2"
+                :title="track.revisions.length < 2 ? 'The only revision of this track cannot be deleted' : `Delete revision ${shown.revision}`"
+                @click="confirming = true"
+              >
+                Delete revision
+              </button>
+            </template>
           </div>
 
           <p class="font-mono text-xs text-muted-foreground" data-test="details">

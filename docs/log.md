@@ -2,6 +2,18 @@
 
 Newest first. Each entry: what changed, why, and what was left out on purpose.
 
+## 2026-11-24 — Subtitles page: delete a revision
+
+- "Delete revision" removes the shown revision through the existing `deleteSubtitleTrack` (one
+  `SubtitleTrack` is one revision). It asks once more inline before it deletes, then shows the
+  newest revision left. The other revisions and tracks stay.
+- It is offered only when the asset's `myLevel` is `DELETE` or `ADMIN`; the API checks again.
+- Left out on purpose: deleting a track's only revision. That would remove the whole track, so the
+  button is disabled there (the API still allows it). A revision someone else already deleted
+  (`NOT_FOUND`) is dropped from the list instead of reported.
+- The next revision's `parentId` becomes null when its parent is deleted (`ON DELETE SET NULL`),
+  and deleting the latest lets the next edit or import reuse its number.
+
 ## 2026-11-23 — Subtitle comparison side by side, word by word
 
 - Comparing two revisions now shows the older one on the left and the newer on the right. Each run

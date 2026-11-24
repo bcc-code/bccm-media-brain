@@ -185,6 +185,69 @@ describe('subtitles page', () => {
     page.unmount()
   })
 
+  it('deletes the shown revision after asking, and never a track\'s only one', async () => {
+    const { page, sent } = await openPage(
+      'AS-1',
+      json({ data: { asset: { ...asset, myLevel: 'DELETE' } } }),
+      json({ data: { subtitleTracks: history } }),
+      cuePage(newer),
+      json({ data: { deleteSubtitleTrack: true } }),
+      cuePage(older),
+    )
+    await page.get('[data-test=delete]').trigger('click')
+    expect(page.get('[data-test=confirm]').text()).toContain('Delete revision 2? This cannot be undone.')
+    await page.get('[data-test=cancel-delete]').trigger('click')
+    expect(page.find('[data-test=confirm]').exists()).toBe(false)
+    expect(sent).toHaveLength(3)
+
+    await page.get('[data-test=delete]').trigger('click')
+    await page.get('[data-test=confirm-delete]').trigger('click')
+    expect(page.get('[data-test=confirm-delete]').text()).toBe('Deleting…')
+    await flushPromises()
+    expect(sent[3]?.variables).toEqual({ id: 'ST-2' })
+    expect(page.find('[data-test=confirm]').exists()).toBe(false)
+    expect(page.findAll('[data-test=shown] option').map((o) => o.attributes('value'))).toEqual(['ST-1'])
+    expect(page.findAll('[data-test=track]').map((t) => t.text())).toEqual(['nb · SUBTITLE1 revision', 'No language · TRANSCRIPT1 revision'])
+    expect(kinds(page)).toEqual(['same Hello', 'same wrold'])
+    const only = page.get('[data-test=delete]')
+    expect(only.attributes('disabled')).toBeDefined()
+    expect(only.attributes('title')).toBe('The only revision of this track cannot be deleted')
+    page.unmount()
+  })
+
+  it('shows why a delete was refused and forgets the question on another revision', async () => {
+    const { page } = await openPage(
+      'AS-1',
+      json({ data: { asset: { ...asset, myLevel: 'ADMIN' } } }),
+      json({ data: { subtitleTracks: history } }),
+      cuePage(newer),
+      apiError('not allowed', { code: 'FORBIDDEN' }),
+      cuePage(older),
+    )
+    await page.get('[data-test=delete]').trigger('click')
+    await page.get('[data-test=confirm-delete]').trigger('click')
+    await flushPromises()
+    expect(page.get('[role=alert]').text()).toBe('not allowed')
+    expect(page.find('[data-test=confirm]').exists()).toBe(true)
+    await page.get('[data-test=shown]').setValue('ST-1')
+    await flushPromises()
+    expect(page.find('[data-test=confirm]').exists()).toBe(false)
+    expect(page.get('[data-test=delete]').attributes('title')).toBe('Delete revision 1')
+    page.unmount()
+  })
+
+  it('offers no delete without DELETE on the asset', async () => {
+    const { page } = await openPage(
+      'AS-1',
+      json({ data: { asset: { ...asset, myLevel: 'EDIT' } } }),
+      json({ data: { subtitleTracks: history } }),
+      cuePage(newer),
+    )
+    expect(page.find('[data-test=download]').exists()).toBe(true)
+    expect(page.find('[data-test=delete]').exists()).toBe(false)
+    page.unmount()
+  })
+
   it('says Loading while the first cues are on their way', async () => {
     let answer!: (r: Response) => void
     const slow = new Promise<Response>((resolve) => (answer = resolve))

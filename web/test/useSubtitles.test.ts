@@ -244,6 +244,77 @@ describe('useSubtitles', () => {
     expect(s.error.value).toBeNull()
     expect(s.shownCues.value.map((c) => c.text)).toEqual(['two'])
   })
+
+  describe('deleting a revision', () => {
+    /** The asset opened with the given level, its nb track selected: revision 3 shown, cues read. */
+    async function nb(level: string, ...answers: Response[]) {
+      const fake = fakeFetch(json({ data: { asset: { ...asset, myLevel: level } } }), tracksAnswer(), cuePage([]), cuePage([cue(1, 'three')]), ...answers)
+      const s = useSubtitles(fake.fetcher)
+      await s.open('AS-1')
+      await s.selectTrack('RE-nb')
+      return { s, sent: fake.sent }
+    }
+    const revisions = (s: ReturnType<typeof useSubtitles>) => s.tracks.value.map((t) => [t.renditionId, t.revisions.map((r) => r.id)])
+
+    it('is allowed with DELETE or ADMIN on the asset', async () => {
+      expect((await nb('EDIT')).s.canDelete.value).toBe(false)
+      expect((await nb('DELETE')).s.canDelete.value).toBe(true)
+      expect((await nb('ADMIN')).s.canDelete.value).toBe(true)
+      expect(useSubtitles(fakeFetch().fetcher).canDelete.value).toBe(false)
+    })
+
+    it('deletes only the shown revision and shows the newest one left', async () => {
+      const { s, sent } = await nb('DELETE', cuePage([cue(1, 'two')]), json({ data: { deleteSubtitleTrack: true } }))
+      await s.compare('ST-2')
+      const pending = s.deleteShown()
+      expect(s.deleting.value).toBe(true)
+      expect(await pending).toBe(true)
+      expect(s.deleting.value).toBe(false)
+      expect(sent[5]?.query).toContain('deleteSubtitleTrack(id: $id)')
+      expect(sent[5]?.variables).toEqual({ id: 'ST-3' })
+      expect(revisions(s)).toEqual([
+        ['RE-en', ['ST-9']],
+        ['RE-nb', ['ST-2', 'ST-1']],
+      ])
+      // Revision 2 was the one compared with; it is now shown, from the cache, compared with nothing.
+      expect(s.shown.value?.id).toBe('ST-2')
+      expect(s.base.value).toBeNull()
+      expect(s.shownCues.value.map((c) => c.text)).toEqual(['two'])
+      expect(sent).toHaveLength(6)
+    })
+
+    it('keeps comparing with a revision that is still there', async () => {
+      const { s } = await nb('DELETE', cuePage([cue(1, 'one')]), json({ data: { deleteSubtitleTrack: true } }), cuePage([cue(1, 'two')]))
+      await s.compare('ST-1')
+      expect(await s.deleteShown()).toBe(true)
+      expect(s.shown.value?.id).toBe('ST-2')
+      expect(s.base.value?.id).toBe('ST-1')
+      expect(s.comparison.value?.from.revision).toBe(1)
+    })
+
+    it('never deletes the only revision of a track', async () => {
+      const { s, sent } = await opened()
+      expect(s.track.value?.revisions).toHaveLength(1)
+      expect(await s.deleteShown()).toBe(false)
+      expect(sent).toHaveLength(3)
+      expect(await useSubtitles(fakeFetch().fetcher).deleteShown()).toBe(false)
+    })
+
+    it('keeps the revision when the API refuses', async () => {
+      const { s } = await nb('DELETE', apiError('not allowed', { code: 'FORBIDDEN' }))
+      expect(await s.deleteShown()).toBe(false)
+      expect(s.error.value?.code).toBe('FORBIDDEN')
+      expect(s.shown.value?.id).toBe('ST-3')
+      expect(revisions(s)[1]).toEqual(['RE-nb', ['ST-3', 'ST-2', 'ST-1']])
+    })
+
+    it('drops a revision someone else deleted', async () => {
+      const { s } = await nb('DELETE', apiError('not found', { code: 'NOT_FOUND' }), cuePage([]))
+      expect(await s.deleteShown()).toBe(true)
+      expect(s.error.value).toBeNull()
+      expect(revisions(s)[1]).toEqual(['RE-nb', ['ST-2', 'ST-1']])
+    })
+  })
 })
 
 /** A cue from `from` to `to` seconds. */

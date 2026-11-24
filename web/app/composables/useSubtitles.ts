@@ -6,6 +6,8 @@ export interface SubtitleAsset {
   id: string
   title: string
   legacyIds: string[]
+  /** The caller's permission level on the asset. */
+  myLevel: string
 }
 
 /** One `SubtitleTrack` of the API: a revision of a rendition's subtitles. */
@@ -37,7 +39,7 @@ export interface Cue {
   speaker: string | null
 }
 
-const ASSET = 'id title legacyIds'
+const ASSET = 'id title legacyIds myLevel'
 const REVISION = 'id renditionId language kind origin model revision createdBy createdAt'
 /** The API's largest page of cues. */
 const CUE_PAGE = 5000
@@ -290,6 +292,43 @@ export function useSubtitles(fetcher?: Fetcher) {
     }
   }
 
+  /** Whether the caller may delete revisions of this asset's subtitles. The API decides again. */
+  const canDelete = computed(() => asset.value?.myLevel === 'DELETE' || asset.value?.myLevel === 'ADMIN')
+  const deleting = ref(false)
+
+  /**
+   * Deletes the shown revision and shows the newest one left. A track's only revision is never
+   * deleted: that would remove the whole track. False when nothing was deleted.
+   */
+  async function deleteShown(): Promise<boolean> {
+    const t = track.value
+    const r = shown.value
+    if (!t || !r || t.revisions.length < 2) return false
+    deleting.value = true
+    error.value = null
+    try {
+      await gql<{ deleteSubtitleTrack: boolean }>(
+        `mutation DeleteSubtitleRevision($id: ID!) { deleteSubtitleTrack(id: $id) }`,
+        { id: r.id },
+        fetcher,
+      )
+    } catch (e) {
+      // Already gone: drop it here too rather than keep showing it.
+      if ((e as ApiError).code !== 'NOT_FOUND') {
+        error.value = e as ApiError
+        return false
+      }
+    } finally {
+      deleting.value = false
+    }
+    t.revisions = t.revisions.filter((x) => x.id !== r.id)
+    cache.delete(r.id)
+    shown.value = t.revisions[0]!
+    if (base.value?.id === shown.value.id) base.value = null
+    await fill()
+    return true
+  }
+
   /** Compares the shown revision with another of its track; null or '' ends the comparison. */
   function compare(id: string | null) {
     base.value = track.value?.revisions.find((x) => x.id === id && x.id !== shown.value?.id) ?? null
@@ -332,6 +371,9 @@ export function useSubtitles(fetcher?: Fetcher) {
     comparison,
     exporting,
     exportShown,
+    canDelete,
+    deleting,
+    deleteShown,
     open,
     choose,
     selectTrack,
