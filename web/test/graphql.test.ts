@@ -1,6 +1,34 @@
-import { describe, expect, it } from 'vitest'
-import { ApiError, gql } from '../app/utils/graphql'
+import { describe, expect, it, vi } from 'vitest'
+import { ApiError, gql, reloadForSignIn } from '../app/utils/graphql'
 import { apiError, fakeFetch, json } from './helpers'
+
+describe('reloadForSignIn', () => {
+  const memory = () => {
+    const m = new Map<string, string>()
+    return { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => void m.set(k, v) }
+  }
+
+  it('reloads again once the pause has passed', () => {
+    const storage = memory()
+    const reload = vi.fn()
+    expect(reloadForSignIn({ storage, reload, now: () => 1_000_000 })).toBe(true)
+    expect(reloadForSignIn({ storage, reload, now: () => 1_029_999 })).toBe(false)
+    expect(reloadForSignIn({ storage, reload, now: () => 1_030_000 })).toBe(true)
+    expect(reload).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not reload when session storage is unavailable', () => {
+    const reload = vi.fn()
+    const storage = {
+      getItem: () => {
+        throw new Error('blocked')
+      },
+      setItem: () => {},
+    }
+    expect(reloadForSignIn({ storage, reload })).toBe(false)
+    expect(reload).not.toHaveBeenCalled()
+  })
+})
 
 describe('gql', () => {
   it('posts the operation as JSON and returns data', async () => {
@@ -28,6 +56,35 @@ describe('gql', () => {
       code: 'HTTP_403',
       message: 'Not signed in, or not allowed to use MediaBrain.',
     })
+  })
+
+  it('reloads the page on a 401, so the proxy can sign in again, and still reports it', async () => {
+    const reload = vi.fn()
+    vi.stubGlobal('location', { reload })
+    sessionStorage.clear()
+    try {
+      const { fetcher } = fakeFetch(new Response('no token', { status: 401 }), new Response('no token', { status: 401 }))
+      await expect(gql('q', {}, fetcher)).rejects.toMatchObject({ code: 'HTTP_401' })
+      expect(reload).toHaveBeenCalledTimes(1)
+      // A second 401 right after the reload is not cured by another one.
+      await expect(gql('q', {}, fetcher)).rejects.toMatchObject({ code: 'HTTP_401' })
+      expect(reload).toHaveBeenCalledTimes(1)
+    } finally {
+      vi.unstubAllGlobals()
+      sessionStorage.clear()
+    }
+  })
+
+  it('does not reload on a 403: signing in again would not change it', async () => {
+    const reload = vi.fn()
+    vi.stubGlobal('location', { reload })
+    try {
+      const { fetcher } = fakeFetch(new Response('forbidden', { status: 403 }))
+      await expect(gql('q', {}, fetcher)).rejects.toMatchObject({ code: 'HTTP_403' })
+      expect(reload).not.toHaveBeenCalled()
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 
   it('reports other HTTP failures and answers without data', async () => {

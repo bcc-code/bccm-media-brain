@@ -2,6 +2,17 @@
 
 Newest first. Each entry: what changed, why, and what was left out on purpose.
 
+## 2026-11-25 — Web UI: a 401 reloads the page
+
+- When `/query` answers 401 (no token, or an expired one), the web UI reloads the page, so the
+  proxy can send the browser through sign-in again. Before, a page left open past its session
+  only said "Not signed in".
+- At most one reload per 30 seconds, remembered in session storage. A 401 that a reload does not
+  cure (a misconfigured proxy, a debug server with no user chosen) shows its error instead of
+  reloading forever. Without session storage it does not reload.
+- 403 does not reload: the person is signed in but not let in, and signing in again would not
+  change that.
+
 ## 2026-11-24 — Subtitles page: delete a revision
 
 - "Delete revision" removes the shown revision through the existing `deleteSubtitleTrack` (one
