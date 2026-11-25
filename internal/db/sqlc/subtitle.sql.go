@@ -7,6 +7,7 @@ package sqlc
 
 import (
 	"context"
+	"encoding/json"
 )
 
 const createSubtitleTrack = `-- name: CreateSubtitleTrack :one
@@ -95,13 +96,14 @@ func (q *Queries) GetSubtitleTrack(ctx context.Context, id string) (SubtitleTrac
 }
 
 type InsertSubtitleCuesParams struct {
-	TrackID string  `json:"track_id"`
-	AssetID string  `json:"asset_id"`
-	Seq     int32   `json:"seq"`
-	StartMs int32   `json:"start_ms"`
-	EndMs   int32   `json:"end_ms"`
-	Text    string  `json:"text"`
-	Speaker *string `json:"speaker"`
+	TrackID string          `json:"track_id"`
+	AssetID string          `json:"asset_id"`
+	Seq     int32           `json:"seq"`
+	StartMs int32           `json:"start_ms"`
+	EndMs   int32           `json:"end_ms"`
+	Text    string          `json:"text"`
+	Speaker *string         `json:"speaker"`
+	Words   json.RawMessage `json:"words"`
 }
 
 const latestSubtitleTrack = `-- name: LatestSubtitleTrack :one
@@ -203,9 +205,9 @@ func (q *Queries) ListRenditionTracks(ctx context.Context, renditionIds []string
 }
 
 const listSubtitleCues = `-- name: ListSubtitleCues :many
-SELECT c.track_id, c.seq, c.start_ms, c.end_ms, c.text, c.speaker
+SELECT c.track_id, c.seq, c.start_ms, c.end_ms, c.text, c.speaker, c.words
 FROM (
-    SELECT sc.track_id, sc.seq, sc.start_ms, sc.end_ms, sc.text, sc.speaker,
+    SELECT sc.track_id, sc.seq, sc.start_ms, sc.end_ms, sc.text, sc.speaker, sc.words,
            row_number() OVER (PARTITION BY sc.track_id ORDER BY sc.seq) AS rn
     FROM subtitle_cue sc
     WHERE sc.track_id = ANY($1::text[])
@@ -222,12 +224,13 @@ type ListSubtitleCuesParams struct {
 }
 
 type ListSubtitleCuesRow struct {
-	TrackID string  `json:"track_id"`
-	Seq     int32   `json:"seq"`
-	StartMs int32   `json:"start_ms"`
-	EndMs   int32   `json:"end_ms"`
-	Text    string  `json:"text"`
-	Speaker *string `json:"speaker"`
+	TrackID string          `json:"track_id"`
+	Seq     int32           `json:"seq"`
+	StartMs int32           `json:"start_ms"`
+	EndMs   int32           `json:"end_ms"`
+	Text    string          `json:"text"`
+	Speaker *string         `json:"speaker"`
+	Words   json.RawMessage `json:"words"`
 }
 
 func (q *Queries) ListSubtitleCues(ctx context.Context, arg ListSubtitleCuesParams) ([]ListSubtitleCuesRow, error) {
@@ -246,6 +249,7 @@ func (q *Queries) ListSubtitleCues(ctx context.Context, arg ListSubtitleCuesPara
 			&i.EndMs,
 			&i.Text,
 			&i.Speaker,
+			&i.Words,
 		); err != nil {
 			return nil, err
 		}

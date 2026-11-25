@@ -191,6 +191,15 @@ models:
   SubtitleCue:
     model:
       - github.com/bcc-media/mediabrain/internal/db/sqlc.ListSubtitleCuesRow
+    fields:
+      words:
+        resolver: true
+  SubtitleWord:
+    model:
+      - github.com/bcc-media/mediabrain/internal/subtitle.Word
+  SubtitleWordInput:
+    model:
+      - github.com/bcc-media/mediabrain/internal/subtitle.Word
   ImportSubtitlesInput:
     model:
       - github.com/bcc-media/mediabrain/internal/subtitle.ImportInput
@@ -374,5 +383,7 @@ models:
         value: github.com/bcc-media/mediabrain/internal/subtitle.SRT
       VTT:
         value: github.com/bcc-media/mediabrain/internal/subtitle.VTT
+      JSON:
+        value: github.com/bcc-media/mediabrain/internal/subtitle.JSON
 
 skip_mod_tidy: true

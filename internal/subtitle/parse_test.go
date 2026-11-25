@@ -2,6 +2,7 @@ package subtitle
 
 import (
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -109,7 +110,7 @@ func TestRenderRoundTrip(t *testing.T) {
 		t.Fatalf("vtt = %q, %v", out, err)
 	}
 	back, err := Parse(VTT, out)
-	if err != nil || len(back) != 2 || *back[0].Speaker != "Anna" || back[0].Text != cues[0].Text || back[1] != cues[1] {
+	if err != nil || len(back) != 2 || *back[0].Speaker != "Anna" || back[0].Text != cues[0].Text || !reflect.DeepEqual(back[1], cues[1]) {
 		t.Fatalf("vtt round trip = %+v, %v", back, err)
 	}
 
@@ -118,7 +119,7 @@ func TestRenderRoundTrip(t *testing.T) {
 		t.Fatalf("srt = %q, %v", out, err)
 	}
 	back, err = Parse(SRT, out)
-	if err != nil || len(back) != 2 || back[0].Speaker != nil || back[1] != cues[1] {
+	if err != nil || len(back) != 2 || back[0].Speaker != nil || !reflect.DeepEqual(back[1], cues[1]) {
 		t.Fatalf("srt round trip = %+v, %v", back, err)
 	}
 	if _, err := Render("ass", cues); !errors.Is(err, domain.ErrInvalidInput) {

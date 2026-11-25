@@ -43,6 +43,14 @@ func (r *queryResolver) SubtitleTracks(ctx context.Context, assetID string, hist
 	return many(r.SubtitlesSvc.AssetTracks(ctx, assetID, history))
 }
 
+// Words is the resolver for the words field.
+func (r *subtitleCueResolver) Words(ctx context.Context, obj *sqlc.ListSubtitleCuesRow) ([]*subtitle.Word, error) {
+	if obj.Words == nil {
+		return nil, nil
+	}
+	return many(subtitle.DecodeWords(obj.Words))
+}
+
 // Cues is the resolver for the cues field.
 func (r *subtitleTrackResolver) Cues(ctx context.Context, obj *sqlc.SubtitleTrack, first *int, after *string) (*model.SubtitleCueConnection, error) {
 	n, info, err := nodes(r.load(ctx).cuesFor(window(first, after)).Load(ctx, obj.ID))
@@ -57,7 +65,13 @@ func (r *subtitleTrackResolver) Export(ctx context.Context, obj *sqlc.SubtitleTr
 	return plain(r.load(ctx).exportFor(format).Load(ctx, obj.ID))
 }
 
+// SubtitleCue returns generated.SubtitleCueResolver implementation.
+func (r *Resolver) SubtitleCue() generated.SubtitleCueResolver { return &subtitleCueResolver{r} }
+
 // SubtitleTrack returns generated.SubtitleTrackResolver implementation.
 func (r *Resolver) SubtitleTrack() generated.SubtitleTrackResolver { return &subtitleTrackResolver{r} }
 
-type subtitleTrackResolver struct{ *Resolver }
+type (
+	subtitleCueResolver   struct{ *Resolver }
+	subtitleTrackResolver struct{ *Resolver }
+)

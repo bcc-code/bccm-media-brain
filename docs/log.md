@@ -2,6 +2,25 @@
 
 Newest first. Each entry: what changed, why, and what was left out on purpose.
 
+## 2026-11-25 — Word timing on subtitle cues
+
+- `importSubtitles` takes `format: JSON`: the Whisper JSON the transcriber writes
+  (`transcript.json`, segments with times in seconds). Each segment becomes a cue, and its
+  `words` are kept in a new nullable `subtitle_cue.words` jsonb column, in milliseconds.
+  `SubtitleCue.words` reads them (null when the source had none); `export(format: JSON)` writes
+  the same layout back, so a transcript survives a round trip.
+- Word timing is secondary, so it is one jsonb column, not a table: nothing searches by word
+  time yet. Words are validated (text, `0 <= start <= end`, confidence in [0, 1], at most 1000
+  per cue) but not held to their cue: Whisper's word bounds often overhang the segment.
+- Both spellings are read: the transcriber's `text`/`confidence` and openai-whisper's
+  `word`/`probability`. Blank segments and blank words are skipped, as the transcriber does.
+- `editSubtitles` keeps the words it is sent per cue and stores none for cues sent without
+  them; whether a text change invalidates the timing is the editor's call.
+- Dev data: `subtitle-revisions` starts from a JSON transcript with words; `edge-cases` has a
+  zero-length word and one that overhangs its cue.
+- Left out on purpose: showing words in the web UI, and reading WebVTT inline timestamps
+  (`<00:00:01.500>`), which still end up in the cue text as written.
+
 ## 2026-11-25 — Web UI: a 401 reloads the page
 
 - When `/query` answers 401 (no token, or an expired one), the web UI reloads the page, so the

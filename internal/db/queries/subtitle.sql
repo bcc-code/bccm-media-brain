@@ -16,17 +16,17 @@ SELECT * FROM subtitle_track WHERE asset_id = $1 ORDER BY rendition_id, revision
 DELETE FROM subtitle_track WHERE id = $1;
 
 -- name: InsertSubtitleCues :copyfrom
-INSERT INTO subtitle_cue (track_id, asset_id, seq, start_ms, end_ms, text, speaker)
-VALUES ($1, $2, $3, $4, $5, $6, $7);
+INSERT INTO subtitle_cue (track_id, asset_id, seq, start_ms, end_ms, text, speaker, words)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8);
 
 
 -- name: ListRenditionTracks :many
 SELECT * FROM subtitle_track WHERE rendition_id = ANY(@rendition_ids::text[]) ORDER BY rendition_id, revision DESC;
 
 -- name: ListSubtitleCues :many
-SELECT c.track_id, c.seq, c.start_ms, c.end_ms, c.text, c.speaker
+SELECT c.track_id, c.seq, c.start_ms, c.end_ms, c.text, c.speaker, c.words
 FROM (
-    SELECT sc.track_id, sc.seq, sc.start_ms, sc.end_ms, sc.text, sc.speaker,
+    SELECT sc.track_id, sc.seq, sc.start_ms, sc.end_ms, sc.text, sc.speaker, sc.words,
            row_number() OVER (PARTITION BY sc.track_id ORDER BY sc.seq) AS rn
     FROM subtitle_cue sc
     WHERE sc.track_id = ANY(@track_ids::text[])

@@ -371,14 +371,14 @@ func runSubtitleRevisions(ctx context.Context, env Env, v Values) (string, error
 	if err != nil {
 		return "", err
 	}
-	content := f.VTT(v.Int("cues"))
+	content := f.TranscriptJSON(v.Int("cues"))
 	source, err := s.files.Register(ctx, f.SubtitleFile(content))
 	if err != nil {
 		return "", err
 	}
 	language, origin, model := "en", sqlc.TrackOriginAsr, f.TranscriptionModel()
 	track, err := s.subtitles.Import(ctx, subtitle.ImportInput{
-		VersionID: version.ID, Language: &language, Format: subtitle.VTT, Content: content, SourceFileID: &source.ID,
+		VersionID: version.ID, Language: &language, Format: subtitle.JSON, Content: content, SourceFileID: &source.ID,
 		Origin: &origin, Model: &model,
 	})
 	if err != nil {
@@ -459,7 +459,8 @@ func runEdgeCases(ctx context.Context, env Env, _ Values) (string, error) {
 	}
 
 	// Subtitles: overlapping cues, one very long cue, the special language codes, and an ASR
-	// track whose model name is as long as an import accepts.
+	// transcript whose model name is as long as an import accepts, with word timing on one cue
+	// only: a zero-length word and one that overhangs its cue.
 	overlapping := []subtitle.Cue{
 		{StartMs: 0, EndMs: 5000, Text: "First speaker keeps talking"},
 		{StartMs: 2000, EndMs: 4000, Text: "Second speaker interrupts"},
@@ -470,10 +471,15 @@ func runEdgeCases(ctx context.Context, env Env, _ Values) (string, error) {
 	if _, err := s.importSRT(ctx, version.ID, "zxx", text); err != nil {
 		return "", err
 	}
+	overlapping[0].Words = []subtitle.Word{
+		{StartMs: 0, EndMs: 0, Text: "First"},
+		{StartMs: 300, EndMs: 6500, Text: "speaker keeps talking"},
+	}
+	transcript, _ := subtitle.Render(subtitle.JSON, overlapping)
 	language, asr := "und", sqlc.TrackOriginAsr
 	model := strings.Repeat("ø", subtitle.MaxModelLength)
 	if _, err := s.subtitles.Import(ctx, subtitle.ImportInput{
-		VersionID: version.ID, Language: &language, Format: subtitle.SRT, Content: text, Origin: &asr, Model: &model,
+		VersionID: version.ID, Language: &language, Format: subtitle.JSON, Content: transcript, Origin: &asr, Model: &model,
 	}); err != nil {
 		return "", err
 	}

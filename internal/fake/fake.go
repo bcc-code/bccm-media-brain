@@ -124,6 +124,9 @@ func (x *Faker) VideoFile() file.RegisterInput {
 // SubtitleFile builds the metadata of a subtitle file holding the given text.
 func (x *Faker) SubtitleFile(content string) file.RegisterInput {
 	mime := "application/x-subrip"
+	if strings.HasPrefix(content, "{") {
+		mime = "application/json"
+	}
 	return file.RegisterInput{SizeBytes: int64(len(content)), MimeType: &mime, Hashes: x.Hashes()}
 }
 
@@ -166,6 +169,33 @@ func (x *Faker) VTT(n int) string {
 		}
 	}
 	text, _ := subtitle.Render(subtitle.VTT, cues)
+	return text
+}
+
+// WordCues returns n cues with word timing, spread over each cue as speech recognition would
+// report it; some words have a confidence.
+func (x *Faker) WordCues(n int) []subtitle.Cue {
+	cues := x.Cues(n)
+	for i, c := range cues {
+		words := strings.Fields(c.Text)
+		span := (c.EndMs - c.StartMs) / int32(len(words))
+		for j, w := range words {
+			start := c.StartMs + int32(j)*span
+			word := subtitle.Word{StartMs: start, EndMs: start + span*4/5, Text: w}
+			if j%2 == 0 {
+				confidence := float64(x.f.Number(40, 100)) / 100
+				word.Confidence = &confidence
+			}
+			cues[i].Words = append(cues[i].Words, word)
+		}
+	}
+	return cues
+}
+
+// TranscriptJSON returns a Whisper JSON transcript with n cues and word timing, as the
+// transcriber writes it.
+func (x *Faker) TranscriptJSON(n int) string {
+	text, _ := subtitle.Render(subtitle.JSON, x.WordCues(n))
 	return text
 }
 

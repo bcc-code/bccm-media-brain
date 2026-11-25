@@ -85,8 +85,13 @@ every import and every edit writes a **new revision** that points at its parent,
   rendition** on the version, created on first import.
 - Only the latest revision can be edited. An edit based on an older one is a conflict, which
   stops two editors from silently overwriting each other.
-- Cues store start/end in milliseconds, text and an optional speaker. Import reads SRT and
-  WebVTT; export writes both (SRT has no place for the speaker, so it is dropped).
+- Cues store start/end in milliseconds, text and an optional speaker. Import reads SRT, WebVTT
+  and the transcriber's Whisper JSON; export writes all three (SRT has no place for the speaker,
+  so it is dropped).
+- `words` (jsonb, nullable) holds a cue's word timing when the source had it, which only Whisper
+  JSON does: `[{"startMs", "endMs", "text", "confidence"?}]`. It is secondary data, stored as
+  given: words may overhang their cue and need not spell out its text. An edit keeps the words
+  it is sent; cues sent without them have none.
 - `origin` says where a revision came from: `import` or `asr` from `importSubtitles`, `manual`
   only from `editSubtitles`. `model` (nullable) names the model that produced the text, such as
   the Whisper model of an ASR transcript; each revision keeps its own, so an edit has none.

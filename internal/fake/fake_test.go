@@ -12,7 +12,7 @@ func build(seed uint64) []any {
 	prog := x.Program()
 	return []any{
 		x.ServiceAccount(), x.User(), prog, x.Project("PG-1", prog.Code), x.Location(), x.VideoFile(), x.SubtitleFile("x"),
-		x.Asset(1), x.Path("mov"), x.SRT(5), x.VTT(5), x.TranscriptionModel(), x.Int(1, 9), Pick(x, "a", "b", "c"),
+		x.Asset(1), x.Path("mov"), x.SRT(5), x.VTT(5), x.TranscriptJSON(5), x.SubtitleFile("{}"), x.TranscriptionModel(), x.Int(1, 9), Pick(x, "a", "b", "c"),
 		x.VidispineItem("VX-42"), x.VidispinePlaceholder(),
 	}
 }
@@ -28,10 +28,13 @@ func TestDeterministic(t *testing.T) {
 
 func TestSubtitleTextParses(t *testing.T) {
 	x := New(7)
-	for format, text := range map[subtitle.Format]string{subtitle.SRT: x.SRT(20), subtitle.VTT: x.VTT(20)} {
+	for format, text := range map[subtitle.Format]string{subtitle.SRT: x.SRT(20), subtitle.VTT: x.VTT(20), subtitle.JSON: x.TranscriptJSON(20)} {
 		cues, err := subtitle.Parse(format, text)
 		if err != nil || len(cues) != 20 {
 			t.Fatalf("%s: %d cues, %v", format, len(cues), err)
+		}
+		if (format == subtitle.JSON) != (len(cues[0].Words) > 0) {
+			t.Fatalf("%s: words = %+v", format, cues[0].Words)
 		}
 	}
 }

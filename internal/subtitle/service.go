@@ -149,7 +149,7 @@ func addRevision(ctx context.Context, q sqlc.Querier, t sqlc.CreateSubtitleTrack
 	for i, c := range cues {
 		rows[i] = sqlc.InsertSubtitleCuesParams{
 			TrackID: track.ID, AssetID: track.AssetID, Seq: int32(i + 1),
-			StartMs: c.StartMs, EndMs: c.EndMs, Text: c.Text, Speaker: c.Speaker,
+			StartMs: c.StartMs, EndMs: c.EndMs, Text: c.Text, Speaker: c.Speaker, Words: encodeWords(c.Words),
 		}
 	}
 	_, err = q.InsertSubtitleCues(ctx, rows)
@@ -273,7 +273,7 @@ func (s *Service) cues(ctx context.Context, trackIDs []string, limit int32) (map
 	return out, err
 }
 
-// ExportFor renders whole tracks as SRT or WebVTT text.
+// ExportFor renders whole tracks as SRT, WebVTT or Whisper JSON text.
 func (s *Service) ExportFor(ctx context.Context, trackIDs []string, format Format) (map[string]string, error) {
 	rows, err := s.cues(ctx, trackIDs, MaxCues)
 	if err != nil {
@@ -284,6 +284,11 @@ func (s *Service) ExportFor(ctx context.Context, trackIDs []string, format Forma
 		cues := make([]Cue, len(rows[id]))
 		for i, r := range rows[id] {
 			cues[i] = Cue{StartMs: r.StartMs, EndMs: r.EndMs, Text: r.Text, Speaker: r.Speaker}
+			if format == JSON {
+				if cues[i].Words, err = DecodeWords(r.Words); err != nil {
+					return nil, err
+				}
+			}
 		}
 		if out[id], err = Render(format, cues); err != nil {
 			return nil, err

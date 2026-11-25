@@ -36,6 +36,7 @@ func (r iteratorForInsertSubtitleCues) Values() ([]interface{}, error) {
 		r.rows[0].EndMs,
 		r.rows[0].Text,
 		r.rows[0].Speaker,
+		r.rows[0].Words,
 	}, nil
 }
 
@@ -44,5 +45,5 @@ func (r iteratorForInsertSubtitleCues) Err() error {
 }
 
 func (q *Queries) InsertSubtitleCues(ctx context.Context, arg []InsertSubtitleCuesParams) (int64, error) {
-	return q.db.CopyFrom(ctx, []string{"subtitle_cue"}, []string{"track_id", "asset_id", "seq", "start_ms", "end_ms", "text", "speaker"}, &iteratorForInsertSubtitleCues{rows: arg})
+	return q.db.CopyFrom(ctx, []string{"subtitle_cue"}, []string{"track_id", "asset_id", "seq", "start_ms", "end_ms", "text", "speaker", "words"}, &iteratorForInsertSubtitleCues{rows: arg})
 }

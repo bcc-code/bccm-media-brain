@@ -1821,15 +1821,16 @@ type StorageLocation struct {
 }
 
 type SubtitleCue struct {
-	ID      int64       `json:"id"`
-	TrackID string      `json:"track_id"`
-	AssetID string      `json:"asset_id"`
-	Seq     int32       `json:"seq"`
-	StartMs int32       `json:"start_ms"`
-	EndMs   int32       `json:"end_ms"`
-	Text    string      `json:"text"`
-	Speaker *string     `json:"speaker"`
-	Tsv     interface{} `json:"tsv"`
+	ID      int64           `json:"id"`
+	TrackID string          `json:"track_id"`
+	AssetID string          `json:"asset_id"`
+	Seq     int32           `json:"seq"`
+	StartMs int32           `json:"start_ms"`
+	EndMs   int32           `json:"end_ms"`
+	Text    string          `json:"text"`
+	Speaker *string         `json:"speaker"`
+	Tsv     interface{}     `json:"tsv"`
+	Words   json.RawMessage `json:"words"`
 }
 
 type SubtitleTrack struct {

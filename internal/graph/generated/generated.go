@@ -50,6 +50,7 @@ type ResolverRoot interface {
 	Query() QueryResolver
 	Rendition() RenditionResolver
 	RenditionFile() RenditionFileResolver
+	SubtitleCue() SubtitleCueResolver
 	SubtitleTrack() SubtitleTrackResolver
 }
 
@@ -321,6 +322,7 @@ type ComplexityRoot struct {
 		Speaker func(childComplexity int) int
 		StartMs func(childComplexity int) int
 		Text    func(childComplexity int) int
+		Words   func(childComplexity int) int
 	}
 
 	SubtitleCueConnection struct {
@@ -343,6 +345,13 @@ type ComplexityRoot struct {
 		RenditionID  func(childComplexity int) int
 		Revision     func(childComplexity int) int
 		SourceFileID func(childComplexity int) int
+	}
+
+	SubtitleWord struct {
+		Confidence func(childComplexity int) int
+		EndMs      func(childComplexity int) int
+		StartMs    func(childComplexity int) int
+		Text       func(childComplexity int) int
 	}
 
 	User struct {
@@ -470,6 +479,9 @@ type RenditionResolver interface {
 }
 type RenditionFileResolver interface {
 	File(ctx context.Context, obj *sqlc.RenditionFile) (*sqlc.File, error)
+}
+type SubtitleCueResolver interface {
+	Words(ctx context.Context, obj *sqlc.ListSubtitleCuesRow) ([]*subtitle.Word, error)
 }
 type SubtitleTrackResolver interface {
 	Cues(ctx context.Context, obj *sqlc.SubtitleTrack, first *int, after *string) (*model.SubtitleCueConnection, error)
@@ -1979,6 +1991,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.SubtitleCue.Text(childComplexity), true
+	case "SubtitleCue.words":
+		if e.ComplexityRoot.SubtitleCue.Words == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SubtitleCue.Words(childComplexity), true
 
 	case "SubtitleCueConnection.nodes":
 		if e.ComplexityRoot.SubtitleCueConnection.Nodes == nil {
@@ -2087,6 +2105,31 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.SubtitleTrack.SourceFileID(childComplexity), true
+
+	case "SubtitleWord.confidence":
+		if e.ComplexityRoot.SubtitleWord.Confidence == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SubtitleWord.Confidence(childComplexity), true
+	case "SubtitleWord.endMs":
+		if e.ComplexityRoot.SubtitleWord.EndMs == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SubtitleWord.EndMs(childComplexity), true
+	case "SubtitleWord.startMs":
+		if e.ComplexityRoot.SubtitleWord.StartMs == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SubtitleWord.StartMs(childComplexity), true
+	case "SubtitleWord.text":
+		if e.ComplexityRoot.SubtitleWord.Text == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SubtitleWord.Text(childComplexity), true
 
 	case "User.active":
 		if e.ComplexityRoot.User.Active == nil {
@@ -2197,6 +2240,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 			graphql.NewInputUnmarshaler("ServiceAccountInput", ec.unmarshalInputServiceAccountInput),
 			graphql.NewInputUnmarshaler("StorageLocationInput", ec.unmarshalInputStorageLocationInput),
 			graphql.NewInputUnmarshaler("SubtitleCueInput", ec.unmarshalInputSubtitleCueInput),
+			graphql.NewInputUnmarshaler("SubtitleWordInput", ec.unmarshalInputSubtitleWordInput),
 			graphql.NewInputUnmarshaler("UpdateProgramInput", ec.unmarshalInputUpdateProgramInput),
 			graphql.NewInputUnmarshaler("UpdateProjectInput", ec.unmarshalInputUpdateProjectInput),
 			graphql.NewInputUnmarshaler("UpdateRenditionInput", ec.unmarshalInputUpdateRenditionInput),
@@ -2913,6 +2957,8 @@ enum TrackOrigin {
 enum SubtitleFormat {
   SRT
   VTT
+  "Whisper JSON, as the transcriber writes it: segments with times in seconds and optional word timing."
+  JSON
 }
 
 "One revision of a rendition's subtitles. Revisions are never changed; edits add a new one."
@@ -2933,7 +2979,7 @@ type SubtitleTrack {
   createdAt: Time!
   "At most 5000 per page."
   cues(first: Int = 500, after: String): SubtitleCueConnection!
-  "The whole track as subtitle text. SRT drops speakers."
+  "The whole track as subtitle text. SRT drops speakers; only JSON keeps word timing."
   export(format: SubtitleFormat!): String!
 }
 
@@ -2943,6 +2989,16 @@ type SubtitleCue {
   endMs: Int!
   text: String!
   speaker: String
+  "Word timing from speech recognition; null when the source had none. Words may overhang the cue."
+  words: [SubtitleWord!]
+}
+
+type SubtitleWord {
+  startMs: Int!
+  endMs: Int!
+  text: String!
+  "Between 0 and 1, when the recognizer reported one."
+  confidence: Float
 }
 
 input ImportSubtitlesInput {
@@ -2951,7 +3007,7 @@ input ImportSubtitlesInput {
   language: String
   kind: TrackKind
   format: SubtitleFormat!
-  "The subtitle file's text, at most 5 MB."
+  "The subtitle file's text, at most 5 MB. With JSON, word timing is kept."
   content: String!
   "The registered file the text came from, if any. It is attached to the subtitle rendition, so the caller needs DOWNLOAD_ORIGINAL on it."
   sourceFileId: ID
@@ -2966,6 +3022,15 @@ input SubtitleCueInput {
   endMs: Int!
   text: String!
   speaker: String
+  "Kept as given; leave out when the text changed and the timing no longer fits. At most 1000."
+  words: [SubtitleWordInput!]
+}
+
+input SubtitleWordInput {
+  startMs: Int!
+  endMs: Int!
+  text: String!
+  confidence: Float
 }
 
 extend type Query {
@@ -3414,6 +3479,8 @@ func (ec *executionContext) childFields_SubtitleCue(ctx context.Context, field g
 		return ec.fieldContext_SubtitleCue_text(ctx, field)
 	case "speaker":
 		return ec.fieldContext_SubtitleCue_speaker(ctx, field)
+	case "words":
+		return ec.fieldContext_SubtitleCue_words(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type SubtitleCue", field.Name)
 }
@@ -3460,6 +3527,20 @@ func (ec *executionContext) childFields_SubtitleTrack(ctx context.Context, field
 		return ec.fieldContext_SubtitleTrack_export(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type SubtitleTrack", field.Name)
+}
+
+func (ec *executionContext) childFields_SubtitleWord(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+	switch field.Name {
+	case "startMs":
+		return ec.fieldContext_SubtitleWord_startMs(ctx, field)
+	case "endMs":
+		return ec.fieldContext_SubtitleWord_endMs(ctx, field)
+	case "text":
+		return ec.fieldContext_SubtitleWord_text(ctx, field)
+	case "confidence":
+		return ec.fieldContext_SubtitleWord_confidence(ctx, field)
+	}
+	return nil, fmt.Errorf("no field named %q was found under type SubtitleWord", field.Name)
 }
 
 func (ec *executionContext) childFields_User(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
@@ -10868,6 +10949,38 @@ func (ec *executionContext) fieldContext_SubtitleCue_speaker(_ context.Context, 
 	return graphql.NewScalarFieldContext("SubtitleCue", field, false, false, "String")
 }
 
+func (ec *executionContext) _SubtitleCue_words(ctx context.Context, field graphql.CollectedField, obj *sqlc.ListSubtitleCuesRow) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SubtitleCue_words(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.SubtitleCue().Words(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*subtitle.Word) graphql.Marshaler {
+			return ec.marshalOSubtitleWord2ᚕᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋsubtitleᚐWordᚄ(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_SubtitleCue_words(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SubtitleCue",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_SubtitleWord(ctx, field)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _SubtitleCueConnection_nodes(ctx context.Context, field graphql.CollectedField, obj *model.SubtitleCueConnection) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -11294,6 +11407,98 @@ func (ec *executionContext) fieldContext_SubtitleTrack_export(ctx context.Contex
 		return fc, err
 	}
 	return fc, nil
+}
+
+func (ec *executionContext) _SubtitleWord_startMs(ctx context.Context, field graphql.CollectedField, obj *subtitle.Word) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SubtitleWord_startMs(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.StartMs, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SubtitleWord_startMs(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SubtitleWord", field, false, false, "Int")
+}
+
+func (ec *executionContext) _SubtitleWord_endMs(ctx context.Context, field graphql.CollectedField, obj *subtitle.Word) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SubtitleWord_endMs(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.EndMs, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v int32) graphql.Marshaler {
+			return ec.marshalNInt2int32(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SubtitleWord_endMs(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SubtitleWord", field, false, false, "Int")
+}
+
+func (ec *executionContext) _SubtitleWord_text(ctx context.Context, field graphql.CollectedField, obj *subtitle.Word) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SubtitleWord_text(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Text, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v string) graphql.Marshaler {
+			return ec.marshalNString2string(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_SubtitleWord_text(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SubtitleWord", field, false, false, "String")
+}
+
+func (ec *executionContext) _SubtitleWord_confidence(ctx context.Context, field graphql.CollectedField, obj *subtitle.Word) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SubtitleWord_confidence(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Confidence, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *float64) graphql.Marshaler {
+			return ec.marshalOFloat2ᚖfloat64(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_SubtitleWord_confidence(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SubtitleWord", field, false, false, "Float")
 }
 
 func (ec *executionContext) _User_id(ctx context.Context, field graphql.CollectedField, obj *sqlc.AppUser) (ret graphql.Marshaler) {
@@ -13596,7 +13801,7 @@ func (ec *executionContext) unmarshalInputSubtitleCueInput(ctx context.Context, 
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"startMs", "endMs", "text", "speaker"}
+	fieldsInOrder := [...]string{"startMs", "endMs", "text", "speaker", "words"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -13631,6 +13836,13 @@ func (ec *executionContext) unmarshalInputSubtitleCueInput(ctx context.Context, 
 				return it, err
 			}
 			it.Speaker = data
+		case "words":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("words"))
+			data, err := ec.unmarshalOSubtitleWordInput2ᚕgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋsubtitleᚐWordᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Words = data
 		}
 	}
 	return it, nil
@@ -13645,6 +13857,69 @@ func (ec *executionContext) unmarshalInputSubtitleCueInput(ctx context.Context, 
 func UnmarshalSubtitleCueInput(ctx context.Context, raw any) (subtitle.Cue, error) {
 	var out subtitle.Cue
 	err := graphql.UnmarshalNamedInputFromContext(ctx, "SubtitleCueInput", raw, &out)
+	return out, err
+}
+
+func (ec *executionContext) unmarshalInputSubtitleWordInput(ctx context.Context, obj any) (subtitle.Word, error) {
+	var it subtitle.Word
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"startMs", "endMs", "text", "confidence"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "startMs":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("startMs"))
+			data, err := ec.unmarshalNInt2int32(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.StartMs = data
+		case "endMs":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("endMs"))
+			data, err := ec.unmarshalNInt2int32(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.EndMs = data
+		case "text":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("text"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Text = data
+		case "confidence":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("confidence"))
+			data, err := ec.unmarshalOFloat2ᚖfloat64(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Confidence = data
+		}
+	}
+	return it, nil
+}
+
+// UnmarshalSubtitleWordInput unmarshals raw into the SubtitleWordInput input type, using the
+// unmarshaler bound to ctx's request. Call it from a resolver to decode an input
+// object that was not passed as a field argument.
+//
+// ctx must come from a gqlgen request; outside one there is no unmarshaler to use
+// and the returned error says so.
+func UnmarshalSubtitleWordInput(ctx context.Context, raw any) (subtitle.Word, error) {
+	var out subtitle.Word
+	err := graphql.UnmarshalNamedInputFromContext(ctx, "SubtitleWordInput", raw, &out)
 	return out, err
 }
 
@@ -15681,28 +15956,34 @@ func (ec *executionContext) _SubtitleCue(ctx context.Context, sel ast.SelectionS
 		case "seq":
 			out.Values[i] = ec._SubtitleCue_seq(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "startMs":
 			out.Values[i] = ec._SubtitleCue_startMs(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "endMs":
 			out.Values[i] = ec._SubtitleCue_endMs(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "text":
 			out.Values[i] = ec._SubtitleCue_text(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "speaker":
 			out.Values[i] = ec._SubtitleCue_speaker(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
+		case "words":
+			out.ResolveConcurrently(ec.OperationContext, &deferred, i,
+				true, false,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._SubtitleCue_words(ctx, field, obj)
+				})
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -15841,6 +16122,54 @@ func (ec *executionContext) _SubtitleTrack(ctx context.Context, sel ast.Selectio
 				func(ctx context.Context) graphql.Marshaler {
 					return ec._SubtitleTrack_export(ctx, field, obj)
 				})
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	if n := len(deferred.Defers); n > 0 {
+		atomic.AddInt32(&ec.Deferred, int32(min(n, math.MaxInt32)))
+		ec.ProcessDeferredGroup(deferred)
+	}
+
+	return out
+}
+
+var subtitleWordImplementors = []string{"SubtitleWord"}
+
+func (ec *executionContext) _SubtitleWord(ctx context.Context, sel ast.SelectionSet, obj *subtitle.Word) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, subtitleWordImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := graphql.NewDeferredGroup(ctx)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("SubtitleWord")
+		case "startMs":
+			out.Values[i] = ec._SubtitleWord_startMs(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "endMs":
+			out.Values[i] = ec._SubtitleWord_endMs(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "text":
+			out.Values[i] = ec._SubtitleWord_text(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "confidence":
+			out.Values[i] = ec._SubtitleWord_confidence(ctx, field, obj)
+			if out.Values[i] == graphql.RequiredNull {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -17372,12 +17701,14 @@ func (ec *executionContext) marshalNSubtitleFormat2githubᚗcomᚋbccᚑmediaᚋ
 
 var (
 	unmarshalNSubtitleFormat2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋsubtitleᚐFormat = map[string]subtitle.Format{
-		"SRT": subtitle.SRT,
-		"VTT": subtitle.VTT,
+		"SRT":  subtitle.SRT,
+		"VTT":  subtitle.VTT,
+		"JSON": subtitle.JSON,
 	}
 	marshalNSubtitleFormat2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋsubtitleᚐFormat = map[subtitle.Format]string{
-		subtitle.SRT: "SRT",
-		subtitle.VTT: "VTT",
+		subtitle.SRT:  "SRT",
+		subtitle.VTT:  "VTT",
+		subtitle.JSON: "JSON",
 	}
 )
 
@@ -17403,6 +17734,19 @@ func (ec *executionContext) marshalNSubtitleTrack2ᚖgithubᚗcomᚋbccᚑmedia�
 		return graphql.Null
 	}
 	return ec._SubtitleTrack(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNSubtitleWord2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋsubtitleᚐWord(ctx context.Context, sel ast.SelectionSet, v *subtitle.Word) graphql.Marshaler {
+	if v == nil {
+		graphql.AddInvalidNullError(ctx, "SubtitleWord!")
+		return graphql.Null
+	}
+	return ec._SubtitleWord(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNSubtitleWordInput2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋsubtitleᚐWord(ctx context.Context, v any) (subtitle.Word, error) {
+	res, err := ec.unmarshalInputSubtitleWordInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) unmarshalNTime2timeᚐTime(ctx context.Context, v any) (time.Time, error) {
@@ -17848,6 +18192,23 @@ func (ec *executionContext) unmarshalOFileCopyInput2ᚕgithubᚗcomᚋbccᚑmedi
 	return res, nil
 }
 
+func (ec *executionContext) unmarshalOFloat2ᚖfloat64(ctx context.Context, v any) (*float64, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := graphql.UnmarshalFloatContext(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOFloat2ᚖfloat64(ctx context.Context, sel ast.SelectionSet, v *float64) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	_ = sel
+	res := graphql.MarshalFloatContext(*v)
+	return graphql.WrapContextMarshaler(ctx, res)
+}
+
 func (ec *executionContext) unmarshalOID2ᚖstring(ctx context.Context, v any) (*string, error) {
 	if v == nil {
 		return nil, nil
@@ -18069,6 +18430,42 @@ func (ec *executionContext) marshalOSubtitleTrack2ᚖgithubᚗcomᚋbccᚑmedia�
 		return graphql.Null
 	}
 	return ec._SubtitleTrack(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOSubtitleWord2ᚕᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋsubtitleᚐWordᚄ(ctx context.Context, sel ast.SelectionSet, v []*subtitle.Word) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNSubtitleWord2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋsubtitleᚐWord(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) unmarshalOSubtitleWordInput2ᚕgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋsubtitleᚐWordᚄ(ctx context.Context, v any) ([]subtitle.Word, error) {
+	if v == nil {
+		return nil, nil
+	}
+	vSlice := graphql.CoerceList(v)
+	var err error
+	res := make([]subtitle.Word, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNSubtitleWordInput2githubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋsubtitleᚐWord(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
 }
 
 func (ec *executionContext) unmarshalOTime2ᚖtimeᚐTime(ctx context.Context, v any) (*time.Time, error) {

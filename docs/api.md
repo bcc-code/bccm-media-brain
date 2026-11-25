@@ -86,9 +86,10 @@ Import subtitles, edit them, export them:
 
 ```graphql
 mutation { importSubtitles(input: {versionId: "AV-...", language: "en", format: SRT, content: "1\n00:00:01,000 --> ..."}) { id revision } }
-mutation { importSubtitles(input: {versionId: "AV-...", language: "nb", kind: TRANSCRIPT, format: VTT, content: "WEBVTT\n...", origin: ASR, model: "nb-whisper-large"}) { id origin model } }
+mutation { importSubtitles(input: {versionId: "AV-...", language: "nb", kind: TRANSCRIPT, format: JSON, content: "{\"segments\": [...]}", origin: ASR, model: "nb-whisper-large"}) { id origin model } }
 mutation { editSubtitles(trackId: "ST-...", cues: [{startMs: 1000, endMs: 2500, text: "Hello"}]) { id revision parentId } }
 query    { subtitleTrack(id: "ST-...") { revision cues { nodes { seq startMs endMs text } pageInfo { hasNextPage endCursor } } export(format: VTT) } }
+query    { subtitleTrack(id: "ST-...") { cues { nodes { text words { startMs endMs text confidence } } } export(format: JSON) } }
 ```
 
 Read an asset with everything under it (a fixed number of database queries, however many assets):

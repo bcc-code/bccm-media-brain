@@ -32,6 +32,7 @@ const (
 	assumedReference  = 20  // asset types, storage locations
 	assumedDirectory  = 100 // groups, service accounts, the grants on one object
 	assumedLanguages  = 200
+	assumedWords      = 20 // per cue: two lines of 42 characters hold about 15
 
 	// An export reads the whole track, like a default page of cues.
 	exportCost = 500
@@ -118,6 +119,7 @@ func complexity() generated.ComplexityRoot {
 	c.Program.Projects = paged(project.ProjectsPerProgram, domain.MaxLimit)
 	c.SubtitleTrack.Cues = paged(subtitle.DefaultCuePage, subtitle.MaxCuePage)
 	c.SubtitleTrack.Export = func(int, subtitle.Format) int { return exportCost }
+	c.SubtitleCue.Words = assumed(assumedWords)
 
 	c.AssetConnection.Nodes, c.AssetConnection.PageInfo = connectionPart, connectionPart
 	c.AssetVersionConnection.Nodes, c.AssetVersionConnection.PageInfo = connectionPart, connectionPart

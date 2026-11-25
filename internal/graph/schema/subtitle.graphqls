@@ -13,6 +13,8 @@ enum TrackOrigin {
 enum SubtitleFormat {
   SRT
   VTT
+  "Whisper JSON, as the transcriber writes it: segments with times in seconds and optional word timing."
+  JSON
 }
 
 "One revision of a rendition's subtitles. Revisions are never changed; edits add a new one."
@@ -33,7 +35,7 @@ type SubtitleTrack {
   createdAt: Time!
   "At most 5000 per page."
   cues(first: Int = 500, after: String): SubtitleCueConnection!
-  "The whole track as subtitle text. SRT drops speakers."
+  "The whole track as subtitle text. SRT drops speakers; only JSON keeps word timing."
   export(format: SubtitleFormat!): String!
 }
 
@@ -43,6 +45,16 @@ type SubtitleCue {
   endMs: Int!
   text: String!
   speaker: String
+  "Word timing from speech recognition; null when the source had none. Words may overhang the cue."
+  words: [SubtitleWord!]
+}
+
+type SubtitleWord {
+  startMs: Int!
+  endMs: Int!
+  text: String!
+  "Between 0 and 1, when the recognizer reported one."
+  confidence: Float
 }
 
 input ImportSubtitlesInput {
@@ -51,7 +63,7 @@ input ImportSubtitlesInput {
   language: String
   kind: TrackKind
   format: SubtitleFormat!
-  "The subtitle file's text, at most 5 MB."
+  "The subtitle file's text, at most 5 MB. With JSON, word timing is kept."
   content: String!
   "The registered file the text came from, if any. It is attached to the subtitle rendition, so the caller needs DOWNLOAD_ORIGINAL on it."
   sourceFileId: ID
@@ -66,6 +78,15 @@ input SubtitleCueInput {
   endMs: Int!
   text: String!
   speaker: String
+  "Kept as given; leave out when the text changed and the timing no longer fits. At most 1000."
+  words: [SubtitleWordInput!]
+}
+
+input SubtitleWordInput {
+  startMs: Int!
+  endMs: Int!
+  text: String!
+  confidence: Float
 }
 
 extend type Query {

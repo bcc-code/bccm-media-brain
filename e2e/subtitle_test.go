@@ -3,6 +3,7 @@
 package e2e
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 
@@ -203,6 +204,9 @@ func TestSubtitleValidation(t *testing.T) {
 		"unknown source":   imp(map[string]any{"sourceFileId": "FI-00000000000000000000000000"}),
 		"manual origin":    imp(map[string]any{"origin": "MANUAL"}),
 		"long model":       imp(map[string]any{"model": strings.Repeat("x", subtitle.MaxModelLength+1)}),
+		"broken json":      imp(map[string]any{"format": "JSON", "content": `{"segments": [`}),
+		"srt as json":      imp(map[string]any{"format": "JSON"}),
+		"bad word":         imp(map[string]any{"format": "JSON", "content": `{"segments": [{"start": 0, "end": 1, "text": "x", "words": [{"text": "x", "start": 0.5, "end": 0.1}]}]}`}),
 	} {
 		t.Run(name, func(t *testing.T) { admin.fails(t, "INVALID_INPUT", importSubtitles, vars) })
 	}
@@ -212,10 +216,12 @@ func TestSubtitleValidation(t *testing.T) {
 	admin.must(t, importSubtitles, imp(nil), &out)
 	track := out.ImportSubtitles.ID
 	for name, cues := range map[string][]map[string]any{
-		"none":     {},
-		"no text":  {{"startMs": 0, "endMs": 10, "text": " "}},
-		"negative": {{"startMs": -5, "endMs": 10, "text": "x"}},
-		"reversed": {{"startMs": 10, "endMs": 10, "text": "x"}},
+		"none":              {},
+		"no text":           {{"startMs": 0, "endMs": 10, "text": " "}},
+		"negative":          {{"startMs": -5, "endMs": 10, "text": "x"}},
+		"reversed":          {{"startMs": 10, "endMs": 10, "text": "x"}},
+		"word without text": {{"startMs": 0, "endMs": 10, "text": "x", "words": []map[string]any{{"startMs": 0, "endMs": 5, "text": " "}}}},
+		"word confidence":   {{"startMs": 0, "endMs": 10, "text": "x", "words": []map[string]any{{"startMs": 0, "endMs": 5, "text": "x", "confidence": 2}}}},
 	} {
 		t.Run("edit/"+name, func(t *testing.T) {
 			admin.fails(t, "INVALID_INPUT", editSubtitles, map[string]any{"id": track, "cues": cues})
@@ -281,5 +287,85 @@ func TestSubtitleLanguageFollowsItsRendition(t *testing.T) {
 	admin.must(t, `query($id: ID!) { subtitleTrack(id: $id) { language } }`, map[string]any{"id": imp.ImportSubtitles.ID}, &got)
 	if got.SubtitleTrack.Language == nil || *got.SubtitleTrack.Language != "nb" {
 		t.Fatalf("the track's language is %v, its rendition's is nb", got.SubtitleTrack.Language)
+	}
+}
+
+// Word timing from a Whisper JSON transcript is stored with each cue, read back through
+// words, kept by a JSON export and by an edit that sends it, and dropped by one that does not.
+func TestSubtitleWordTiming(t *testing.T) {
+	admin, f := signInAdmin(t), fake.New(1125)
+	c := newClip(t, admin, f, newProject(t, admin, f, newProgram(t, admin, f)), "")
+	content := f.TranscriptJSON(6)
+	want, err := subtitle.Parse(subtitle.JSON, content)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var imp struct{ ImportSubtitles trackJSON }
+	admin.must(t, importSubtitles, map[string]any{"in": map[string]any{
+		"versionId": c.version, "language": "nb", "kind": "TRANSCRIPT", "format": "JSON", "content": content,
+		"origin": "ASR", "model": "nb-whisper-large",
+	}}, &imp)
+	track := imp.ImportSubtitles.ID
+
+	const withWords = `query($id: ID!) { subtitleTrack(id: $id) {
+		cues { nodes { startMs endMs text words { startMs endMs text confidence } } }
+		export(format: JSON)
+	} }`
+	type wordsJSON struct {
+		SubtitleTrack struct {
+			Cues struct {
+				Nodes []struct {
+					StartMs, EndMs int32
+					Text           string
+					Words          []subtitle.Word
+				}
+			}
+			Export string
+		}
+	}
+	var got wordsJSON
+	admin.must(t, withWords, map[string]any{"id": track}, &got)
+	nodes := got.SubtitleTrack.Cues.Nodes
+	if len(nodes) != len(want) {
+		t.Fatalf("%d cues, want %d", len(nodes), len(want))
+	}
+	for i, n := range nodes {
+		if n.Text != want[i].Text || len(n.Words) == 0 || !reflect.DeepEqual(n.Words, want[i].Words) {
+			t.Fatalf("cue %d = %+v, want %+v", i, n, want[i])
+		}
+	}
+	if back, err := subtitle.Parse(subtitle.JSON, got.SubtitleTrack.Export); err != nil || !reflect.DeepEqual(back, want) {
+		t.Fatalf("export = %v, %v", got.SubtitleTrack.Export, err)
+	}
+
+	// An edit keeps the words it is sent and drops those it is not.
+	first := nodes[0]
+	words := make([]map[string]any, len(first.Words))
+	for i, w := range first.Words {
+		words[i] = map[string]any{"startMs": w.StartMs, "endMs": w.EndMs, "text": w.Text, "confidence": w.Confidence}
+	}
+	var ed struct{ EditSubtitles trackJSON }
+	admin.must(t, editSubtitles, map[string]any{"id": track, "cues": []map[string]any{
+		{"startMs": first.StartMs, "endMs": first.EndMs, "text": first.Text, "words": words},
+		{"startMs": first.EndMs + 1000, "endMs": first.EndMs + 2000, "text": "corrected by hand"},
+	}}, &ed)
+	admin.must(t, withWords, map[string]any{"id": ed.EditSubtitles.ID}, &got)
+	nodes = got.SubtitleTrack.Cues.Nodes
+	if len(nodes) != 2 || !reflect.DeepEqual(nodes[0].Words, first.Words) || nodes[1].Words != nil {
+		t.Fatalf("edited = %+v", nodes)
+	}
+
+	// Subtitles without word timing have none.
+	admin.must(t, importSubtitles, map[string]any{"in": map[string]any{
+		"versionId": c.version, "language": "en", "format": "SRT", "content": f.SRT(2),
+	}}, &imp)
+	admin.must(t, withWords, map[string]any{"id": imp.ImportSubtitles.ID}, &got)
+	for _, n := range got.SubtitleTrack.Cues.Nodes {
+		if n.Words != nil {
+			t.Fatalf("srt cue has words: %+v", n)
+		}
+	}
+	if !strings.Contains(got.SubtitleTrack.Export, `"segments"`) || strings.Contains(got.SubtitleTrack.Export, `"words"`) {
+		t.Fatalf("srt export as json = %s", got.SubtitleTrack.Export)
 	}
 }
