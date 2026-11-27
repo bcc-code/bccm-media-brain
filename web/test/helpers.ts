@@ -1,6 +1,8 @@
 import { vi } from 'vitest'
 import type { ServiceAccount } from '../app/composables/useServiceAccounts'
 import type { Cue, Revision } from '../app/composables/useSubtitles'
+import type { AssetRow } from '../app/composables/useAssets'
+import type { Person } from '../app/composables/useUsers'
 
 export function account(over: Partial<ServiceAccount> = {}): ServiceAccount {
   return {
@@ -57,4 +59,33 @@ export function cue(seq: number, text: string, over: Partial<Cue> = {}): Cue {
 /** The answer to one page of a revision's cues. */
 export function cuePage(cues: Cue[], endCursor: string | null = null): Response {
   return json({ data: { subtitleTrack: { cues: { nodes: cues, pageInfo: { hasNextPage: endCursor !== null, endCursor } } } } })
+}
+
+export function person(over: Partial<Person> = {}): Person {
+  return {
+    id: 'US-1',
+    email: 'ann@example.test',
+    name: 'Ann',
+    active: true,
+    isAdmin: false,
+    createdAt: '2026-11-11T09:30:00Z',
+    groups: [],
+    ...over,
+  }
+}
+
+export function assetRow(over: Partial<AssetRow> = {}): AssetRow {
+  return {
+    id: 'AS-1',
+    title: 'Opening',
+    legacyIds: ['VX-1'],
+    createdAt: '2026-11-12T10:00:00Z',
+    type: { name: 'Clip' },
+    ...over,
+  }
+}
+
+/** One page of a connection, under `field`. `extra` goes beside it in data. */
+export function page<T>(field: string, nodes: T[], endCursor: string | null = null, extra: Record<string, unknown> = {}): Response {
+  return json({ data: { ...extra, [field]: { nodes, pageInfo: { hasNextPage: endCursor !== null, endCursor } } } })
 }

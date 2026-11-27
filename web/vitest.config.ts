@@ -10,7 +10,7 @@ export default defineConfig({
     include: ['test/**/*.test.ts'],
     coverage: {
       provider: 'v8',
-      include: ['app/utils/**', 'app/composables/**', 'app/components/**', 'app/pages/service-accounts.vue', 'app/pages/subtitles.vue'],
+      include: ['app/utils/**', 'app/composables/**', 'app/components/**', 'app/pages/service-accounts.vue', 'app/pages/subtitles.vue', 'app/pages/users.vue', 'app/pages/assets.vue'],
       thresholds: { lines: 90, functions: 90, branches: 90, statements: 90 },
     },
   },

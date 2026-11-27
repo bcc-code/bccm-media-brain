@@ -524,6 +524,43 @@ func (q *Queries) ListGrants(ctx context.Context, arg ListGrantsParams) ([]Permi
 	return items, nil
 }
 
+const listGroupsForUsers = `-- name: ListGroupsForUsers :many
+SELECT m.user_id, g.id, g.name, g.external_id, g.description FROM user_group_member m JOIN user_group g ON g.id = m.group_id
+WHERE m.user_id = ANY($1::text[])
+ORDER BY g.name, g.id
+`
+
+type ListGroupsForUsersRow struct {
+	UserID    string    `json:"user_id"`
+	UserGroup UserGroup `json:"user_group"`
+}
+
+func (q *Queries) ListGroupsForUsers(ctx context.Context, ids []string) ([]ListGroupsForUsersRow, error) {
+	rows, err := q.db.Query(ctx, listGroupsForUsers, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListGroupsForUsersRow
+	for rows.Next() {
+		var i ListGroupsForUsersRow
+		if err := rows.Scan(
+			&i.UserID,
+			&i.UserGroup.ID,
+			&i.UserGroup.Name,
+			&i.UserGroup.ExternalID,
+			&i.UserGroup.Description,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listServiceAccounts = `-- name: ListServiceAccounts :many
 SELECT id, external_id, email, name, person_id, active, created_at, is_admin, kind FROM app_user WHERE kind = 'service' ORDER BY name
 `
@@ -612,17 +649,28 @@ func (q *Queries) ListUserGroups(ctx context.Context) ([]UserGroup, error) {
 }
 
 const listUsers = `-- name: ListUsers :many
-SELECT id, external_id, email, name, person_id, active, created_at, is_admin, kind FROM app_user WHERE ($1::text IS NULL OR id > $1)
-ORDER BY id LIMIT $2
+SELECT id, external_id, email, name, person_id, active, created_at, is_admin, kind FROM app_user
+WHERE ($1::user_kind IS NULL OR kind = $1)
+  AND ($2::text IS NULL
+       OR position(lower($2) in lower(coalesce(name, '') || ' ' || coalesce(email, ''))) > 0)
+  AND ($3::text IS NULL OR id > $3)
+ORDER BY id LIMIT $4
 `
 
 type ListUsersParams struct {
-	After *string `json:"after"`
-	Limit int32   `json:"limit"`
+	Kind   *UserKind `json:"kind"`
+	Search *string   `json:"search"`
+	After  *string   `json:"after"`
+	Limit  int32     `json:"limit"`
 }
 
 func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]AppUser, error) {
-	rows, err := q.db.Query(ctx, listUsers, arg.After, arg.Limit)
+	rows, err := q.db.Query(ctx, listUsers,
+		arg.Kind,
+		arg.Search,
+		arg.After,
+		arg.Limit,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -736,6 +784,32 @@ func (q *Queries) ScopeLevel(ctx context.Context, arg ScopeLevelParams) (Permiss
 	var level PermissionLevel
 	err := row.Scan(&level)
 	return level, err
+}
+
+const setPersonActive = `-- name: SetPersonActive :one
+UPDATE app_user SET active = $1 WHERE id = $2 AND kind = 'person' RETURNING id, external_id, email, name, person_id, active, created_at, is_admin, kind
+`
+
+type SetPersonActiveParams struct {
+	Active bool   `json:"active"`
+	ID     string `json:"id"`
+}
+
+func (q *Queries) SetPersonActive(ctx context.Context, arg SetPersonActiveParams) (AppUser, error) {
+	row := q.db.QueryRow(ctx, setPersonActive, arg.Active, arg.ID)
+	var i AppUser
+	err := row.Scan(
+		&i.ID,
+		&i.ExternalID,
+		&i.Email,
+		&i.Name,
+		&i.PersonID,
+		&i.Active,
+		&i.CreatedAt,
+		&i.IsAdmin,
+		&i.Kind,
+	)
+	return i, err
 }
 
 const setServiceAccountActive = `-- name: SetServiceAccountActive :one

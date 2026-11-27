@@ -44,7 +44,7 @@ Conventions:
 
 | Area | Queries | Mutations |
 |---|---|---|
-| Access | `me`, `users`, `userGroups`, `grants` | `grantAccess`, `revokeAccess`, `setUserAdmin` |
+| Access | `me`, `users` (filter by kind, search name or email), `userGroups`, `grants`; `User.groups` | `grantAccess`, `revokeAccess`, `setUserAdmin`, `setUserActive` |
 | Machine clients ([security.md](security.md#machine-clients)) | `serviceAccounts` | `createServiceAccount`, `setServiceAccountActive` |
 | Programs, projects | `program(s)`, `project(s)` | `create/update/deleteProgram`, `create/update/deleteProject` |
 | Files | `file`, `fileByHash`, `files`, `storageLocations` | `registerFile`, `addFileCopy`, `setFileCopyStatus`, `removeFileCopy`, `deleteFile`, `create/update/deleteStorageLocation` |

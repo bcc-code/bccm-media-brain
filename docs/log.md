@@ -2,6 +2,20 @@
 
 Newest first. Each entry: what changed, why, and what was left out on purpose.
 
+## 2026-11-27 — Web UI: user manager and asset list
+
+- **Users** page (`/admin/users`, administrators): people only, searched by name or email, with
+  "Load more"; make an administrator or not, switch off or on, and see each person's groups.
+- API: `users(filter: {kind, search})` (search is a case-insensitive substring of name or email);
+  `User.groups` through a dataloader (others' groups for administrators only);
+  `setUserActive` for people, audited as `user.set_active`. It refuses your own account
+  (`INVALID_INPUT` on `user`), so an administrator cannot lock themselves out, and does not take
+  service accounts, which keep `setServiceAccountActive`. Same one-minute cache as before.
+- **Assets** page (`/admin/assets`, anyone): the existing `assets` query, newest first, 50 per page.
+  It is now the start page, since everyone may open it.
+- Left out on purpose: adding people before they sign in, editing groups (they come from the
+  identity provider), and filtering or opening assets from the list.
+
 ## 2026-11-25 — Word timing on subtitle cues
 
 - `importSubtitles` takes `format: JSON`: the Whisper JSON the transcriber writes

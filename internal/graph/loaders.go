@@ -39,6 +39,7 @@ type loaders struct {
 	locations      *loader.Loader[string, sqlc.StorageLocation]
 	programs       *loader.Loader[string, sqlc.Program]
 	projects       *loader.Loader[string, sqlc.Project]
+	groups         *loader.Loader[string, []sqlc.UserGroup]
 
 	// Loaders for fields with arguments, one per distinct argument value.
 	mu              sync.Mutex
@@ -71,6 +72,7 @@ func newLoaders(r *Resolver) *loaders {
 		locations:      loader.New(r.FilesSvc.LocationsByID),
 		programs:       loader.New(r.ProjectsSvc.ProgramsByID),
 		projects:       loader.New(r.ProjectsSvc.ProjectsByID),
+		groups:         loader.New(r.AccessSvc.GroupsFor),
 
 		r:               r,
 		subs:            r.SubtitlesSvc,

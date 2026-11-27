@@ -19,8 +19,15 @@ VALUES (@external_id, sqlc.narg('email'), sqlc.narg('name'), @is_admin, @active)
 RETURNING *;
 
 -- name: ListUsers :many
-SELECT * FROM app_user WHERE (sqlc.narg('after')::text IS NULL OR id > sqlc.narg('after'))
+SELECT * FROM app_user
+WHERE (sqlc.narg('kind')::user_kind IS NULL OR kind = sqlc.narg('kind'))
+  AND (sqlc.narg('search')::text IS NULL
+       OR position(lower(sqlc.narg('search')) in lower(coalesce(name, '') || ' ' || coalesce(email, ''))) > 0)
+  AND (sqlc.narg('after')::text IS NULL OR id > sqlc.narg('after'))
 ORDER BY id LIMIT sqlc.arg('limit');
+
+-- name: SetPersonActive :one
+UPDATE app_user SET active = @active WHERE id = @id AND kind = 'person' RETURNING *;
 
 -- name: SetUserAdmin :one
 UPDATE app_user SET is_admin = $2 WHERE id = $1 RETURNING *;
@@ -43,6 +50,11 @@ ON CONFLICT DO NOTHING;
 -- name: RemoveSSOMemberships :exec
 DELETE FROM user_group_member
 WHERE user_id = $1 AND source = 'sso' AND NOT (group_id = ANY(@keep::text[]));
+
+-- name: ListGroupsForUsers :many
+SELECT m.user_id, sqlc.embed(g) FROM user_group_member m JOIN user_group g ON g.id = m.group_id
+WHERE m.user_id = ANY(@ids::text[])
+ORDER BY g.name, g.id;
 
 -- name: ListUserGroupIDs :many
 SELECT group_id FROM user_group_member WHERE user_id = $1 ORDER BY group_id;

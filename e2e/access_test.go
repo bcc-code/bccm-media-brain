@@ -150,6 +150,8 @@ func TestAdminOnlyOperations(t *testing.T) {
 		"list users":        {`{ users { nodes { id email } } }`, nil},
 		"list groups":       {`{ userGroups { id } }`, nil},
 		"make admin":        {`mutation($u: String!) { setUserAdmin(user: $u, admin: true) { id } }`, map[string]any{"u": editor.id}},
+		"switch user off":   {`mutation($u: String!) { setUserActive(user: $u, active: false) { id } }`, map[string]any{"u": w.admin.id}},
+		"search users":      {`{ users(filter: {search: "a", kind: PERSON}) { nodes { id groups { id } } } }`, nil},
 		"vidispine import":  {importFromVidispine, map[string]any{"in": map[string]any{"itemId": vidispineItem(w.f, newVidispineStorage()).ID, "typeId": 1, "projectId": w.projectA}}},
 		"vidispine refresh": {refreshFromVidispine, map[string]any{"id": w.c1.asset}},
 	} {

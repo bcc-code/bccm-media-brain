@@ -83,7 +83,9 @@ Details worth knowing:
 - An email already used by another account is not taken over: the new user is stored without it.
   Addresses are compared without regard to case, and a unique index on `lower(email)` holds the
   rule in the database, so no path can store the same address twice.
-- Inactive users (`app_user.active = false`) get HTTP 403.
+- Inactive users (`app_user.active = false`) get HTTP 403. Administrators that are people switch
+  a person off or on with `setUserActive` (service accounts have `setServiceAccountActive`), but
+  not their own account: there might be no one left to switch it back on.
 - A verified token's user is cached for one minute, so a change to `is_admin`, `active` or group
   membership can take that long to apply. The cache entry ends when the token does (`exp` plus
   the 30 s leeway the verifier allows), so the cache never makes a token work longer than
@@ -251,7 +253,8 @@ Rules:
   cannot see at all is `INVALID_INPUT`, like any unknown id; one they can only view is
   `FORBIDDEN`.
 - **Sharing** (`grantAccess`) takes a user id, a user's email (they must have signed in once) or
-  a group id. Listing users and groups is for administrators.
+  a group id. Listing users and groups is for administrators. `User.groups` shows another user's
+  groups to administrators only; anyone else gets an empty list for others and their own groups.
 
 Permission checks live in the domain services (`internal/access`), so they apply the same way
 to every caller. Dev-data scenarios and the CLI run as an explicit system principal.

@@ -189,6 +189,8 @@ requests an administrator's.
   `pages/index.vue` are Nuxt wiring only and outside the coverage gate.
 - A page under test is listed in `coverage.include` of `vitest.config.ts`, and gets its link in
   `app.vue`.
+- `app/composables/usePaged.ts`: a list read one page at a time ("Load more"); a reload drops an
+  answer to an older request. `useUsers` and `useAssets` build on it.
 - `app/utils/diff.ts` compares two lists by a key (the subtitles page: cues of two revisions), groups
   the result into hunks, and marks the changed words of a hunk (`wordDiff`).
   It is a table of the changed middle, so its memory is bounded by `MAX_CELLS`.

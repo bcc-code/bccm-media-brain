@@ -4,7 +4,13 @@ The MediaBrain web UI: [Nuxt](https://nuxt.com) without server rendering,
 [Tailwind CSS](https://tailwindcss.com) and [Ark UI](https://ark-ui.com). It talks only to the
 API's GraphQL endpoint, `/query`, on its own origin.
 
-Pages so far: **Service accounts** (`/service-accounts`): list, create, switch off and on, make
+Pages so far: **Assets** (`/assets`, the start page): the assets the caller may see, newest
+first, 50 at a time with "Load more". For anyone.
+
+**Users** (`/users`): people (not service accounts), searched by name or email, with their groups;
+make an administrator or not, switch off and on. Not your own account. Administrators only.
+
+**Service accounts** (`/service-accounts`): list, create, switch off and on, make
 an administrator or not.
 Administrators only, as the API decides.
 

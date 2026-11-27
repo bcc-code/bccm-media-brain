@@ -52,6 +52,7 @@ type ResolverRoot interface {
 	RenditionFile() RenditionFileResolver
 	SubtitleCue() SubtitleCueResolver
 	SubtitleTrack() SubtitleTrackResolver
+	User() UserResolver
 }
 
 type DirectiveRoot struct {
@@ -205,6 +206,7 @@ type ComplexityRoot struct {
 		RevokeAccess            func(childComplexity int, id string) int
 		SetFileCopyStatus       func(childComplexity int, id string, status sqlc.CopyStatus) int
 		SetServiceAccountActive func(childComplexity int, serviceAccount string, active bool) int
+		SetUserActive           func(childComplexity int, user string, active bool) int
 		SetUserAdmin            func(childComplexity int, user string, admin bool) int
 		UnlinkAssetFromProject  func(childComplexity int, assetID string, projectID string, role sqlc.LinkRole) int
 		UpdateAsset             func(childComplexity int, id string, input asset.Input, expectedRevision *int) int
@@ -279,7 +281,7 @@ type ComplexityRoot struct {
 		SubtitleTrack    func(childComplexity int, id string) int
 		SubtitleTracks   func(childComplexity int, assetID string, history bool) int
 		UserGroups       func(childComplexity int) int
-		Users            func(childComplexity int, first *int, after *string) int
+		Users            func(childComplexity int, filter *access.UserFilter, first *int, after *string) int
 	}
 
 	Rendition struct {
@@ -359,6 +361,7 @@ type ComplexityRoot struct {
 		CreatedAt  func(childComplexity int) int
 		Email      func(childComplexity int) int
 		ExternalID func(childComplexity int) int
+		Groups     func(childComplexity int) int
 		ID         func(childComplexity int) int
 		IsAdmin    func(childComplexity int) int
 		Kind       func(childComplexity int) int
@@ -408,6 +411,7 @@ type MutationResolver interface {
 	GrantAccess(ctx context.Context, input access.GrantInput) (*sqlc.PermissionGrant, error)
 	RevokeAccess(ctx context.Context, id string) (bool, error)
 	SetUserAdmin(ctx context.Context, user string, admin bool) (*sqlc.AppUser, error)
+	SetUserActive(ctx context.Context, user string, active bool) (*sqlc.AppUser, error)
 	CreateServiceAccount(ctx context.Context, input access.ServiceAccountInput) (*sqlc.AppUser, error)
 	SetServiceAccountActive(ctx context.Context, serviceAccount string, active bool) (*sqlc.AppUser, error)
 	CreateAsset(ctx context.Context, projectID *string, input asset.Input) (*sqlc.Asset, error)
@@ -453,7 +457,7 @@ type QueryResolver interface {
 	Ping(ctx context.Context) (string, error)
 	Me(ctx context.Context) (*sqlc.AppUser, error)
 	ServiceAccounts(ctx context.Context) ([]*sqlc.AppUser, error)
-	Users(ctx context.Context, first *int, after *string) (*model.UserConnection, error)
+	Users(ctx context.Context, filter *access.UserFilter, first *int, after *string) (*model.UserConnection, error)
 	UserGroups(ctx context.Context) ([]*sqlc.UserGroup, error)
 	Grants(ctx context.Context, scope sqlc.GrantScope, scopeID string) ([]*sqlc.PermissionGrant, error)
 	AssetTypes(ctx context.Context) ([]*sqlc.AssetType, error)
@@ -486,6 +490,9 @@ type SubtitleCueResolver interface {
 type SubtitleTrackResolver interface {
 	Cues(ctx context.Context, obj *sqlc.SubtitleTrack, first *int, after *string) (*model.SubtitleCueConnection, error)
 	Export(ctx context.Context, obj *sqlc.SubtitleTrack, format subtitle.Format) (string, error)
+}
+type UserResolver interface {
+	Groups(ctx context.Context, obj *sqlc.AppUser) ([]*sqlc.UserGroup, error)
 }
 
 // endregion ************************** generated!.gotpl **************************
@@ -1328,6 +1335,17 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.SetServiceAccountActive(childComplexity, args["serviceAccount"].(string), args["active"].(bool)), true
+	case "Mutation.setUserActive":
+		if e.ComplexityRoot.Mutation.SetUserActive == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_setUserActive_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.SetUserActive(childComplexity, args["user"].(string), args["active"].(bool)), true
 	case "Mutation.setUserAdmin":
 		if e.ComplexityRoot.Mutation.SetUserAdmin == nil {
 			break
@@ -1801,7 +1819,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.Query.Users(childComplexity, args["first"].(*int), args["after"].(*string)), true
+		return e.ComplexityRoot.Query.Users(childComplexity, args["filter"].(*access.UserFilter), args["first"].(*int), args["after"].(*string)), true
 
 	case "Rendition.createdAt":
 		if e.ComplexityRoot.Rendition.CreatedAt == nil {
@@ -2155,6 +2173,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.User.ExternalID(childComplexity), true
+	case "User.groups":
+		if e.ComplexityRoot.User.Groups == nil {
+			break
+		}
+
+		return e.ComplexityRoot.User.Groups(childComplexity), true
 	case "User.id":
 		if e.ComplexityRoot.User.ID == nil {
 			break
@@ -2244,6 +2268,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 			graphql.NewInputUnmarshaler("UpdateProgramInput", ec.unmarshalInputUpdateProgramInput),
 			graphql.NewInputUnmarshaler("UpdateProjectInput", ec.unmarshalInputUpdateProjectInput),
 			graphql.NewInputUnmarshaler("UpdateRenditionInput", ec.unmarshalInputUpdateRenditionInput),
+			graphql.NewInputUnmarshaler("UserFilter", ec.unmarshalInputUserFilter),
 			graphql.NewInputUnmarshaler("VersionInput", ec.unmarshalInputVersionInput),
 			graphql.NewInputUnmarshaler("VidispineImportInput", ec.unmarshalInputVidispineImportInput),
 		)
@@ -2353,6 +2378,14 @@ type User {
   "System administrators bypass all grant checks."
   isAdmin: Boolean!
   createdAt: Time!
+  "Sorted by name. Another user's groups are shown to administrators only; anyone else sees an empty list."
+  groups: [UserGroup!]!
+}
+
+input UserFilter {
+  kind: UserKind
+  "Part of the name or email, in any case."
+  search: String
 }
 
 type UserGroup {
@@ -2401,7 +2434,7 @@ extend type Query {
   "Administrators only, not service accounts."
   serviceAccounts: [User!]!
   "Administrators only."
-  users(first: Int = 50, after: String): UserConnection!
+  users(filter: UserFilter, first: Int = 50, after: String): UserConnection!
   "Administrators only."
   userGroups: [UserGroup!]!
   "Needs ADMIN on the object."
@@ -2414,6 +2447,8 @@ extend type Mutation {
   revokeAccess(id: ID!): Boolean!
   "Administrators only, not service accounts. user is a user id or email."
   setUserAdmin(user: String!, admin: Boolean!): User!
+  "Administrators only, not service accounts. People only (user is a user id or email); not your own account. An inactive person is refused. Takes up to a minute to apply."
+  setUserActive(user: String!, active: Boolean!): User!
   "Administrators only, not service accounts."
   createServiceAccount(input: ServiceAccountInput!): User!
   "Administrators only, not service accounts. An inactive account is refused. Takes up to a minute to apply."
@@ -3561,6 +3596,8 @@ func (ec *executionContext) childFields_User(ctx context.Context, field graphql.
 		return ec.fieldContext_User_isAdmin(ctx, field)
 	case "createdAt":
 		return ec.fieldContext_User_createdAt(ctx, field)
+	case "groups":
+		return ec.fieldContext_User_groups(ctx, field)
 	}
 	return nil, fmt.Errorf("no field named %q was found under type User", field.Name)
 }
@@ -4245,6 +4282,28 @@ func (ec *executionContext) field_Mutation_setServiceAccountActive_args(ctx cont
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_setUserActive_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "user",
+		func(ctx context.Context, v any) (string, error) {
+			return ec.unmarshalNString2string(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["user"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "active",
+		func(ctx context.Context, v any) (bool, error) {
+			return ec.unmarshalNBoolean2bool(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["active"] = arg1
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_setUserAdmin_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -4798,22 +4857,30 @@ func (ec *executionContext) field_Query_subtitleTracks_args(ctx context.Context,
 func (ec *executionContext) field_Query_users_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "first",
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "filter",
+		func(ctx context.Context, v any) (*access.UserFilter, error) {
+			return ec.unmarshalOUserFilter2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋaccessᚐUserFilter(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["filter"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "first",
 		func(ctx context.Context, v any) (*int, error) {
 			return ec.unmarshalOInt2ᚖint(ctx, v)
 		})
 	if err != nil {
 		return nil, err
 	}
-	args["first"] = arg0
-	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "after",
+	args["first"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "after",
 		func(ctx context.Context, v any) (*string, error) {
 			return ec.unmarshalOString2ᚖstring(ctx, v)
 		})
 	if err != nil {
 		return nil, err
 	}
-	args["after"] = arg1
+	args["after"] = arg2
 	return args, nil
 }
 
@@ -7068,6 +7135,50 @@ func (ec *executionContext) fieldContext_Mutation_setUserAdmin(ctx context.Conte
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_setUserAdmin_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_setUserActive(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_Mutation_setUserActive(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().SetUserActive(ctx, fc.Args["user"].(string), fc.Args["active"].(bool))
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *sqlc.AppUser) graphql.Marshaler {
+			return ec.marshalNUser2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐAppUser(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_Mutation_setUserActive(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_User(ctx, field)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_setUserActive_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -9354,7 +9465,7 @@ func (ec *executionContext) _Query_users(ctx context.Context, field graphql.Coll
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.Query().Users(ctx, fc.Args["first"].(*int), fc.Args["after"].(*string))
+			return ec.Resolvers.Query().Users(ctx, fc.Args["filter"].(*access.UserFilter), fc.Args["first"].(*int), fc.Args["after"].(*string))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *model.UserConnection) graphql.Marshaler {
@@ -11683,6 +11794,38 @@ func (ec *executionContext) _User_createdAt(ctx context.Context, field graphql.C
 }
 func (ec *executionContext) fieldContext_User_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	return graphql.NewScalarFieldContext("User", field, false, false, "Time")
+}
+
+func (ec *executionContext) _User_groups(ctx context.Context, field graphql.CollectedField, obj *sqlc.AppUser) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_User_groups(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.User().Groups(ctx, obj)
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v []*sqlc.UserGroup) graphql.Marshaler {
+			return ec.marshalNUserGroup2ᚕᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐUserGroupᚄ(ctx, selections, v)
+		},
+		true,
+		true,
+	)
+}
+func (ec *executionContext) fieldContext_User_groups(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "User",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.childFields_UserGroup(ctx, field)
+		},
+	}
+	return fc, nil
 }
 
 func (ec *executionContext) _UserConnection_nodes(ctx context.Context, field graphql.CollectedField, obj *model.UserConnection) (ret graphql.Marshaler) {
@@ -14112,6 +14255,55 @@ func UnmarshalUpdateRenditionInput(ctx context.Context, raw any) (asset.Renditio
 	return out, err
 }
 
+func (ec *executionContext) unmarshalInputUserFilter(ctx context.Context, obj any) (access.UserFilter, error) {
+	var it access.UserFilter
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"kind", "search"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "kind":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("kind"))
+			data, err := ec.unmarshalOUserKind2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐUserKind(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Kind = data
+		case "search":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("search"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Search = data
+		}
+	}
+	return it, nil
+}
+
+// UnmarshalUserFilter unmarshals raw into the UserFilter input type, using the
+// unmarshaler bound to ctx's request. Call it from a resolver to decode an input
+// object that was not passed as a field argument.
+//
+// ctx must come from a gqlgen request; outside one there is no unmarshaler to use
+// and the returned error says so.
+func UnmarshalUserFilter(ctx context.Context, raw any) (access.UserFilter, error) {
+	var out access.UserFilter
+	err := graphql.UnmarshalNamedInputFromContext(ctx, "UserFilter", raw, &out)
+	return out, err
+}
+
 func (ec *executionContext) unmarshalInputVersionInput(ctx context.Context, obj any) (asset.VersionInput, error) {
 	var it asset.VersionInput
 	if obj == nil {
@@ -15012,6 +15204,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "setUserAdmin":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_setUserAdmin(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "setUserActive":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_setUserActive(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -16201,43 +16400,49 @@ func (ec *executionContext) _User(ctx context.Context, sel ast.SelectionSet, obj
 		case "id":
 			out.Values[i] = ec._User_id(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "kind":
 			out.Values[i] = ec._User_kind(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "externalId":
 			out.Values[i] = ec._User_externalId(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "email":
 			out.Values[i] = ec._User_email(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "name":
 			out.Values[i] = ec._User_name(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "active":
 			out.Values[i] = ec._User_active(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "isAdmin":
 			out.Values[i] = ec._User_isAdmin(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "createdAt":
 			out.Values[i] = ec._User_createdAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
+		case "groups":
+			out.ResolveConcurrently(ec.OperationContext, &deferred, i,
+				true, true,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._User_groups(ctx, field, obj)
+				})
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -18547,6 +18752,44 @@ var (
 		sqlc.TrackOriginImport: "IMPORT",
 		sqlc.TrackOriginAsr:    "ASR",
 		sqlc.TrackOriginManual: "MANUAL",
+	}
+)
+
+func (ec *executionContext) unmarshalOUserFilter2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋaccessᚐUserFilter(ctx context.Context, v any) (*access.UserFilter, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := ec.unmarshalInputUserFilter(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalOUserKind2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐUserKind(ctx context.Context, v any) (*sqlc.UserKind, error) {
+	if v == nil {
+		return nil, nil
+	}
+	tmp, err := graphql.UnmarshalString(v)
+	res := unmarshalOUserKind2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐUserKind[tmp]
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOUserKind2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐUserKind(ctx context.Context, sel ast.SelectionSet, v *sqlc.UserKind) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	_ = sel
+	_ = ctx
+	res := graphql.MarshalString(marshalOUserKind2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐUserKind[*v])
+	return res
+}
+
+var (
+	unmarshalOUserKind2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐUserKind = map[string]sqlc.UserKind{
+		"PERSON":  sqlc.UserKindPerson,
+		"SERVICE": sqlc.UserKindService,
+	}
+	marshalOUserKind2ᚖgithubᚗcomᚋbccᚑmediaᚋmediabrainᚋinternalᚋdbᚋsqlcᚐUserKind = map[sqlc.UserKind]string{
+		sqlc.UserKindPerson:  "PERSON",
+		sqlc.UserKindService: "SERVICE",
 	}
 )
 

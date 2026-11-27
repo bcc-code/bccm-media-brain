@@ -42,6 +42,12 @@ models:
   User:
     model:
       - github.com/bcc-media/mediabrain/internal/db/sqlc.AppUser
+    fields:
+      groups:
+        resolver: true
+  UserFilter:
+    model:
+      - github.com/bcc-media/mediabrain/internal/access.UserFilter
   UserKind:
     model:
       - github.com/bcc-media/mediabrain/internal/db/sqlc.UserKind

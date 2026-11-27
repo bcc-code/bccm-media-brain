@@ -204,7 +204,13 @@ func (s *Service) Me(ctx context.Context) (sqlc.AppUser, error) {
 	return u, domain.FromPG(err)
 }
 
-func (s *Service) Users(ctx context.Context, first int, after *string) (domain.Slice[sqlc.AppUser], error) {
+type UserFilter struct {
+	Kind *sqlc.UserKind
+	// Search is part of the name or email, in any case.
+	Search *string
+}
+
+func (s *Service) Users(ctx context.Context, f UserFilter, first int, after *string) (domain.Slice[sqlc.AppUser], error) {
 	if err := RequireAdmin(ctx); err != nil {
 		return domain.Slice[sqlc.AppUser]{}, err
 	}
@@ -212,8 +218,45 @@ func (s *Service) Users(ctx context.Context, first int, after *string) (domain.S
 	if err != nil {
 		return domain.Slice[sqlc.AppUser]{}, err
 	}
-	rows, err := s.q.ListUsers(ctx, sqlc.ListUsersParams{Limit: w.Fetch(), After: w.After})
+	var search *string
+	if f.Search != nil {
+		if t := strings.TrimSpace(*f.Search); t != "" {
+			search = &t
+		}
+	}
+	rows, err := s.q.ListUsers(ctx, sqlc.ListUsersParams{Kind: f.Kind, Search: search, Limit: w.Fetch(), After: w.After})
 	return domain.Cut(rows, w, func(u sqlc.AppUser) string { return u.ID }), err
+}
+
+// GroupsFor returns the groups of each user. Others' groups are for administrators: anyone
+// else gets only their own, as an empty list for the rest, since a user can show up where
+// its id is known (me, createdBy) without the caller being allowed to list users.
+func (s *Service) GroupsFor(ctx context.Context, userIDs []string) (map[string][]sqlc.UserGroup, error) {
+	p, err := From(ctx)
+	if err != nil {
+		return nil, err
+	}
+	ids := userIDs
+	if !p.Admin {
+		ids = nil
+		for _, id := range userIDs {
+			if id == p.UserID {
+				ids = []string{id}
+			}
+		}
+	}
+	out := make(map[string][]sqlc.UserGroup, len(userIDs))
+	for _, id := range userIDs {
+		out[id] = []sqlc.UserGroup{}
+	}
+	if len(ids) == 0 {
+		return out, nil
+	}
+	rows, err := s.q.ListGroupsForUsers(ctx, ids)
+	for _, r := range rows {
+		out[r.UserID] = append(out[r.UserID], r.UserGroup)
+	}
+	return out, err
 }
 
 func (s *Service) Groups(ctx context.Context) ([]sqlc.UserGroup, error) {
@@ -234,6 +277,27 @@ func (s *Service) SetAdmin(ctx context.Context, ref string, admin bool) (sqlc.Ap
 	}
 	u, err = s.q.SetUserAdmin(ctx, sqlc.SetUserAdminParams{ID: u.ID, IsAdmin: admin})
 	return u, Audited(ctx, domain.FromPG(err), "user.set_admin", u.ID, "admin", admin)
+}
+
+// SetActive switches a person (id or email) off or on. Service accounts have
+// SetServiceAccountActive. Administrators cannot switch themselves off: nobody could undo it
+// through the API if they were the last one.
+func (s *Service) SetActive(ctx context.Context, ref string, active bool) (sqlc.AppUser, error) {
+	if err := RequirePersonAdmin(ctx); err != nil {
+		return sqlc.AppUser{}, err
+	}
+	u, err := s.findUser(ctx, s.q, ref)
+	if err != nil {
+		return sqlc.AppUser{}, err
+	}
+	if u.Kind != sqlc.UserKindPerson {
+		return sqlc.AppUser{}, domain.ErrNotFound
+	}
+	if p, _ := From(ctx); p.UserID == u.ID && !active {
+		return sqlc.AppUser{}, domain.InvalidField("user", "you cannot switch off your own account")
+	}
+	u, err = s.q.SetPersonActive(ctx, sqlc.SetPersonActiveParams{ID: u.ID, Active: active})
+	return u, Audited(ctx, domain.FromPG(err), "user.set_active", u.ID, "active", active)
 }
 
 type UserInput struct {

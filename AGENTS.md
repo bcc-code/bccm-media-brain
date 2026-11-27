@@ -17,7 +17,7 @@ Guidance for AI coding agents (and humans) working in this repository.
   (`godotenv`; real env vars win; override path with `MEDIABRAIN_ENV_FILE`).
 - **Web UI:** Nuxt (static, no server rendering), Tailwind and Ark UI in `web/`. It talks only to
   `/query`. `make build` and the image embed its build in the binary (`internal/webui`, build tag
-  `webui`), served at `/admin/`. So far: the service accounts page and the subtitle browser.
+  `webui`), served at `/admin/`. So far: the asset list, the user manager, the service accounts page and the subtitle browser.
 
 **[`docs/`](docs/README.md) records what has been built and why**: architecture, data model, API,
 security, and a dated log. Read it before changing behaviour, and update it in the same change.

@@ -10,6 +10,7 @@ import (
 
 	"github.com/bcc-media/mediabrain/internal/access"
 	"github.com/bcc-media/mediabrain/internal/db/sqlc"
+	"github.com/bcc-media/mediabrain/internal/graph/generated"
 	"github.com/bcc-media/mediabrain/internal/graph/model"
 )
 
@@ -26,6 +27,11 @@ func (r *mutationResolver) RevokeAccess(ctx context.Context, id string) (bool, e
 // SetUserAdmin is the resolver for the setUserAdmin field.
 func (r *mutationResolver) SetUserAdmin(ctx context.Context, user string, admin bool) (*sqlc.AppUser, error) {
 	return one(r.AccessSvc.SetAdmin(ctx, user, admin))
+}
+
+// SetUserActive is the resolver for the setUserActive field.
+func (r *mutationResolver) SetUserActive(ctx context.Context, user string, active bool) (*sqlc.AppUser, error) {
+	return one(r.AccessSvc.SetActive(ctx, user, active))
 }
 
 // CreateServiceAccount is the resolver for the createServiceAccount field.
@@ -49,8 +55,12 @@ func (r *queryResolver) ServiceAccounts(ctx context.Context) ([]*sqlc.AppUser, e
 }
 
 // Users is the resolver for the users field.
-func (r *queryResolver) Users(ctx context.Context, first *int, after *string) (*model.UserConnection, error) {
-	n, info, err := nodes(r.AccessSvc.Users(ctx, deref(first), after))
+func (r *queryResolver) Users(ctx context.Context, filter *access.UserFilter, first *int, after *string) (*model.UserConnection, error) {
+	var f access.UserFilter
+	if filter != nil {
+		f = *filter
+	}
+	n, info, err := nodes(r.AccessSvc.Users(ctx, f, deref(first), after))
 	if err != nil {
 		return nil, err
 	}
@@ -66,3 +76,13 @@ func (r *queryResolver) UserGroups(ctx context.Context) ([]*sqlc.UserGroup, erro
 func (r *queryResolver) Grants(ctx context.Context, scope sqlc.GrantScope, scopeID string) ([]*sqlc.PermissionGrant, error) {
 	return many(r.AccessSvc.Grants(ctx, scope, scopeID))
 }
+
+// Groups is the resolver for the groups field.
+func (r *userResolver) Groups(ctx context.Context, obj *sqlc.AppUser) ([]*sqlc.UserGroup, error) {
+	return many(r.load(ctx).groups.Load(ctx, obj.ID))
+}
+
+// User returns generated.UserResolver implementation.
+func (r *Resolver) User() generated.UserResolver { return &userResolver{r} }
+
+type userResolver struct{ *Resolver }

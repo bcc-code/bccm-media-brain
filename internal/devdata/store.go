@@ -126,7 +126,7 @@ func (s *Store) accessService() *access.Service {
 
 // Users lists the users one can act as from the debug UI.
 func (s *Store) Users(ctx context.Context) ([]User, error) {
-	page, err := s.accessService().Users(access.With(ctx, access.System()), domain.MaxLimit, nil)
+	page, err := s.accessService().Users(access.With(ctx, access.System()), access.UserFilter{}, domain.MaxLimit, nil)
 	if err != nil {
 		return nil, err
 	}

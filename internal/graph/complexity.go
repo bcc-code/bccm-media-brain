@@ -1,6 +1,7 @@
 package graph
 
 import (
+	"github.com/bcc-media/mediabrain/internal/access"
 	"github.com/bcc-media/mediabrain/internal/asset"
 	"github.com/bcc-media/mediabrain/internal/db/sqlc"
 	"github.com/bcc-media/mediabrain/internal/domain"
@@ -29,6 +30,7 @@ const (
 	assumedHashes     = 3   // per file
 	assumedCopies     = 3   // per file
 	assumedLinks      = 3   // projects per asset
+	assumedMemberOf   = 5   // groups per user
 	assumedReference  = 20  // asset types, storage locations
 	assumedDirectory  = 100 // groups, service accounts, the grants on one object
 	assumedLanguages  = 200
@@ -97,7 +99,7 @@ func complexity() generated.ComplexityRoot {
 	c.Query.Assets = func(child int, _ *asset.Filter, first *int, after *string) int { return page(child, first, after) }
 	c.Query.Files = page
 	c.Query.Programs = page
-	c.Query.Users = page
+	c.Query.Users = func(child int, _ *access.UserFilter, first *int, after *string) int { return page(child, first, after) }
 	c.Query.Projects = func(child int, _ *string, _ *sqlc.ProjectStatus, first *int, after *string) int {
 		return page(child, first, after)
 	}
@@ -120,6 +122,7 @@ func complexity() generated.ComplexityRoot {
 	c.SubtitleTrack.Cues = paged(subtitle.DefaultCuePage, subtitle.MaxCuePage)
 	c.SubtitleTrack.Export = func(int, subtitle.Format) int { return exportCost }
 	c.SubtitleCue.Words = assumed(assumedWords)
+	c.User.Groups = assumed(assumedMemberOf)
 
 	c.AssetConnection.Nodes, c.AssetConnection.PageInfo = connectionPart, connectionPart
 	c.AssetVersionConnection.Nodes, c.AssetVersionConnection.PageInfo = connectionPart, connectionPart

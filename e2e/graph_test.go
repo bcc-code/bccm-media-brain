@@ -187,6 +187,22 @@ func TestNestedQueriesAreBatched(t *testing.T) {
 			t.Errorf("%s: %d statements for one query", name, after)
 		}
 	}
+
+	// Users and their groups.
+	for range 20 {
+		signIn(t, "batch-"+unique())
+	}
+	users := func(first int) int64 {
+		t.Helper()
+		r, calls := exec(t, principals["admin"], 0, `query($n: Int) { users(first: $n) { nodes { id groups { name } } } }`, map[string]any{"n": first})
+		if len(r.Errors) > 0 {
+			t.Fatalf("errors: %+v", r.Errors)
+		}
+		return calls
+	}
+	if few, more := users(2), users(20); few != more {
+		t.Errorf("users with groups: %d statements for 2 but %d for 20", few, more)
+	}
 }
 
 type operation struct {
@@ -294,7 +310,7 @@ func TestDatabaseFailuresAreContained(t *testing.T) {
 	imported := imp.ImportFromVidispine.ID
 	machine := signInService(t, false)
 	asAdmin := []operation{
-		{"admin lists", `{ users { nodes { id } } userGroups { id } files { nodes { id } } storageLocations { id } }`, fixed(nil)},
+		{"admin lists", `{ users(filter: {search: "e", kind: PERSON}) { nodes { id groups { id } } } userGroups { id } files { nodes { id } } storageLocations { id } }`, fixed(nil)},
 		{"create program", createProgram, func() map[string]any {
 			in := w.f.Program()
 			return map[string]any{"in": map[string]any{"code": in.Code, "name": in.Name}}
@@ -321,6 +337,7 @@ func TestDatabaseFailuresAreContained(t *testing.T) {
 		{"remove copy", `mutation($id: ID!) { removeFileCopy(id: $id) }`, func() map[string]any { return map[string]any{"id": copyOf(spare)} }},
 		{"delete file", `mutation($id: ID!) { deleteFile(id: $id) }`, func() map[string]any { return map[string]any{"id": newFile(t, w.admin, w.f, "")} }},
 		{"set admin", `mutation($u: String!) { setUserAdmin(user: $u, admin: false) { id } }`, fixed(map[string]any{"u": other.email})},
+		{"set active", `mutation($u: String!) { setUserActive(user: $u, active: true) { id } }`, fixed(map[string]any{"u": other.email})},
 		{"create asset without project", createAsset, func() map[string]any { return map[string]any{"in": assetVars(w.f)} }},
 		{"import from vidispine", importFromVidispine, func() map[string]any {
 			// A new storage every time, so that creating its location is swept as well.
