@@ -95,7 +95,8 @@ export function useAsset(fetcher?: Fetcher) {
   const cuesLoading = ref(false)
   /** Where the preview is, in milliseconds. */
   const time = ref(0)
-  const highlight = ref(true)
+  /** Off at first: against a layer 1 that is between cues, every word would be marked. */
+  const highlight = ref(false)
 
   async function load(id: string) {
     asset.value = null
@@ -152,7 +153,8 @@ export function useAsset(fetcher?: Fetcher) {
     }
   }
 
-  const textAt = (id: string) => cuesAt(cues.get(id) ?? [], time.value).map(cueText).join('\n')
+  // Some transcribers repeat a cue with the same text over the one before; it is shown once.
+  const textAt = (id: string) => [...new Set(cuesAt(cues.get(id) ?? [], time.value).map(cueText))].join('\n')
 
   const layers = computed<Layer[]>(() => {
     const texts = selected.value.map(textAt)

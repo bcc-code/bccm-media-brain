@@ -10,7 +10,8 @@ Vidispine" panel: a `VX-…` id is imported, or re-imported when it was imported
 
 **Asset** (`/assets/{id}`, from the list): the preview, with up to three subtitle revisions on it
 at once, from any track and revision, in different colours; words that differ from the first
-are underlined, to compare speech recognition models. Beside it the asset's details, projects,
+can be highlighted, to compare speech recognition models. Each layer keeps its box, so lines do
+not move when one changes. Beside it the asset's details, projects,
 versions and metadata. For anyone who may view the asset. The preview streams from
 `/media/renditions/{id}`, which the dev server forwards to the API like `/query`.
 

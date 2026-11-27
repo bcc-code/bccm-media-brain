@@ -46,6 +46,10 @@ describe('useAsset', () => {
     expect(a.selected.value).toEqual(['ST-3', 'ST-2', 'ST-1'])
     expect(sent).toHaveLength(4)
 
+    a.time.value = 3100
+    expect(shown(a.layers.value)[1]).toBe('nb r2 · whisper-large-v3: Kor øvelsen begynner nå')
+
+    a.highlight.value = true
     a.time.value = 1200
     expect(shown(a.layers.value)).toEqual([
       'nb r3: Velkommen alle sammen',
@@ -64,9 +68,6 @@ describe('useAsset', () => {
     a.time.value = 2950
     expect(shown(a.layers.value)[1]).toBe('nb r2 · whisper-large-v3: ')
 
-    a.highlight.value = false
-    a.time.value = 3100
-    expect(shown(a.layers.value)[1]).toBe('nb r2 · whisper-large-v3: Kor øvelsen begynner nå')
 
     // Taking a layer off moves the others down; its cues are kept for later.
     await a.toggle('ST-3')
@@ -78,6 +79,15 @@ describe('useAsset', () => {
     expect(sent).toHaveLength(4)
     await a.toggle('ST-404')
     expect(a.selected.value).toEqual(['ST-2', 'ST-1', 'ST-3'])
+  })
+
+  it('shows a cue repeated over the one before once', async () => {
+    const twice = [cue(1, 'Det er ikke noe vanskelig'), cue(1, 'Det er ikke noe vanskelig', { startMs: 1200, endMs: 2500 })]
+    const { fetcher } = fakeFetch(loaded(), cuePage(twice))
+    const a = useAsset(fetcher)
+    await a.load('AS-1')
+    a.time.value = 1500
+    expect(shown(a.layers.value)).toEqual(['nb r3: Det er ikke noe vanskelig'])
   })
 
   it('drops a revision whose cues cannot be read', async () => {

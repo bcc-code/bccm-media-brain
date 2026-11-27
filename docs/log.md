@@ -2,6 +2,15 @@
 
 Newest first. Each entry: what changed, why, and what was left out on purpose.
 
+## 2026-11-27 — Asset page: steady subtitle boxes
+
+- Every layer on the preview keeps its box, empty or not, full width and at least two lines
+  high, with the tag in a fixed column: the boxes jumped whenever one line changed length.
+- Differing words are tinted instead of underlined with a wavy line, which read as spelling
+  mistakes, and marking them is off until switched on: against a layer 1 between cues, or one
+  whose cues are timed differently, nearly every word was marked.
+- A cue repeated with the same text over the one before (whisper.cpp does this) is shown once.
+
 ## 2026-11-27 — Asset page: preview with up to three subtitle revisions
 
 - **Web UI:** an asset page at `/admin/assets/{id}`, opened from the asset list. It plays the

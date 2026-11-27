@@ -50,7 +50,7 @@ function summary(t: Track): string {
 
     <template v-else>
       <div class="flex flex-wrap gap-x-6 gap-y-2">
-        <CheckOption v-model="highlight" data-test="highlight">Underline words that differ from layer 1</CheckOption>
+        <CheckOption v-model="highlight" data-test="highlight">Highlight words that differ from layer 1</CheckOption>
         <CheckOption v-model="showTags" data-test="show-tags">Label lines with their revision</CheckOption>
       </div>
 

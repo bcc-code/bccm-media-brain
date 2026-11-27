@@ -77,35 +77,41 @@ function scrub(e: Event) {
         </p>
       </div>
 
-      <!-- Above the video's own controls. The first layer is the lowest line. -->
+      <!--
+        Above the video's own controls; the first layer is the lowest. Every layer keeps its box,
+        empty or not, of the full width and at least two lines high, so a line changing never
+        moves the others.
+      -->
       <div
-        class="pointer-events-none absolute inset-x-[5%] bottom-[14%] flex flex-col-reverse items-center gap-1.5 text-center"
+        class="pointer-events-none absolute inset-x-[5%] bottom-[14%] flex flex-col-reverse gap-1.5 text-center"
         aria-live="off"
         data-test="overlay"
       >
-        <template v-for="l in layers" :key="l.revision.id">
-          <div
-            v-if="l.text.length"
-            data-test="line"
-            class="inline-flex max-w-full items-baseline gap-2 rounded bg-black/65 px-2.5 py-1 text-[clamp(13px,2.2vw,20px)] font-medium leading-snug"
-            :style="{ color: LAYER_COLORS[l.slot] }"
+        <div
+          v-for="l in layers"
+          :key="l.revision.id"
+          data-test="line"
+          class="flex min-h-[calc(2lh+0.5rem)] w-full items-center gap-3 rounded bg-black/65 px-2.5 py-1 text-[clamp(13px,2.2vw,20px)] font-medium leading-snug"
+          :style="{ color: LAYER_COLORS[l.slot] }"
+        >
+          <span
+            v-if="showTags"
+            data-test="tag"
+            :title="layerTag(l.revision)"
+            class="w-[clamp(7rem,22%,13rem)] shrink-0 truncate rounded-[3px] border border-current px-1 text-left font-mono text-[11px] font-normal"
+            >{{ layerTag(l.revision) }}</span
           >
-            <span
-              v-if="showTags"
-              data-test="tag"
-              class="shrink-0 whitespace-nowrap rounded-[3px] border border-current px-1 font-mono text-[11px] font-normal"
-              >{{ layerTag(l.revision) }}</span
-            >
-            <span class="whitespace-pre-line"
-              ><template v-for="(s, i) in l.text" :key="i"
-                ><span v-if="s.changed" data-test="changed" class="underline decoration-wavy decoration-[1.5px] underline-offset-[5px]">{{
-                  s.text
-                }}</span
-                ><template v-else>{{ s.text }}</template></template
-              ></span
-            >
-          </div>
-        </template>
+          <span class="min-w-0 flex-1 whitespace-pre-line"
+            ><template v-for="(s, i) in l.text" :key="i"
+              ><span v-if="s.changed" data-test="changed" class="rounded-[3px] bg-current/25">{{
+                s.text
+              }}</span
+              ><template v-else>{{ s.text }}</template></template
+            ></span
+          >
+          <!-- Balances the tag, so the text is centred on the picture. -->
+          <span v-if="showTags" aria-hidden="true" class="w-[clamp(7rem,22%,13rem)] shrink-0" />
+        </div>
       </div>
     </div>
 

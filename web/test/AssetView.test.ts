@@ -63,7 +63,7 @@ describe('asset view', () => {
     const cancel = vi.fn()
     vi.stubGlobal('cancelAnimationFrame', cancel)
     const { view } = await open(loaded(), cuePage(said['ST-3']!))
-    expect(lines(view)).toEqual([])
+    expect(lines(view)).toEqual(['nb r3']) // a layer keeps its box when it has nothing to say
 
     await seek(view, 1.2)
     expect(lines(view)).toEqual(['nb r3 Velkommen alle sammen'])
@@ -73,7 +73,7 @@ describe('asset view', () => {
     expect(lines(view)).toEqual(['nb r3 Korøvelsen begynner nå'])
     await seek(view, 4, 'pause')
     expect(cancel).toHaveBeenCalled()
-    expect(lines(view)).toEqual([])
+    expect(lines(view)).toEqual(['nb r3'])
     view.unmount()
   })
 
@@ -101,11 +101,12 @@ describe('asset view', () => {
     expect(en.attributes('disabled')).toBeDefined()
 
     await seek(view, 3.1)
-    // In layer order; the lowest line comes first.
-    expect(lines(view)).toEqual(['nb r3 Korøvelsen begynner nå', 'nb r2 · whisper-large-v3 [Kor øvelsen] begynner nå'])
+    // In layer order; the lowest line comes first. Differences are marked only when asked for.
+    expect(lines(view)).toEqual(['nb r3 Korøvelsen begynner nå', 'nb r2 · whisper-large-v3 Kor øvelsen begynner nå', 'nb r1 · nb-whisper-large'])
     await view.get('[data-test=highlight] input[type=checkbox]').trigger('click')
+    expect(lines(view)[1]).toBe('nb r2 · whisper-large-v3 [Kor øvelsen] begynner nå')
     await view.get('[data-test=show-tags] input[type=checkbox]').trigger('click')
-    expect(lines(view)).toEqual(['Korøvelsen begynner nå', 'Kor øvelsen begynner nå'])
+    expect(lines(view)).toEqual(['Korøvelsen begynner nå', '[Kor øvelsen] begynner nå', ''])
     expect(view.find('[data-test=tag]').exists()).toBe(false)
 
     await nb()[0]!.get('input[type=checkbox]').trigger('click')
@@ -151,7 +152,7 @@ describe('asset view', () => {
     await flushPromises()
     expect(view.get('[data-test=level]').text()).toBe('OWNER?')
     await view.get('video').trigger('timeupdate')
-    expect(lines(view)).toEqual([])
+    expect(lines(view)).toEqual(['en r1'])
     view.unmount()
   })
 })
