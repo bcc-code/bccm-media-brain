@@ -7,6 +7,8 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"errors"
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/bcc-media/mediabrain/internal/access"
@@ -102,6 +104,7 @@ func TestVidispineExtrasLeftOut(t *testing.T) {
 		"preview on unusable storage": {func(it *fake.VidispineItem) { it.Shapes[2].ContainerComponent.File[0].Storage = noAddress }, false},
 		"transcript not readable":     {func(it *fake.VidispineItem) { it.Files = nil }, true},
 		"transcript not SRT":          {func(it *fake.VidispineItem) { setTranscript(it, "just words, no timing") }, true},
+		"transcript without text":     {func(it *fake.VidispineItem) { setTranscript(it, "1\n00:00:01,000 --> 00:00:02,000\n\n") }, true},
 		"transcript hash differs": {func(it *fake.VidispineItem) {
 			for id := range it.Files {
 				it.Files[id] += "\n\n99\n00:00:01,000 --> 00:00:02,000\nadded\n"
@@ -147,5 +150,41 @@ func TestVidispineTranscriptUnreachable(t *testing.T) {
 	}
 	if n := count(t, `SELECT count(*) FROM asset WHERE legacy_ids @> ARRAY[$1]`, item.ID); n != 0 {
 		t.Fatalf("%d assets left behind", n)
+	}
+}
+
+// Speech recognition sometimes writes a cue that does not end after it starts. The import gives
+// it a duration rather than leave the whole transcript out.
+func TestVidispineTranscriptCuesStretched(t *testing.T) {
+	admin, f := signInAdmin(t), fake.New(77)
+	item := f.VidispineItem(newVidispineStorage())
+	item.ID = vidispineID()
+	setTranscript(&item, "1\n00:00:01,000 --> 00:00:02,000\nfirst\n\n"+
+		"2\n00:00:05,000 --> 00:00:05,000\nno time\n\n"+
+		"3\n00:00:05,400 --> 00:00:06,000\nnext\n\n"+
+		"4\n00:00:09,000 --> 00:00:08,000\nbackwards\n")
+	addVidispineItem(item)
+	a := importItem(t, admin, item.ID, "")
+
+	var out struct {
+		SubtitleTracks []struct {
+			Source string
+			Cues   nodes[struct {
+				StartMs, EndMs int
+				Text           string
+			}]
+		}
+	}
+	admin.must(t, `query($id: ID!) { subtitleTracks(assetId: $id) { source cues { nodes { startMs endMs text } } } }`, map[string]any{"id": a.ID}, &out)
+	if len(out.SubtitleTracks) != 1 || out.SubtitleTracks[0].Source != "Mediabanken" {
+		t.Fatalf("tracks = %+v", out.SubtitleTracks)
+	}
+	var got []string
+	for _, c := range out.SubtitleTracks[0].Cues {
+		got = append(got, fmt.Sprintf("%d-%d %s", c.StartMs, c.EndMs, c.Text))
+	}
+	want := []string{"1000-2000 first", "5000-5400 no time", "5400-6000 next", "9000-10000 backwards"}
+	if strings.Join(got, "|") != strings.Join(want, "|") {
+		t.Fatalf("cues = %v, want %v", got, want)
 	}
 }

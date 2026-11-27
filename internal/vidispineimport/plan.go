@@ -107,7 +107,7 @@ func (p *plan) skip(ctx context.Context, f *shapeFile, reason error) {
 }
 
 // readTranscript returns the transcript's text, or "" when it is left out: missing, too large,
-// not what Vidispine's hash says, or not SRT. Only a failure to reach Vidispine is an error.
+// not what Vidispine's hash says, or not SRT. Cues without a duration are stretched (Stretch). Only a failure to reach Vidispine is an error.
 func (s *Service) readTranscript(ctx context.Context, f *shapeFile, itemID string) (string, error) {
 	data, err := s.src.ReadFile(ctx, f.fileID, subtitle.MaxContentBytes)
 	leave := func(reason error) (string, error) {
@@ -124,8 +124,18 @@ func (s *Service) readTranscript(ctx context.Context, f *shapeFile, itemID strin
 	if sum := sha1.Sum(data); hex.EncodeToString(sum[:]) != f.sha1 {
 		return leave(errors.New("the content does not match Vidispine's SHA-1"))
 	}
-	text := string(data)
-	if _, err := subtitle.Parse(subtitle.SRT, text); err != nil {
+	cues, err := subtitle.ParseUnchecked(subtitle.SRT, string(data))
+	if err != nil {
+		return leave(err)
+	}
+	if n := subtitle.Stretch(cues); n > 0 {
+		slog.WarnContext(ctx, "vidispine: transcript cues without duration stretched", "item", itemID, "shape", f.shapeID, "cues", n)
+	}
+	if cues, err = subtitle.Normalize(cues); err != nil {
+		return leave(err)
+	}
+	text, err := subtitle.Render(subtitle.SRT, cues)
+	if err != nil {
 		return leave(err)
 	}
 	return text, nil

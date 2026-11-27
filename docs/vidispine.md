@@ -63,6 +63,9 @@ Why these choices:
   rest is imported. Only a Vidispine that does not answer fails the import. The transcript's text
   is read from Vidispine (`GET /API/storage/file/{id}/data`). Vidispine is used for importing
   only: nothing else asks it anything.
+- **Transcript cues without a duration are stretched**, not refused: speech recognition writes
+  one now and then (end not after start). It gets the time up to the next cue that starts
+  later, at most a second, with a warning in the log.
 - **The transcript is Norwegian** (`nb`): Mediabanken transcribes Norwegian, and the shape does
   not say.
 - **Vidispine is read before the transaction opens**, then everything is written in one

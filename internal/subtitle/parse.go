@@ -3,6 +3,7 @@ package subtitle
 import (
 	"fmt"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -60,6 +61,16 @@ func toMs(h, m, s, ms string) (int64, bool) {
 
 // Parse reads SRT, WebVTT or a Whisper JSON transcript into cues, ordered by start time.
 func Parse(format Format, content string) ([]Cue, error) {
+	cues, err := ParseUnchecked(format, content)
+	if err != nil {
+		return nil, err
+	}
+	return Normalize(cues)
+}
+
+// ParseUnchecked is Parse without Normalize's rules, for a caller that repairs what a machine
+// wrote before checking it (Stretch). SRT and WebVTT come in file order; JSON is checked anyway.
+func ParseUnchecked(format Format, content string) ([]Cue, error) {
 	if format != SRT && format != VTT && format != JSON {
 		return nil, domain.InvalidField("format", "format must be SRT, VTT or JSON")
 	}
@@ -111,7 +122,7 @@ func Parse(format Format, content string) ([]Cue, error) {
 		}
 		cues = append(cues, cue)
 	}
-	return Normalize(cues)
+	return cues, nil
 }
 
 func clip(s string) string {
@@ -206,4 +217,32 @@ func Render(format Format, cues []Cue) (string, error) {
 		return "", domain.InvalidField("format", "format must be SRT, VTT or JSON")
 	}
 	return b.String(), nil
+}
+
+// stretchMs is how long a cue with no duration is made at most.
+const stretchMs = 1000
+
+// Stretch gives every cue that does not end after it starts a duration: up to the start of the
+// next cue that starts later, at most stretchMs. Speech recognition writes such cues now and
+// then, and one of them would otherwise refuse the whole transcript. It returns how many it
+// changed; cues keeps its order.
+func Stretch(cues []Cue) int {
+	starts := make([]int32, len(cues))
+	for i, c := range cues {
+		starts[i] = c.StartMs
+	}
+	slices.Sort(starts)
+	n := 0
+	for i, c := range cues {
+		if c.EndMs > c.StartMs {
+			continue
+		}
+		end := c.StartMs + stretchMs
+		if j, _ := slices.BinarySearch(starts, c.StartMs+1); j < len(starts) && starts[j] < end {
+			end = starts[j]
+		}
+		cues[i].EndMs = end
+		n++
+	}
+	return n
 }

@@ -2,6 +2,16 @@
 
 Newest first. Each entry: what changed, why, and what was left out on purpose.
 
+## 2026-11-27 — Transcript cues without duration; storage mount for previews
+
+- A Mediabanken transcript with one cue that does not end after it starts was left out whole.
+  The import now stretches such a cue (`subtitle.Stretch`): up to the next cue that starts later,
+  at most a second, and logs how many. Only the import does this; an edit or an import through
+  the API still refuses such a cue, since a person can fix it there. `subtitle.ParseUnchecked`
+  reads without the checks so the import can repair first.
+- `deploy/docker-compose.prod.yml` bind-mounts `/mnt/isilon` read-only at the same path, so
+  `/media/renditions/{id}` can read previews.
+
 ## 2026-11-27 — Previews are read from storage, not through Vidispine
 
 - `/media/renditions/{id}` reads the preview's file from its copy on a storage location with a

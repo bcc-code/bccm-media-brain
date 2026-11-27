@@ -172,3 +172,42 @@ func TestProvenance(t *testing.T) {
 }
 
 func ptr[T any](v T) *T { return &v }
+
+func TestStretch(t *testing.T) {
+	cues := []Cue{
+		{StartMs: 5000, EndMs: 5000, Text: "no time"},
+		{StartMs: 1000, EndMs: 2000, Text: "fine"},
+		{StartMs: 5000, EndMs: 6000, Text: "same start"},
+		{StartMs: 5300, EndMs: 7000, Text: "soon after"},
+		{StartMs: 9000, EndMs: 8000, Text: "backwards, last"},
+		{StartMs: 1500, EndMs: 1500, Text: "next is far"},
+	}
+	if n := Stretch(cues); n != 3 {
+		t.Fatalf("stretched %d, want 3", n)
+	}
+	var got []int32
+	for _, c := range cues {
+		got = append(got, c.EndMs)
+	}
+	// Up to the next cue that starts later, at most a second; cues keep their order.
+	if want := []int32{5300, 2000, 6000, 7000, 10000, 2500}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("ends = %v, want %v", got, want)
+	}
+	if _, err := Normalize(cues); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestParseUncheckedKeepsWhatNormalizeRefuses(t *testing.T) {
+	text := "1\n00:00:02,000 --> 00:00:02,000\nzero\n\n2\n00:00:01,000 --> 00:00:01,500\nearlier\n"
+	if _, err := Parse(SRT, text); err == nil {
+		t.Fatal("Parse took a cue without duration")
+	}
+	cues, err := ParseUnchecked(SRT, text)
+	if err != nil || len(cues) != 2 || cues[0].Text != "zero" {
+		t.Fatalf("ParseUnchecked = %+v, %v", cues, err)
+	}
+	if _, err := ParseUnchecked(SRT, "no timing\nhere"); err == nil {
+		t.Fatal("ParseUnchecked took text without timing")
+	}
+}

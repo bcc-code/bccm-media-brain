@@ -78,6 +78,10 @@ services:
       VIDISPINE_URL: ${VIDISPINE_URL:-}
       VIDISPINE_USERNAME: ${VIDISPINE_USERNAME:-}
       VIDISPINE_PASSWORD: ${VIDISPINE_PASSWORD:-}
+    volumes:
+      # The Isilon, where previews are read from (/media/renditions/{id}): at the path the storage
+      # locations' file:// addresses name, which is where Vidispine sees it. Read-only.
+      - /mnt/isilon:/mnt/isilon:ro
     depends_on:
       migrate:
         condition: service_completed_successfully
