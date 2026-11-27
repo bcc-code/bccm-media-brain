@@ -42,7 +42,7 @@ internal/domain/        shared errors, paging and input rules
 internal/access/        principals, permission levels, grants, asset_access refresh; users, groups and service accounts
 internal/auth/          verifies the proxy's JWT and its groups, trusted proxies, debug bypass (authtest/: test issuer)
 internal/<domain>/      domain services over sqlc.Querier: project, file, asset, subtitle, vidispineimport
-internal/media/         GET /media/renditions/{id}: a preview streamed from Vidispine
+internal/media/         GET /media/renditions/{id}: a preview read from a mounted storage location
 internal/graph/         gqlgen resolvers (hand-written), dataloaders, error presenter, server setup
   schema/*.graphqls     GraphQL schema (source of truth)
   loader/, scalar/      generic batching loader; Date and JSON scalars
@@ -63,7 +63,7 @@ web/                    web UI: Nuxt, Tailwind, Ark UI (see web/README.md)
 HTTP routes: `POST /query` (GraphQL, authenticated), `GET /` (playground, only when
 `GRAPHQL_PLAYGROUND=true`), `GET /healthz`, `/debug/` (dev-data UI + API, only when `DEBUG=true`),
 `GET /admin/` (web UI, only in a binary built with `-tags webui`), `GET /media/renditions/{id}` (a
-preview streamed from Vidispine, authenticated).
+preview read from a mounted storage location, authenticated).
 
 ## Development
 

@@ -1,116 +1,161 @@
 // Package media serves the media of an asset to the browser. So far that is the preview of a
-// rendition imported from Vidispine, streamed from Vidispine: MediaBrain stores no media and
-// reads no storage itself.
+// rendition, read from a copy of its file on a storage location with a file:// address. That
+// storage must be mounted on this server at the path the address names.
 package media
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/bcc-media/mediabrain/internal/asset"
 	"github.com/bcc-media/mediabrain/internal/db"
 	"github.com/bcc-media/mediabrain/internal/db/sqlc"
 	"github.com/bcc-media/mediabrain/internal/domain"
-	"github.com/bcc-media/mediabrain/internal/vidispineimport"
-	"github.com/bcc-media/mediabrain/pkg/vidispine"
 )
 
-// Opener reads a file's content from Vidispine. *vidispine.Client implements it.
-type Opener interface {
-	OpenFile(ctx context.Context, fileID, rangeHeader string) (*vidispine.FileStream, error)
-}
+// PreviewPurpose is the purpose of a rendition that is a preview.
+const PreviewPurpose = "preview"
 
 type Service struct {
 	q      sqlc.Querier
 	assets *asset.Service
-	src    Opener
 }
 
-// NewService takes a nil src when Vidispine is not configured; previews are then unavailable.
-func NewService(q sqlc.Querier, tx db.TxRunner, src Opener) *Service {
-	return &Service{q: q, assets: asset.NewService(q, tx), src: src}
+func NewService(q sqlc.Querier, tx db.TxRunner) *Service {
+	return &Service{q: q, assets: asset.NewService(q, tx)}
 }
 
-// Preview opens the preview of a rendition, or the part of it rangeHeader asks for. Anyone who
-// may view the asset may watch it. A rendition that is not a preview, or one that did not come
-// from Vidispine, has none: NOT_FOUND, as for a rendition the caller may not see.
-func (s *Service) Preview(ctx context.Context, renditionID, rangeHeader string) (*vidispine.FileStream, error) {
+// File is an open preview. The caller closes it.
+type File struct {
+	*os.File
+	Name     string
+	ModTime  time.Time
+	MimeType string
+}
+
+// Preview opens the video file of a preview rendition (an encode rendition with purpose
+// "preview"). Anyone who may view the asset may watch it. Any other rendition, or one the caller
+// may not see, is NOT_FOUND. A preview none of whose copies can be read here is UNAVAILABLE.
+func (s *Service) Preview(ctx context.Context, renditionID string) (*File, error) {
 	r, err := s.assets.Rendition(ctx, renditionID)
 	if err != nil {
 		return nil, err
 	}
-	fileID := vidispineFileID(r.Metadata)
-	if r.Kind != sqlc.RenditionKindEncode || r.Purpose == nil || *r.Purpose != vidispineimport.PreviewPurpose || fileID == "" {
+	if r.Kind != sqlc.RenditionKindEncode || r.Purpose == nil || *r.Purpose != PreviewPurpose {
 		return nil, domain.ErrNotFound
 	}
-	if s.src == nil {
-		return nil, domain.Unavailable("Vidispine is not configured")
-	}
-	// Only a byte range is passed on: anything else in the header is not ours to forward.
-	if !strings.HasPrefix(rangeHeader, "bytes=") {
-		rangeHeader = ""
-	}
-	st, err := s.src.OpenFile(ctx, fileID, rangeHeader)
-	if errors.Is(err, vidispine.ErrNotFound) {
-		slog.WarnContext(ctx, "media: preview missing in Vidispine", "rendition", renditionID, "file", fileID, "error", err)
-		return nil, domain.ErrNotFound
-	}
+	attached, err := s.q.ListRenditionFiles(ctx, []string{renditionID})
 	if err != nil {
-		slog.ErrorContext(ctx, "media: reading the preview from Vidispine", "rendition", renditionID, "file", fileID, "error", err)
-		return nil, domain.Unavailable("Vidispine did not answer")
+		return nil, err
 	}
-	// Vidispine often calls a video application/octet-stream, which a browser may refuse to
-	// play; the file's registered type says what it is.
-	if t := st.Header.Get("Content-Type"); t == "" || t == "application/octet-stream" {
-		if mime := s.mimeType(ctx, renditionID); mime != "" {
-			st.Header.Set("Content-Type", mime)
+	var fileID string
+	for _, a := range attached {
+		if a.Role == sqlc.FileRoleVideo {
+			fileID = a.FileID
+			break
 		}
 	}
-	return st, nil
-}
-
-// mimeType is the registered type of the rendition's video file, or "".
-func (s *Service) mimeType(ctx context.Context, renditionID string) string {
-	files, err := s.q.ListRenditionFiles(ctx, []string{renditionID})
-	if err != nil {
-		slog.WarnContext(ctx, "media: reading the preview's file", "rendition", renditionID, "error", err)
-		return ""
+	if fileID == "" {
+		return nil, domain.ErrNotFound
 	}
-	for _, f := range files {
-		if f.Role != sqlc.FileRoleVideo {
+	f, err := s.q.GetFile(ctx, fileID)
+	if err != nil {
+		return nil, domain.FromPG(err)
+	}
+	copies, err := s.q.ListFileCopies(ctx, []string{fileID})
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]string, len(copies))
+	for i, c := range copies {
+		ids[i] = c.LocationID
+	}
+	locations, err := s.q.GetStorageLocations(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	byID := make(map[string]sqlc.StorageLocation, len(locations))
+	for _, l := range locations {
+		byID[l.ID] = l
+	}
+	for _, c := range copies {
+		l, ok := byID[c.LocationID]
+		if !ok || !l.Online || c.Status == sqlc.CopyStatusMissing {
 			continue
 		}
-		file, err := s.q.GetFile(ctx, f.FileID)
-		if err == nil && file.MimeType != nil {
-			return *file.MimeType
+		path, ok := localPath(l.BaseUri, c.Path)
+		if !ok {
+			continue
 		}
+		opened, err := open(path)
+		if err != nil {
+			slog.WarnContext(ctx, "media: preview copy not readable", "rendition", renditionID, "copy", c.ID, "path", path, "error", err)
+			continue
+		}
+		out := &File{File: opened.file, Name: filepath.Base(path), ModTime: opened.modTime}
+		if f.MimeType != nil {
+			out.MimeType = *f.MimeType
+		}
+		return out, nil
 	}
-	return ""
+	slog.WarnContext(ctx, "media: no readable copy of the preview", "rendition", renditionID, "file", fileID, "copies", len(copies))
+	return nil, domain.Unavailable("the preview is on no storage this server can read")
 }
 
-func vidispineFileID(metadata json.RawMessage) string {
-	var m map[string]struct {
-		FileID string `json:"fileId"`
+type opened struct {
+	file    *os.File
+	modTime time.Time
+}
+
+func open(path string) (opened, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return opened{}, err
 	}
-	_ = json.Unmarshal(metadata, &m)
-	return m[vidispineimport.MetadataKey].FileID
+	info, err := f.Stat()
+	if err == nil && !info.Mode().IsRegular() {
+		err = errors.New("not a regular file")
+	}
+	if err != nil {
+		_ = f.Close()
+		return opened{}, err
+	}
+	return opened{file: f, modTime: info.ModTime()}, nil
+}
+
+// localPath is where a copy lies on this server: the path of a file:// base address joined with
+// the copy's relative path. Anything that would lead outside the base is refused, whatever the
+// registered path says.
+func localPath(baseURI, rel string) (string, bool) {
+	u, err := url.Parse(baseURI)
+	if err != nil || u.Scheme != "file" || (u.Host != "" && u.Host != "localhost") || u.Path == "" {
+		return "", false
+	}
+	base := filepath.Clean(filepath.FromSlash(u.Path))
+	path := filepath.Join(base, filepath.FromSlash(rel))
+	if path == base || !strings.HasPrefix(path, base+string(filepath.Separator)) {
+		return "", false
+	}
+	return path, true
 }
 
 // Previewer is what Handler needs of the Service.
 type Previewer interface {
-	Preview(ctx context.Context, renditionID, rangeHeader string) (*vidispine.FileStream, error)
+	Preview(ctx context.Context, renditionID string) (*File, error)
 }
 
 // Handler serves GET /media/renditions/{id}: the rendition's preview, with byte ranges so a
 // video element can seek. It must run behind the sign-in middleware.
 func Handler(p Previewer) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		st, err := p.Preview(r.Context(), r.PathValue("id"), r.Header.Get("Range"))
+		f, err := p.Preview(r.Context(), r.PathValue("id"))
 		if err != nil {
 			status, msg := statusOf(err)
 			if status == http.StatusInternalServerError {
@@ -119,19 +164,13 @@ func Handler(p Previewer) http.Handler {
 			http.Error(w, msg, status)
 			return
 		}
-		defer st.Body.Close()
-		for name, values := range st.Header {
-			w.Header()[name] = values
+		defer f.Close()
+		if f.MimeType != "" {
+			w.Header().Set("Content-Type", f.MimeType)
 		}
 		// The content is the caller's to see, so no shared cache may keep it.
 		w.Header().Set("Cache-Control", "private, max-age=300")
-		w.WriteHeader(st.Status)
-		if r.Method == http.MethodHead {
-			return
-		}
-		if _, err := io.Copy(w, st.Body); err != nil && r.Context().Err() == nil {
-			slog.WarnContext(r.Context(), "media: preview stream ended early", "error", err)
-		}
+		http.ServeContent(w, r, f.Name, f.ModTime, f.File)
 	})
 }
 
@@ -144,8 +183,6 @@ func statusOf(err error) (int, string) {
 	case errors.Is(err, domain.ErrUnauthenticated):
 		return http.StatusUnauthorized, "unauthenticated"
 	case errors.Is(err, domain.ErrUnavailable):
-		return http.StatusServiceUnavailable, "preview unavailable"
-	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
 		return http.StatusServiceUnavailable, "preview unavailable"
 	}
 	return http.StatusInternalServerError, "internal error"

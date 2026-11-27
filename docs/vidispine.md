@@ -61,7 +61,8 @@ Why these choices:
   no SHA-1, no storage address, a transcript that cannot be read, is over 5 MB, does not match its
   SHA-1 or is not SRT) is left out with a warning in the log (`vidispine: shape left out`), and the
   rest is imported. Only a Vidispine that does not answer fails the import. The transcript's text
-  is read from Vidispine (`GET /API/storage/file/{id}/data`); MediaBrain reads no storage itself.
+  is read from Vidispine (`GET /API/storage/file/{id}/data`). Vidispine is used for importing
+  only: nothing else asks it anything.
 - **The transcript is Norwegian** (`nb`): Mediabanken transcribes Norwegian, and the shape does
   not say.
 - **Vidispine is read before the transaction opens**, then everything is written in one
@@ -70,9 +71,10 @@ Why these choices:
 
 ## Watching the preview
 
-`GET /media/renditions/{id}` (`internal/media`) streams the preview rendition's file from
-Vidispine, by the file id in the rendition's `metadata.vidispine.fileId`, with byte ranges
-(`vidispine.Client.OpenFile`). Anyone who may view the asset may watch it; see [api.md](api.md).
+`GET /media/renditions/{id}` (`internal/media`) serves the preview from its copy on the storage
+location the import created, at the location's `file://` path joined with the copy's path, not
+through Vidispine. So the server needs Vidispine's storage mounted at the same path Vidispine's
+`file://` method names (in Docker: the same path inside the container). See [api.md](api.md).
 The web UI's asset page plays it with subtitles on top.
 
 ## Re-import (refresh)

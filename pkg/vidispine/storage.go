@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
@@ -129,50 +128,4 @@ func TCToSeconds(tc string) (float64, error) {
 		rate = float64(r)
 	}
 	return samples / rate, nil
-}
-
-// FileStream is the content of a file as Vidispine answers it: all of it (200), the part a
-// range asked for (206), or a range that does not fit the file (416).
-type FileStream struct {
-	Status int
-	// Header holds what a client needs to play or seek: Content-Type, Content-Length,
-	// Content-Range, Accept-Ranges, Last-Modified and ETag, where Vidispine sent them.
-	Header http.Header
-	Body   io.ReadCloser
-}
-
-var streamHeaders = []string{"Content-Type", "Content-Length", "Content-Range", "Accept-Ranges", "Last-Modified", "ETag"}
-
-// OpenFile starts reading the content of a file, or only the bytes rangeHeader asks for (an
-// HTTP Range value such as "bytes=0-1023"; empty for all). Unlike ReadFile it does not read
-// the content: the caller reads and closes Body. It is not retried and has no timeout of its
-// own, since a video may be read for as long as someone watches it; ctx ends it.
-func (c *Client) OpenFile(ctx context.Context, fileID, rangeHeader string) (*FileStream, error) {
-	u := c.endpoint(nil, "storage", "file", fileID, "data")
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
-	if err != nil {
-		return nil, fmt.Errorf("vidispine: %w", err)
-	}
-	req.Header.Set("Accept", "*/*")
-	if rangeHeader != "" {
-		req.Header.Set("Range", rangeHeader)
-	}
-	if c.user != "" || c.pass != "" {
-		req.SetBasicAuth(c.user, c.pass)
-	}
-	res, err := c.stream.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("vidispine: GET %s: %w", u, err)
-	}
-	if res.StatusCode != http.StatusRequestedRangeNotSatisfiable && (res.StatusCode < 200 || res.StatusCode > 299) {
-		defer res.Body.Close()
-		return nil, newError(http.MethodGet, u, res)
-	}
-	out := &FileStream{Status: res.StatusCode, Header: http.Header{}, Body: res.Body}
-	for _, h := range streamHeaders {
-		if v := res.Header.Get(h); v != "" {
-			out.Header.Set(h, v)
-		}
-	}
-	return out, nil
 }

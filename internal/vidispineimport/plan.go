@@ -13,6 +13,7 @@ import (
 	"github.com/bcc-media/mediabrain/internal/db/sqlc"
 	"github.com/bcc-media/mediabrain/internal/domain"
 	"github.com/bcc-media/mediabrain/internal/file"
+	"github.com/bcc-media/mediabrain/internal/media"
 	"github.com/bcc-media/mediabrain/internal/subtitle"
 	"github.com/bcc-media/mediabrain/pkg/vidispine"
 )
@@ -22,7 +23,7 @@ const (
 	// ShapeTagTranscript is the shape Mediabanken's transcription leaves on an item: an SRT file.
 	ShapeTagTranscript = vidispine.ShapeTagTranscribedSRT
 	// PreviewPurpose is the purpose of the encode rendition made from the lowres_watermarked shape.
-	PreviewPurpose = "preview"
+	PreviewPurpose = media.PreviewPurpose
 	// TranscriptSource is the source of the subtitle track made from the transcript.
 	TranscriptSource = "Mediabanken"
 	// TranscriptLanguage is the language of the transcript: Mediabanken transcribes Norwegian.

@@ -7,6 +7,8 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/bcc-media/mediabrain/internal/access"
@@ -66,32 +68,49 @@ func renditionIDs(t *testing.T, u user, assetID string) map[string]string {
 	return ids
 }
 
-func TestPreviewStreamsFromVidispine(t *testing.T) {
+// previewItem adds an item to the fake Vidispine whose storage is a directory of this test, and
+// writes its preview there unless content is empty.
+func previewItem(t *testing.T, f *fake.Faker, content string, uris ...string) fake.VidispineItem {
+	t.Helper()
+	dir := t.TempDir()
+	storage := vidispineID()
+	vsServer.AddStorage(storage, append(uris, "file://"+dir+"/")...)
+	item := f.VidispineItem(storage)
+	item.ID = vidispineID()
+	addVidispineItem(item)
+	if content != "" {
+		path := filepath.Join(dir, filepath.FromSlash(item.Shapes[2].ContainerComponent.File[0].Path))
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return item
+}
+
+func TestPreviewIsReadFromStorage(t *testing.T) {
 	admin, f := signInAdmin(t), fake.New(91)
 	project := newProject(t, admin, f, newProgram(t, admin, f))
 	video := "a preview that is not really an mp4"
 
-	item := f.VidispineItem(newVidispineStorage())
-	item.ID = vidispineID()
-	item.Files[item.Shapes[2].ContainerComponent.File[0].ID] = video
-	addVidispineItem(item)
-	a := importItem(t, admin, item.ID, project)
+	a := importItem(t, admin, previewItem(t, f, video).ID, project)
 	ids := renditionIDs(t, admin, a.ID)
 	preview := "/media/renditions/" + ids["ENCODE/preview"]
 
-	// Vidispine calls it application/octet-stream; the registered file says what it is.
+	// Vidispine is not asked: it may be down while the preview plays.
+	vsServer.Fail(http.StatusBadGateway)
 	got := getMedia(t, admin.token, preview, "")
 	if got.status != http.StatusOK || got.body != video || got.header.Get("Content-Type") != "video/mp4" ||
 		got.header.Get("Accept-Ranges") != "bytes" || got.header.Get("Cache-Control") != "private, max-age=300" {
+		vsServer.Fail(0)
 		t.Fatalf("whole preview = %d %q %v", got.status, got.body, got.header)
 	}
+	vsServer.Fail(0)
 	got = getMedia(t, admin.token, preview, "bytes=2-8")
 	if got.status != http.StatusPartialContent || got.body != video[2:9] || got.header.Get("Content-Range") != "bytes 2-8/35" {
 		t.Fatalf("range = %d %q %v", got.status, got.body, got.header)
-	}
-	// Only a byte range is passed on.
-	if got = getMedia(t, admin.token, preview, "items=1-2"); got.status != http.StatusOK || got.body != video {
-		t.Fatalf("other range unit = %d %q", got.status, got.body)
 	}
 
 	// Anyone who may view the asset may watch; for anyone else it does not exist.
@@ -107,13 +126,13 @@ func TestPreviewStreamsFromVidispine(t *testing.T) {
 		t.Fatalf("nobody = %d", got.status)
 	}
 
-	// Only a preview from Vidispine is served: not the master, not a preview made by hand.
+	// Only a preview with a video file is served: not the master, not a preview without a file.
 	var made struct{ CreateRendition struct{ ID string } }
 	admin.must(t, `mutation($v: ID!) { createRendition(versionId: $v, input: {kind: ENCODE, purpose: "preview"}) { id } }`,
 		map[string]any{"v": newVersion(t, admin, a.ID)}, &made)
 	for name, path := range map[string]string{
 		"master":       "/media/renditions/" + ids["MASTER"],
-		"hand-made":    "/media/renditions/" + made.CreateRendition.ID,
+		"no file":      "/media/renditions/" + made.CreateRendition.ID,
 		"unknown":      "/media/renditions/RE-00000000000000000000000000",
 		"not an id":    "/media/renditions/nonsense",
 		"no rendition": "/media/renditions/",
@@ -123,26 +142,48 @@ func TestPreviewStreamsFromVidispine(t *testing.T) {
 		}
 	}
 
-	// A preview Vidispine no longer has is missing too; a Vidispine that fails is unavailable.
-	gone := vidispineItem(f, newVidispineStorage())
-	b := importItem(t, admin, gone.ID, project)
-	if got = getMedia(t, admin.token, "/media/renditions/"+renditionIDs(t, admin, b.ID)["ENCODE/preview"], ""); got.status != http.StatusNotFound {
-		t.Fatalf("preview missing in Vidispine = %d %q", got.status, got.body)
+	// A copy that cannot be read here makes the preview unavailable: the file is not there, the
+	// location is offline, the copy is known to be missing, or the storage has no file:// address.
+	unavailable := func(name, path string) {
+		t.Helper()
+		if got := getMedia(t, admin.token, path, ""); got.status != http.StatusServiceUnavailable || got.body != "preview unavailable\n" {
+			t.Errorf("%s = %d %q", name, got.status, got.body)
+		}
 	}
-	vsServer.Fail(http.StatusBadGateway)
-	got = getMedia(t, admin.token, preview, "")
-	vsServer.Fail(0)
-	if got.status != http.StatusServiceUnavailable || got.body != "preview unavailable\n" {
-		t.Fatalf("Vidispine failing = %d %q", got.status, got.body)
-	}
+	gone := importItem(t, admin, previewItem(t, f, "").ID, project)
+	unavailable("file not there", "/media/renditions/"+renditionIDs(t, admin, gone.ID)["ENCODE/preview"])
 
-	// Without Vidispine there is no preview to stream, but who may see it is checked first.
-	svc := media.NewService(sqlc.New(pool), db.PoolTx(pool), nil)
-	system := access.With(context.Background(), access.System())
-	if _, err := svc.Preview(system, ids["ENCODE/preview"], ""); !errors.Is(err, domain.ErrUnavailable) {
-		t.Fatalf("not configured: %v", err)
+	exec := func(sql string, args ...any) {
+		t.Helper()
+		if _, err := pool.Exec(context.Background(), sql, args...); err != nil {
+			t.Fatal(err)
+		}
 	}
-	if _, err := svc.Preview(context.Background(), ids["ENCODE/preview"], ""); !errors.Is(err, domain.ErrUnauthenticated) {
-		t.Fatalf("nobody, not configured: %v", err)
+	const copyOf = `SELECT c.id FROM file_copy c JOIN rendition_file rf ON rf.file_id = c.file_id WHERE rf.rendition_id = $1`
+	exec(`UPDATE storage_location SET online = false WHERE id IN (SELECT location_id FROM file_copy WHERE id IN (`+copyOf+`))`, ids["ENCODE/preview"])
+	unavailable("offline", preview)
+	exec(`UPDATE storage_location SET online = true WHERE id IN (SELECT location_id FROM file_copy WHERE id IN (`+copyOf+`))`, ids["ENCODE/preview"])
+	exec(`UPDATE file_copy SET status = 'missing' WHERE id IN (`+copyOf+`)`, ids["ENCODE/preview"])
+	unavailable("copy missing", preview)
+	exec(`UPDATE file_copy SET status = 'present' WHERE id IN (`+copyOf+`)`, ids["ENCODE/preview"])
+
+	s3 := f.VidispineItem(vidispineID())
+	s3.ID = vidispineID()
+	vsServer.AddStorage(s3.Shapes[0].ContainerComponent.File[0].Storage, "s3://bucket-"+s3.ID+"/")
+	addVidispineItem(s3)
+	onS3 := importItem(t, admin, s3.ID, project)
+	unavailable("s3 only", "/media/renditions/"+renditionIDs(t, admin, onS3.ID)["ENCODE/preview"])
+
+	if got = getMedia(t, admin.token, preview, ""); got.status != http.StatusOK {
+		t.Fatalf("restored = %d", got.status)
 	}
+	svc := media.NewService(sqlc.New(pool), db.PoolTx(pool))
+	if _, err := svc.Preview(context.Background(), ids["ENCODE/preview"]); !errors.Is(err, domain.ErrUnauthenticated) {
+		t.Fatalf("nobody: %v", err)
+	}
+	f2, err := svc.Preview(access.With(context.Background(), access.System()), ids["ENCODE/preview"])
+	if err != nil || f2.MimeType != "video/mp4" {
+		t.Fatalf("system: %+v %v", f2, err)
+	}
+	_ = f2.Close()
 }

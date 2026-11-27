@@ -9,7 +9,7 @@ authentication: {}
 authenticationType: null
 body: {}
 bodyType: null
-description: 'Streams the preview of rendition_id from Vidispine: an ENCODE rendition with purpose "preview" that an import from Vidispine made. Add a Range header (bytes=0-1023) for part of it. 404 for any other rendition, 503 when Vidispine fails or is not configured.'
+description: 'The preview of rendition_id (an ENCODE rendition with purpose "preview"), read from a copy on a mounted file:// storage location. Add a Range header (bytes=0-1023) for part of it. 404 for any other rendition, 503 when no copy can be read here.'
 headers:
 - enabled: false
   name: Range

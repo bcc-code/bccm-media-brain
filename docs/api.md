@@ -4,10 +4,11 @@
 `GRAPHQL_PLAYGROUND=true` it can be explored at `/`. Every request must be authenticated
 ([security.md](security.md)).
 
-Media is not GraphQL: `GET /media/renditions/{id}` streams a rendition's preview (an `encode`
-rendition with purpose `preview` imported from Vidispine), for anyone who may view the asset, and
-answers `Range` requests so a video element can seek. 404 for anything else or anything the
-caller may not see, 401 without sign-in, 503 when Vidispine fails or is not configured.
+Media is not GraphQL: `GET /media/renditions/{id}` serves a rendition's preview (the video file
+of an `encode` rendition with purpose `preview`), for anyone who may view the asset, and answers
+`Range` requests so a video element can seek. It is read from a copy on a storage location with a
+`file://` address, which must be mounted on the server at that path. 404 for any other rendition
+or anything the caller may not see, 401 without sign-in, 503 when no copy can be read.
 
 Conventions:
 

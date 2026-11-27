@@ -2,6 +2,17 @@
 
 Newest first. Each entry: what changed, why, and what was left out on purpose.
 
+## 2026-11-27 — Previews are read from storage, not through Vidispine
+
+- `/media/renditions/{id}` reads the preview's file from its copy on a storage location with a
+  `file://` address (the import creates one from Vidispine's `file://` storage method), with
+  `http.ServeContent` for ranges. Why: Vidispine is for importing only. Streaming through it made
+  playback depend on Vidispine being up and on its one-time URLs, and gave nothing a mounted
+  storage does not. The storage must be mounted on the server at the path the address names.
+- Which copy: the first of the rendition's video file whose location is online, not known to be
+  missing, has a `file://` address on this host and opens as a regular file. None: 503.
+- `pkg/vidispine` loses `OpenFile`; the client is back to what the import needs.
+
 ## 2026-11-27 — Asset page: steady subtitle boxes
 
 - Every layer on the preview keeps its box, empty or not, full width and at least two lines
@@ -21,7 +32,7 @@ Newest first. Each entry: what changed, why, and what was left out on purpose.
   that differ from layer 1 at that moment are underlined (`wordDiff`). Beside it: the asset's
   fields, projects, versions with their renditions, and the metadata. Without a playable
   preview, a timeline stands in for the video so the subtitles can still be compared.
-- **`GET /media/renditions/{id}`** serves a preview. MediaBrain reads no storage, so it streams
+- **`GET /media/renditions/{id}`** serves a preview (since read from storage, see above). It streamed
   the file from Vidispine (`/API/storage/file/{id}/data`, the Vidispine file id in the
   rendition's `metadata.vidispine.fileId`), passing a byte `Range` on so the video can seek.
   Signed in like `/query`; anyone who may view the asset may watch; only an `encode` rendition
@@ -29,8 +40,6 @@ Newest first. Each entry: what changed, why, and what was left out on purpose.
   rendition the caller may not see. Vidispine failing or not configured is 503. Why a proxy:
   the browser cannot reach Vidispine, which needs credentials, and its one-time URLs name a host
   the browser does not know. Why no `/query` deadline: a video streams as long as it is watched.
-- `pkg/vidispine`: `OpenFile` streams a file's content (with a range, without the client's
-  overall timeout); the fake server answers ranges.
 - Dev data: `subtitle-revisions` imports the transcript from up to four models (`models`, default
   3), each hearing the same speech a little differently (`fake.Retranscribed`), and the edits
   change that speech rather than replace it with unrelated text.

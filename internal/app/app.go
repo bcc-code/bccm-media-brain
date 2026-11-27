@@ -103,8 +103,7 @@ func New(ctx context.Context, cfg config.Config) (*App, error) {
 		opts.Debug = devdata.Handler(store)
 	}
 	opts.WebUI = webui.Files()
-	opener, _ := vidispineSrc.(media.Opener)
-	opts.Media = media.Handler(media.NewService(q, tx, opener))
+	opts.Media = media.Handler(media.NewService(q, tx))
 	srv := &http.Server{
 		Handler:           NewHandler(resolver, pool, opts),
 		ReadHeaderTimeout: 10 * time.Second,

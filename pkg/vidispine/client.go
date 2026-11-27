@@ -44,13 +44,10 @@ type Config struct {
 }
 
 type Client struct {
-	base *url.URL
-	user string
-	pass string
-	http *http.Client
-	// stream is http without its overall timeout: a file being streamed may take as long as
-	// the one reading it, and its context ends it.
-	stream  *http.Client
+	base    *url.URL
+	user    string
+	pass    string
+	http    *http.Client
 	retries int
 	delay   time.Duration
 }
@@ -70,9 +67,6 @@ func New(cfg Config) (*Client, error) {
 	}
 	hc.CheckRedirect = c.redirect
 	c.http = &hc
-	stream := hc
-	stream.Timeout = 0
-	c.stream = &stream
 	switch {
 	case c.retries == 0:
 		c.retries = defaultRetries
