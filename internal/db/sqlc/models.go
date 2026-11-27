@@ -1845,7 +1845,7 @@ type SubtitleTrack struct {
 	ParentID     *string     `json:"parent_id"`
 	CreatedBy    *string     `json:"created_by"`
 	CreatedAt    time.Time   `json:"created_at"`
-	Model        *string     `json:"model"`
+	Source       *string     `json:"source"`
 }
 
 type Tag struct {

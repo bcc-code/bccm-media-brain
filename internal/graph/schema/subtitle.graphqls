@@ -26,8 +26,9 @@ type SubtitleTrack {
   language: String
   kind: TrackKind!
   origin: TrackOrigin!
-  "The model that produced the text, such as the speech recognition model of an ASR import. Edits have none."
-  model: String
+  "Where the text came from: the speech recognition model of an ASR run (\"nb-whisper-large\") or the system it was taken from (\"Mediabanken\"). Edits have none."
+  source: String
+  model: String @deprecated(reason: "Use source.")
   revision: Int!
   "The revision this one replaced."
   parentId: ID
@@ -69,8 +70,10 @@ input ImportSubtitlesInput {
   sourceFileId: ID
   "IMPORT (the default) or ASR. MANUAL revisions come only from editSubtitles."
   origin: TrackOrigin
-  "The model that produced the text, e.g. \"nb-whisper-large\". At most 200 characters."
-  model: String
+  "Where the text came from, e.g. \"nb-whisper-large\" or \"Mediabanken\". At most 200 characters."
+  source: String
+  "The old name of source; source wins when both are given."
+  model: String @deprecated(reason: "Use source.")
 }
 
 input SubtitleCueInput {

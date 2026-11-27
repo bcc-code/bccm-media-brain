@@ -62,7 +62,8 @@ var registry = []Scenario{
 	{
 		Name: "vidispine",
 		Description: "Assets as an import from Vidispine leaves them: the item id in legacyIds, Vidispine's fields under " +
-			"metadata.vidispine, and the original file on a storage location named after the Vidispine storage. One more " +
+			"metadata.vidispine, the original file on a storage location named after the Vidispine storage, the watermarked " +
+			"preview and Mediabanken's Norwegian transcript as an ASR subtitle track. One more " +
 			"item is a placeholder without files and without a project. No Vidispine is contacted: the items are made up.",
 		Params: []Param{
 			{Name: "items", Label: "Items", Type: Int, Default: "5", Min: ptr(1), Max: ptr(500)},
@@ -116,6 +117,15 @@ func (c *vidispineItems) GetShapes(_ context.Context, itemID string) (*vidispine
 
 func (c *vidispineItems) GetStorageMethods(_ context.Context, storageID string) (*vidispine.StorageResult, error) {
 	return &vidispine.StorageResult{Methods: []vidispine.StorageMethod{{URI: "file:///mnt/" + storageID + "/"}}}, nil
+}
+
+func (c *vidispineItems) ReadFile(_ context.Context, fileID string, _ int64) ([]byte, error) {
+	for _, it := range c.items {
+		if data, ok := it.Files[fileID]; ok {
+			return []byte(data), nil
+		}
+	}
+	return nil, &vidispine.Error{Status: 404, NotFoundType: "file", NotFoundID: fileID}
 }
 
 func runVidispine(ctx context.Context, env Env, v Values) (string, error) {
@@ -379,7 +389,7 @@ func runSubtitleRevisions(ctx context.Context, env Env, v Values) (string, error
 	language, origin, model := "en", sqlc.TrackOriginAsr, f.TranscriptionModel()
 	track, err := s.subtitles.Import(ctx, subtitle.ImportInput{
 		VersionID: version.ID, Language: &language, Format: subtitle.JSON, Content: content, SourceFileID: &source.ID,
-		Origin: &origin, Model: &model,
+		Origin: &origin, Source: &model,
 	})
 	if err != nil {
 		return "", err
@@ -477,9 +487,9 @@ func runEdgeCases(ctx context.Context, env Env, _ Values) (string, error) {
 	}
 	transcript, _ := subtitle.Render(subtitle.JSON, overlapping)
 	language, asr := "und", sqlc.TrackOriginAsr
-	model := strings.Repeat("ø", subtitle.MaxModelLength)
+	model := strings.Repeat("ø", subtitle.MaxSourceLength)
 	if _, err := s.subtitles.Import(ctx, subtitle.ImportInput{
-		VersionID: version.ID, Language: &language, Format: subtitle.JSON, Content: transcript, Origin: &asr, Model: &model,
+		VersionID: version.ID, Language: &language, Format: subtitle.JSON, Content: transcript, Origin: &asr, Source: &model,
 	}); err != nil {
 		return "", err
 	}

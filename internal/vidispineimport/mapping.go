@@ -25,8 +25,8 @@ func titleOf(m *vidispine.MetadataResult, itemID string) string {
 	return itemID
 }
 
-// original is the file of an item's original shape, as MediaBrain records it.
-type original struct {
+// shapeFile is the file of one shape of an item, as MediaBrain records it.
+type shapeFile struct {
 	shapeID, fileID string
 	storageID, path string
 	sha1            string
@@ -38,24 +38,29 @@ type original struct {
 }
 
 // originalOf returns nil for an item without an original file, such as a placeholder.
-func originalOf(shapes *vidispine.ShapeResult) (*original, error) {
-	shape := shapes.GetShape(vidispine.ShapeTagOriginal)
+func originalOf(shapes *vidispine.ShapeResult) (*shapeFile, error) {
+	return fileOf(shapes.GetShape(vidispine.ShapeTagOriginal), "original")
+}
+
+// fileOf returns the file of a shape, nil when there is no shape or it has no file, and an
+// error when the file cannot be recorded yet. what names the shape in the error.
+func fileOf(shape *vidispine.Shape, what string) (*shapeFile, error) {
 	if shape == nil || shape.File() == nil {
 		return nil, nil
 	}
 	f := shape.File()
 	if f.State != vidispine.FileStateClosed {
-		return nil, domain.Invalid("the original file is still being written in Vidispine (state %q)", f.State)
+		return nil, domain.Invalid("the %s file is still being written in Vidispine (state %q)", what, f.State)
 	}
 	hash := strings.ToLower(strings.TrimSpace(f.Hash))
 	if raw, err := hex.DecodeString(hash); err != nil || len(raw) != 20 {
-		return nil, domain.Invalid("Vidispine has no SHA-1 hash for the original file yet")
+		return nil, domain.Invalid("Vidispine has no SHA-1 hash for the %s file yet", what)
 	}
 	path := strings.TrimLeft(f.Path, "/")
 	if f.Storage == "" || path == "" {
-		return nil, domain.Invalid("Vidispine does not say where the original file is stored")
+		return nil, domain.Invalid("Vidispine does not say where the %s file is stored", what)
 	}
-	o := &original{
+	o := &shapeFile{
 		shapeID: shape.ID, fileID: f.ID, storageID: f.Storage, path: path, sha1: hash, size: f.Size,
 		role: sqlc.FileRoleSidecar,
 	}
@@ -87,7 +92,7 @@ func nonEmpty(s string) *string {
 	return &s
 }
 
-func (o *original) registerInput(locationID string) file.RegisterInput {
+func (o *shapeFile) registerInput(locationID string) file.RegisterInput {
 	return file.RegisterInput{
 		SizeBytes: o.size, MimeType: o.mimeType, DurationMs: o.durationMs, Codec: o.codec, Width: o.width, Height: o.height,
 		Hashes: []file.HashInput{{Algo: sqlc.HashAlgoSha1, Value: o.sha1}},
@@ -95,7 +100,7 @@ func (o *original) registerInput(locationID string) file.RegisterInput {
 	}
 }
 
-func (o *original) renditionMetadata() json.RawMessage {
+func (o *shapeFile) renditionMetadata() json.RawMessage {
 	raw, _ := json.Marshal(map[string]map[string]string{MetadataKey: {"shapeId": o.shapeID, "fileId": o.fileID}})
 	return raw
 }

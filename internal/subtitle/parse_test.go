@@ -147,19 +147,23 @@ func TestProvenance(t *testing.T) {
 	if origin, model, err := provenance(ImportInput{}); err != nil || origin != sqlc.TrackOriginImport || model != nil {
 		t.Fatalf("default = %v %v %v", origin, model, err)
 	}
-	if origin, model, err := provenance(ImportInput{Origin: &asr, Model: ptr("  nb-whisper-large ")}); err != nil || origin != asr || *model != "nb-whisper-large" {
+	if origin, model, err := provenance(ImportInput{Origin: &asr, Source: ptr("  nb-whisper-large ")}); err != nil || origin != asr || *model != "nb-whisper-large" {
 		t.Fatalf("asr = %v %v %v", origin, model, err)
 	}
 	if _, model, err := provenance(ImportInput{Model: ptr("  ")}); err != nil || model != nil {
 		t.Fatalf("blank model = %v %v", model, err)
 	}
-	if _, _, err := provenance(ImportInput{Model: ptr(strings.Repeat("ø", MaxModelLength))}); err != nil {
+	if _, _, err := provenance(ImportInput{Model: ptr(strings.Repeat("ø", MaxSourceLength))}); err != nil {
 		t.Fatalf("longest model: %v", err)
 	}
+	if _, source, _ := provenance(ImportInput{Source: ptr("Mediabanken"), Model: ptr("old")}); *source != "Mediabanken" {
+		t.Fatalf("source does not win over model: %v", *source)
+	}
 	for name, in := range map[string]ImportInput{
-		"manual":     {Origin: &manual},
-		"unknown":    {Origin: ptr(sqlc.TrackOrigin("robot"))},
-		"long model": {Model: ptr(strings.Repeat("x", MaxModelLength+1))},
+		"manual":      {Origin: &manual},
+		"unknown":     {Origin: ptr(sqlc.TrackOrigin("robot"))},
+		"long source": {Source: ptr(strings.Repeat("x", MaxSourceLength+1))},
+		"long model":  {Model: ptr(strings.Repeat("x", MaxSourceLength+1))},
 	} {
 		if _, _, err := provenance(in); !errors.Is(err, domain.ErrInvalidInput) || domain.DetailOf(err).Field == "" {
 			t.Errorf("%s: %v", name, err)

@@ -30,9 +30,10 @@ import (
 
 const (
 	importedFields = `id title description legacyIds metadata
-		versions { nodes { label renditions { kind metadata files { role file {
-			sizeBytes mimeType durationMs codec width height hashes { algo value }
-			copies { path location { name kind baseUri online } } } } } } }`
+		versions { nodes { label renditions { kind purpose language metadata files { role file {
+			id sizeBytes mimeType durationMs codec width height hashes { algo value }
+			copies { path location { name kind baseUri online } } } }
+			subtitleTracks(history: true) { language kind origin source sourceFileId revision } } } }`
 	importFromVidispine  = `mutation($in: VidispineImportInput!) { importFromVidispine(input: $in) { ` + importedFields + ` } }`
 	refreshFromVidispine = `mutation($id: ID!) { refreshFromVidispine(assetId: $id) { ` + importedFields + ` } }`
 )
@@ -46,11 +47,16 @@ type importedAsset struct {
 	Versions    nodes[struct {
 		Label      string
 		Renditions []struct {
-			Kind     string
-			Metadata map[string]map[string]string
-			Files    []struct {
+			Kind, Purpose, Language string
+			Metadata                map[string]map[string]string
+			SubtitleTracks          []struct {
+				Language, Kind, Origin, Source, SourceFileId string
+				Revision                                     int
+			}
+			Files []struct {
 				Role string
 				File struct {
+					ID                    string
 					SizeBytes, DurationMs int64
 					MimeType, Codec       string
 					Width, Height         int
@@ -93,8 +99,31 @@ func newVidispineStorage() string {
 func vidispineItem(f *fake.Faker, storageID string) fake.VidispineItem {
 	item := f.VidispineItem(storageID)
 	item.ID = vidispineID()
-	vsServer.AddItem(item.ID, item.Fields, item.Shapes...)
+	addVidispineItem(item)
 	return item
+}
+
+// addVidispineItem puts an item and the content of its files into the fake Vidispine.
+func addVidispineItem(item fake.VidispineItem) {
+	vsServer.AddItem(item.ID, item.Fields, item.Shapes...)
+	for id, content := range item.Files {
+		vsServer.SetFileData(id, []byte(content))
+	}
+}
+
+// renditionsByKind keys an imported version's renditions by kind and purpose ("ENCODE/preview").
+func renditionsByKind(a importedAsset) map[string]int {
+	out := map[string]int{}
+	for _, v := range a.Versions {
+		for i, r := range v.Renditions {
+			key := r.Kind
+			if r.Purpose != "" {
+				key += "/" + r.Purpose
+			}
+			out[key] = i
+		}
+	}
+	return out
 }
 
 func importVars(itemID string, projectID string) map[string]any {
@@ -143,8 +172,38 @@ func TestVidispineImport(t *testing.T) {
 		strings.Join(meta.Fields["tags"], ",") != "one,two" || meta.Fields["portal_mf982016"][0] != item.Fields["portal_mf982016"] {
 		t.Fatalf("metadata.vidispine = %+v", meta)
 	}
-	if len(a.Versions) != 1 || a.Versions[0].Label != "Vidispine original" || len(a.Versions[0].Renditions) != 1 {
+	if len(a.Versions) != 1 || a.Versions[0].Label != "Vidispine original" || len(a.Versions[0].Renditions) != 3 {
 		t.Fatalf("versions = %+v", a.Versions)
+	}
+	kinds := renditionsByKind(a)
+	if len(kinds) != 3 || kinds["MASTER"] != 0 {
+		t.Fatalf("renditions = %v", kinds)
+	}
+
+	// lowres_watermarked is the preview: an encode with its file as video.
+	wm := item.Shapes[2]
+	preview := a.Versions[0].Renditions[kinds["ENCODE/preview"]]
+	if preview.Metadata["vidispine"]["shapeId"] != wm.ID || len(preview.Files) != 1 || preview.Files[0].Role != "VIDEO" ||
+		preview.Files[0].File.Copies[0].Path != wm.ContainerComponent.File[0].Path || preview.Files[0].File.Width != 640 {
+		t.Fatalf("preview = %+v", preview)
+	}
+	// Transcribed_Subtitle_SRT is a Norwegian ASR track from Mediabanken, made from its file.
+	srt := item.Shapes[3].File()
+	subs := a.Versions[0].Renditions[kinds["SUBTITLE"]]
+	if subs.Language != "nb" || len(subs.SubtitleTracks) != 1 || len(subs.Files) != 1 || subs.Files[0].Role != "SUBTITLE" ||
+		subs.Files[0].File.Hashes[0].Value != srt.Hash || subs.Files[0].File.Copies[0].Path != srt.Path {
+		t.Fatalf("subtitle rendition = %+v", subs)
+	}
+	if tr := subs.SubtitleTracks[0]; tr.Language != "nb" || tr.Kind != "SUBTITLE" || tr.Origin != "ASR" || tr.Source != "Mediabanken" ||
+		tr.SourceFileId != subs.Files[0].File.ID || tr.Revision != 1 {
+		t.Fatalf("track = %+v", tr)
+	}
+	var cues struct {
+		SubtitleTracks []struct{ Cues nodes[struct{ Text string }] }
+	}
+	admin.must(t, `query($a: ID!) { subtitleTracks(assetId: $a) { cues(first: 5000) { nodes { text } } } }`, map[string]any{"a": a.ID}, &cues)
+	if len(cues.SubtitleTracks) != 1 || len(cues.SubtitleTracks[0].Cues) != strings.Count(item.Files[srt.ID], "-->") {
+		t.Fatalf("cues = %+v", cues)
 	}
 	r := a.Versions[0].Renditions[0]
 	if r.Kind != "MASTER" || r.Metadata["vidispine"]["shapeId"] != item.Shapes[0].ID || r.Metadata["vidispine"]["fileId"] != orig.ID || len(r.Files) != 1 {
@@ -352,8 +411,9 @@ func TestVidispineRefresh(t *testing.T) {
 	if meta.Fields["title"][0] != "Changed in Vidispine" || meta.Fields["portal_new"][0] != "added" || meta.Fields["mediaType"] != nil || meta.ItemID != item.ID {
 		t.Fatalf("metadata.vidispine = %+v", meta)
 	}
-	if len(got.Versions) != 1 || len(got.Versions[0].Renditions[0].Files) != 1 {
-		t.Fatalf("refresh touched the files: %+v", got.Versions)
+	if len(got.Versions) != 1 || len(got.Versions[0].Renditions) != 3 || len(got.Versions[0].Renditions[0].Files) != 1 ||
+		len(got.Versions[0].Renditions[renditionsByKind(got)["SUBTITLE"]].SubtitleTracks) != 1 {
+		t.Fatalf("a refresh with nothing new added something: %+v", got.Versions)
 	}
 
 	t.Run("metadata wiped in MediaBrain", func(t *testing.T) {

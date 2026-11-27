@@ -190,6 +190,8 @@ models:
     model:
       - github.com/bcc-media/mediabrain/internal/db/sqlc.SubtitleTrack
     fields:
+      model:
+        resolver: true
       cues:
         resolver: true
       export:

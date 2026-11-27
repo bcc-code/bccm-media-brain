@@ -2,7 +2,7 @@ type: http_request
 model: http_request
 id: rq_Vdsp1nRef2
 createdAt: 2026-11-11T10:00:00
-updatedAt: 2026-11-11T10:00:00
+updatedAt: 2026-11-27T14:00:00
 workspaceId: wk_tPlK1TUEUQ
 folderId: fl_Vdsp1nImp7
 authentication: {}
@@ -17,14 +17,14 @@ body:
       "id": "${[ asset_id ]}"
     }
 bodyType: graphql
-description: Replaces metadata.vidispine with Vidispine's current values. Title, description and files are not touched.
+description: Re-imports the asset. Replaces metadata.vidispine with Vidispine's current values and adds what is missing (the original of a former placeholder, the lowres_watermarked preview, a new Transcribed_Subtitle_SRT as the next revision). Title, description and the files already there are not touched.
 headers:
 - enabled: true
   name: Content-Type
   value: application/json
   id: Lk9jH8gFd6
 method: POST
-name: Refresh from Vidispine (admin)
+name: Re-import from Vidispine (admin)
 sortPriority: 2000.0
 url: ${[ base_url ]}/query
 urlParameters: []

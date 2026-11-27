@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
+import VidispineImport from '../components/VidispineImport.vue'
 import { useAssets } from '../composables/useAssets'
 
 const { assets, loading, loaded, error, hasMore, reload, more } = useAssets()
@@ -16,6 +17,8 @@ const td = 'border-t border-border px-4 py-3 align-middle'
       <h1 class="text-3xl font-semibold leading-tight tracking-tight">Assets</h1>
       <p class="text-[15px] text-muted-foreground">The assets you may see, newest first.</p>
     </header>
+
+    <VidispineImport @changed="reload" />
 
     <div
       v-if="error"

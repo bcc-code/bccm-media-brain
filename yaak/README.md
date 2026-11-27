@@ -40,7 +40,7 @@ it. It is HTTP Basic authentication with `service_account` and `service_password
 6. *Access*: `make seed s=access` adds a persona per permission level (it wipes the data first).
    Grant access to one of them, then change `user` to their email to see what they see.
 7. *Vidispine*: with `VIDISPINE_URL`, `VIDISPINE_USERNAME` and `VIDISPINE_PASSWORD` set on the server, put an
-   item id into `vidispine_item_id` → Import from Vidispine → Refresh from Vidispine. Without a Vidispine,
+   item id into `vidispine_item_id` → Import from Vidispine → Re-import from Vidispine. Without a Vidispine,
    `make seed s=vidispine` creates assets that look imported.
 8. *Service accounts*: Create service account → Service accounts. To see what one may do, put
    its id into `user`. `make seed s=access` also creates three accounts.

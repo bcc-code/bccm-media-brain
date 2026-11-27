@@ -12,7 +12,7 @@ runs and both operations answer `UNAVAILABLE`.
 | | GraphQL | CLI |
 |---|---|---|
 | Import | `importFromVidispine(input: {itemId, typeId, projectId})` | `mediabrain vidispine import [-type N] [-project PJ-…] VX-123` |
-| Refresh | `refreshFromVidispine(assetId)` | `mediabrain vidispine refresh AS-…` |
+| Re-import | `refreshFromVidispine(assetId)` | `mediabrain vidispine refresh AS-…` |
 
 Both are for administrators only: the import registers files and creates storage locations, which
 only administrators may do. The CLI runs as the system principal.
@@ -35,6 +35,8 @@ the `vidispine` scenario then creates assets that look imported.
 | Every field value that applies to the whole item | `metadata.vidispine.fields` (name → values) |
 | Shape tagged `original` | Version "Vidispine original" with a `master` rendition (`metadata.vidispine` holds the shape and file id) |
 | The shape's file: size, SHA-1, mime type, duration, codec, resolution | A file, attached as video, audio or sidecar |
+| Shape tagged `lowres_watermarked` | The preview: an `encode` rendition with purpose `preview` in the same version, its file attached as video |
+| Shape tagged `Transcribed_Subtitle_SRT` (Mediabanken's transcription) | A subtitle revision: language `nb`, kind `SUBTITLE`, origin `ASR`, source `Mediabanken`, with the SRT file registered and attached as its source |
 | The file's storage and path | A copy on the storage location named after the storage id |
 | The storage (`VX-42`) | A storage location with that name, created on first use |
 
@@ -55,15 +57,30 @@ Why these choices:
   still being written, has no SHA-1 yet, or no storage path is refused (`INVALID_INPUT`) rather
   than imported without its file. An item without an original file (a placeholder) imports as an
   asset alone.
+- **The preview and the transcript are extras.** One that cannot be used (still being written,
+  no SHA-1, no storage address, a transcript that cannot be read, is over 5 MB, does not match its
+  SHA-1 or is not SRT) is left out with a warning in the log (`vidispine: shape left out`), and the
+  rest is imported. Only a Vidispine that does not answer fails the import. The transcript's text
+  is read from Vidispine (`GET /API/storage/file/{id}/data`); MediaBrain reads no storage itself.
+- **The transcript is Norwegian** (`nb`): Mediabanken transcribes Norwegian, and the shape does
+  not say.
 - **Vidispine is read before the transaction opens**, then everything is written in one
   transaction through the asset and file services, so their rules apply and a failure leaves
   nothing behind.
 
-## Refresh
+## Re-import (refresh)
 
-Replaces `metadata.vidispine` with Vidispine's current field values and nothing else: title,
-description, other metadata keys, versions and files stay as they are in MediaBrain. The item is
-found through `metadata.vidispine.itemId`, or the `VX-…` legacy id when the metadata was edited away.
+Replaces `metadata.vidispine` with Vidispine's current field values and **adds what the asset
+lacks**: the version "Vidispine original" with a master rendition when a placeholder got its
+original since, the preview when there is no `encode`/`preview` rendition, and the transcript as
+the next revision unless a revision was already made from that very file. Nothing is replaced or
+removed: title, description, other metadata keys and the renditions and files already there stay
+as they are, so a preview that was re-rendered in Vidispine is not swapped. The item is found
+through `metadata.vidispine.itemId`, or the `VX-…` legacy id when the metadata was edited away.
+
+The web UI's **Assets** page has an "Import from Vidispine" panel for administrators: enter a
+`VX-…` id; an item that was not imported is imported (asset type and optional project), one that
+was is re-imported.
 
 ## Errors
 
@@ -81,8 +98,8 @@ A Vidispine REST client that other Go projects can import
 `bccm-flows/services/vidispine/vsapi` and uses the standard library only (flows' version needs
 resty, Temporal and flows-internal packages).
 
-- Reads: item metadata, shapes and files, storage methods, files of a storage, collection items,
-  time code conversion.
+- Reads: item metadata, shapes and files, storage methods, files of a storage, the content of a
+  file (`ReadFile`, with a size limit: `ErrTooLarge`), collection items, time code conversion.
 - Every call takes a context. Ids are escaped into the URL. Only GET is retried, on network
   errors and 5xx.
 - Errors are `*vidispine.Error`; `errors.Is(err, vidispine.ErrNotFound)` and
@@ -92,8 +109,8 @@ resty, Temporal and flows-internal packages).
 ## Left out on purpose
 
 - Bulk import (collections, searches) and scheduled refresh.
-- Other shapes (low-res proxies, encodes) and subtitle sidecars.
-- Refresh of files: a changed or newly added original is not picked up.
+- Other shapes (`lowres`, `lowaudio`, other encodes) and other subtitle sidecars.
+- Replacing files on re-import: a changed original or preview is not picked up.
 - The write side of the client (jobs, placeholders, shape import, metadata writes, deletes,
   exports) and flows' field-name constants. They move over when flows switches to this package.
 - Trying it against the real Vidispine: the tests run against the fake server and against response

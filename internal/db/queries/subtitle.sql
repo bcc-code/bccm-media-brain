@@ -1,5 +1,5 @@
 -- name: CreateSubtitleTrack :one
-INSERT INTO subtitle_track (rendition_id, asset_id, source_file_id, language, kind, origin, model, revision, parent_id, created_by)
+INSERT INTO subtitle_track (rendition_id, asset_id, source_file_id, language, kind, origin, source, revision, parent_id, created_by)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *;
 
 -- name: GetSubtitleTrack :one

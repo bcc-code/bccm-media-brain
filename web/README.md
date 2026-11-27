@@ -5,7 +5,8 @@ The MediaBrain web UI: [Nuxt](https://nuxt.com) without server rendering,
 API's GraphQL endpoint, `/query`, on its own origin.
 
 Pages so far: **Assets** (`/assets`, the start page): the assets the caller may see, newest
-first, 50 at a time with "Load more". For anyone.
+first, 50 at a time with "Load more". For anyone. Administrators also get an "Import from
+Vidispine" panel: a `VX-…` id is imported, or re-imported when it was imported before.
 
 **Users** (`/users`): people (not service accounts), searched by name or email, with their groups;
 make an administrator or not, switch off and on. Not your own account. Administrators only.

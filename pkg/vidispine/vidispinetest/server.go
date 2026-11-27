@@ -33,12 +33,16 @@ type Server struct {
 	items       map[string]*item
 	storages    map[string][]vidispine.StorageMethod
 	collections map[string][]string
+	data        map[string][]byte
 	failStatus  int
 	requests    int
 }
 
 func NewServer() *Server {
-	s := &Server{items: map[string]*item{}, storages: map[string][]vidispine.StorageMethod{}, collections: map[string][]string{}}
+	s := &Server{
+		items: map[string]*item{}, storages: map[string][]vidispine.StorageMethod{}, collections: map[string][]string{},
+		data: map[string][]byte{},
+	}
 	s.srv = httptest.NewServer(http.HandlerFunc(s.serve))
 	s.URL = s.srv.URL + "/API"
 	return s
@@ -98,6 +102,13 @@ func (s *Server) AddStorage(id string, uris ...string) {
 	s.storages[id] = methods
 }
 
+// SetFileData sets the content of a file, as GET storage/file/{id}/data answers it.
+func (s *Server) SetFileData(fileID string, data []byte) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.data[fileID] = data
+}
+
 func (s *Server) AddCollection(id string, itemIDs ...string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -153,6 +164,14 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, vidispine.StorageResult{Methods: methods})
 	case len(parts) == 3 && parts[0] == "storage" && parts[2] == "file":
 		s.serveFiles(w, r, parts[1])
+	case len(parts) == 4 && parts[0] == "storage" && parts[1] == "file" && parts[3] == "data":
+		data, ok := s.data[parts[2]]
+		if !ok {
+			notFound(w, "file", parts[2])
+			return
+		}
+		w.Header().Set("Content-Type", "application/octet-stream")
+		_, _ = w.Write(data)
 	case len(parts) == 3 && parts[0] == "collection" && parts[2] == "item":
 		ids, ok := s.collections[parts[1]]
 		if !ok {

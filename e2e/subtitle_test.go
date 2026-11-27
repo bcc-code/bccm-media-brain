@@ -13,17 +13,17 @@ import (
 
 const (
 	importSubtitles = `mutation($in: ImportSubtitlesInput!) { importSubtitles(input: $in) {
-		id renditionId assetId sourceFileId language kind origin model revision parentId createdBy
+		id renditionId assetId sourceFileId language kind origin source revision parentId createdBy
 	} }`
-	editSubtitles = `mutation($id: ID!, $cues: [SubtitleCueInput!]!) { editSubtitles(trackId: $id, cues: $cues) { id revision parentId origin model language kind } }`
+	editSubtitles = `mutation($id: ID!, $cues: [SubtitleCueInput!]!) { editSubtitles(trackId: $id, cues: $cues) { id revision parentId origin source language kind } }`
 	trackCues     = `query($id: ID!, $n: Int, $c: String) { subtitleTrack(id: $id) { id revision cues(first: $n, after: $c) { nodes { seq startMs endMs text speaker } pageInfo { hasNextPage endCursor } } } }`
 )
 
 type trackJSON struct {
-	ID, RenditionID, AssetID, Kind, Origin  string
-	Language, SourceFileID, ParentID, Model *string
-	CreatedBy                               *string
-	Revision                                int
+	ID, RenditionID, AssetID, Kind, Origin   string
+	Language, SourceFileID, ParentID, Source *string
+	CreatedBy                                *string
+	Revision                                 int
 }
 
 type cueJSON struct {
@@ -46,7 +46,7 @@ func TestSubtitleImportEditExport(t *testing.T) {
 	admin.must(t, importSubtitles, importVars, &imp)
 	first := imp.ImportSubtitles
 	if !strings.HasPrefix(first.ID, "ST-") || first.AssetID != c.asset || first.Revision != 1 || first.ParentID != nil ||
-		first.Origin != "IMPORT" || first.Model != nil || first.Kind != "SUBTITLE" || *first.Language != "en" || *first.SourceFileID != source || *first.CreatedBy != admin.id {
+		first.Origin != "IMPORT" || first.Source != nil || first.Kind != "SUBTITLE" || *first.Language != "en" || *first.SourceFileID != source || *first.CreatedBy != admin.id {
 		t.Fatalf("first import = %+v", first)
 	}
 	if first.RenditionID == c.rendition {
@@ -203,7 +203,8 @@ func TestSubtitleValidation(t *testing.T) {
 		"unknown language": imp(map[string]any{"language": "klingon"}),
 		"unknown source":   imp(map[string]any{"sourceFileId": "FI-00000000000000000000000000"}),
 		"manual origin":    imp(map[string]any{"origin": "MANUAL"}),
-		"long model":       imp(map[string]any{"model": strings.Repeat("x", subtitle.MaxModelLength+1)}),
+		"long source":      imp(map[string]any{"source": strings.Repeat("x", subtitle.MaxSourceLength+1)}),
+		"long model":       imp(map[string]any{"model": strings.Repeat("x", subtitle.MaxSourceLength+1)}),
 		"broken json":      imp(map[string]any{"format": "JSON", "content": `{"segments": [`}),
 		"srt as json":      imp(map[string]any{"format": "JSON"}),
 		"bad word":         imp(map[string]any{"format": "JSON", "content": `{"segments": [{"start": 0, "end": 1, "text": "x", "words": [{"text": "x", "start": 0.5, "end": 0.1}]}]}`}),
@@ -237,38 +238,52 @@ func TestSubtitleValidation(t *testing.T) {
 	}
 }
 
-// An ASR import records its model; an edit of it is MANUAL and has none, while the ASR
-// revision keeps its own.
-func TestSubtitleOriginAndModel(t *testing.T) {
+// An ASR import records its source (the model); an edit of it is MANUAL and has none, while the
+// ASR revision keeps its own. model is the deprecated name of source, both ways.
+func TestSubtitleOriginAndSource(t *testing.T) {
 	admin, f := signInAdmin(t), fake.New(1311)
 	c := newClip(t, admin, f, newProject(t, admin, f, newProgram(t, admin, f)), "")
 	var imp struct{ ImportSubtitles trackJSON }
 	admin.must(t, importSubtitles, map[string]any{"in": map[string]any{
 		"versionId": c.version, "language": "nb", "kind": "TRANSCRIPT", "format": "VTT", "content": f.VTT(3),
-		"origin": "ASR", "model": "  nb-whisper-large ",
+		"origin": "ASR", "source": "  nb-whisper-large ",
 	}}, &imp)
 	asr := imp.ImportSubtitles
-	if asr.Origin != "ASR" || asr.Model == nil || *asr.Model != "nb-whisper-large" || asr.Kind != "TRANSCRIPT" {
+	if asr.Origin != "ASR" || asr.Source == nil || *asr.Source != "nb-whisper-large" || asr.Kind != "TRANSCRIPT" {
 		t.Fatalf("asr import = %+v", asr)
 	}
 
 	var ed struct{ EditSubtitles trackJSON }
 	admin.must(t, editSubtitles, map[string]any{"id": asr.ID, "cues": []map[string]any{{"startMs": 0, "endMs": 1000, "text": "corrected"}}}, &ed)
-	if ed.EditSubtitles.Origin != "MANUAL" || ed.EditSubtitles.Model != nil {
+	if ed.EditSubtitles.Origin != "MANUAL" || ed.EditSubtitles.Source != nil {
 		t.Fatalf("edit of an asr track = %+v", ed.EditSubtitles)
 	}
-	var got struct{ History []trackJSON }
-	admin.must(t, `query($a: ID!) { history: subtitleTracks(assetId: $a, history: true) { id origin model revision } }`,
+	var got struct {
+		History []struct {
+			trackJSON
+			Model *string
+		}
+	}
+	admin.must(t, `query($a: ID!) { history: subtitleTracks(assetId: $a, history: true) { id origin source model revision } }`,
 		map[string]any{"a": c.asset}, &got)
-	if len(got.History) != 2 || got.History[1].ID != asr.ID || got.History[1].Model == nil || *got.History[1].Model != "nb-whisper-large" {
+	if len(got.History) != 2 || got.History[1].ID != asr.ID || got.History[1].Model == nil || *got.History[1].Model != "nb-whisper-large" ||
+		*got.History[1].Source != "nb-whisper-large" {
 		t.Fatalf("history = %+v", got.History)
 	}
 
-	// A blank model is no model, and an import without an origin is IMPORT.
+	// The old input name still works.
+	admin.must(t, importSubtitles, map[string]any{"in": map[string]any{
+		"versionId": c.version, "language": "nb", "format": "SRT", "content": f.SRT(2), "model": "Mediabanken",
+	}}, &imp)
+	if imp.ImportSubtitles.Source == nil || *imp.ImportSubtitles.Source != "Mediabanken" {
+		t.Fatalf("import with model = %+v", imp.ImportSubtitles)
+	}
+
+	// A blank model is no source, and an import without an origin is IMPORT.
 	admin.must(t, importSubtitles, map[string]any{"in": map[string]any{
 		"versionId": c.version, "language": "nb", "format": "SRT", "content": f.SRT(2), "model": " ",
 	}}, &imp)
-	if imp.ImportSubtitles.Origin != "IMPORT" || imp.ImportSubtitles.Model != nil || imp.ImportSubtitles.Revision != 3 {
+	if imp.ImportSubtitles.Origin != "IMPORT" || imp.ImportSubtitles.Source != nil || imp.ImportSubtitles.Revision != 4 {
 		t.Fatalf("plain import = %+v", imp.ImportSubtitles)
 	}
 }
@@ -303,7 +318,7 @@ func TestSubtitleWordTiming(t *testing.T) {
 	var imp struct{ ImportSubtitles trackJSON }
 	admin.must(t, importSubtitles, map[string]any{"in": map[string]any{
 		"versionId": c.version, "language": "nb", "kind": "TRANSCRIPT", "format": "JSON", "content": content,
-		"origin": "ASR", "model": "nb-whisper-large",
+		"origin": "ASR", "source": "nb-whisper-large",
 	}}, &imp)
 	track := imp.ImportSubtitles.ID
 

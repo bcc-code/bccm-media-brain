@@ -8,7 +8,7 @@ afterEach(() => vi.unstubAllGlobals())
 const asset = { id: 'AS-1', title: 'Evening news', legacyIds: ['VX-123'] }
 const history = [
   revision({ id: 'ST-2', revision: 2, origin: 'MANUAL', createdBy: 'US-7' }),
-  revision({ id: 'ST-1', revision: 1, origin: 'ASR', model: 'nb-whisper' }),
+  revision({ id: 'ST-1', revision: 1, origin: 'ASR', source: 'nb-whisper' }),
   revision({ id: 'ST-9', renditionId: 'RE-zz', language: null, kind: 'TRANSCRIPT' }),
 ]
 const newer = [cue(1, 'Hello'), cue(2, 'world', { speaker: 'Anna' })]

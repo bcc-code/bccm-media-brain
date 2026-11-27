@@ -138,13 +138,23 @@ func (c *Client) endpoint(query url.Values, segments ...string) string {
 	return u.String()
 }
 
-// get decodes a JSON response into out. Only network errors and 5xx responses are retried:
-// anything else would fail the same way again.
+// get decodes a JSON response into out.
 func (c *Client) get(ctx context.Context, out any, query url.Values, segments ...string) error {
 	u := c.endpoint(query, segments...)
+	return c.retrying(ctx, u, "application/json", func(body io.Reader) error {
+		if err := json.NewDecoder(io.LimitReader(body, bodyLimit)).Decode(out); err != nil {
+			return fmt.Errorf("vidispine: GET %s: decoding response: %w", u, err)
+		}
+		return nil
+	})
+}
+
+// retrying sends a GET and hands a 2xx body to read. Only network errors and 5xx responses are
+// retried: anything else would fail the same way again.
+func (c *Client) retrying(ctx context.Context, u, accept string, read func(io.Reader) error) error {
 	delay := c.delay
 	for attempt := 0; ; attempt++ {
-		retry, err := c.getOnce(ctx, u, out)
+		retry, err := c.getOnce(ctx, u, accept, read)
 		if err == nil || !retry || attempt >= c.retries {
 			return err
 		}
@@ -157,12 +167,12 @@ func (c *Client) get(ctx context.Context, out any, query url.Values, segments ..
 	}
 }
 
-func (c *Client) getOnce(ctx context.Context, u string, out any) (retry bool, err error) {
+func (c *Client) getOnce(ctx context.Context, u, accept string, read func(io.Reader) error) (retry bool, err error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
 	if err != nil {
 		return false, fmt.Errorf("vidispine: %w", err)
 	}
-	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Accept", accept)
 	if c.user != "" || c.pass != "" {
 		req.SetBasicAuth(c.user, c.pass)
 	}
@@ -174,8 +184,5 @@ func (c *Client) getOnce(ctx context.Context, u string, out any) (retry bool, er
 	if res.StatusCode < 200 || res.StatusCode > 299 {
 		return res.StatusCode >= 500, newError(http.MethodGet, u, res)
 	}
-	if err := json.NewDecoder(io.LimitReader(res.Body, bodyLimit)).Decode(out); err != nil {
-		return false, fmt.Errorf("vidispine: GET %s: decoding response: %w", u, err)
-	}
-	return false, nil
+	return false, read(res.Body)
 }

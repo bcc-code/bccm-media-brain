@@ -346,6 +346,7 @@ type ComplexityRoot struct {
 		ParentID     func(childComplexity int) int
 		RenditionID  func(childComplexity int) int
 		Revision     func(childComplexity int) int
+		Source       func(childComplexity int) int
 		SourceFileID func(childComplexity int) int
 	}
 
@@ -488,6 +489,8 @@ type SubtitleCueResolver interface {
 	Words(ctx context.Context, obj *sqlc.ListSubtitleCuesRow) ([]*subtitle.Word, error)
 }
 type SubtitleTrackResolver interface {
+	Model(ctx context.Context, obj *sqlc.SubtitleTrack) (*string, error)
+
 	Cues(ctx context.Context, obj *sqlc.SubtitleTrack, first *int, after *string) (*model.SubtitleCueConnection, error)
 	Export(ctx context.Context, obj *sqlc.SubtitleTrack, format subtitle.Format) (string, error)
 }
@@ -2117,6 +2120,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.SubtitleTrack.Revision(childComplexity), true
+	case "SubtitleTrack.source":
+		if e.ComplexityRoot.SubtitleTrack.Source == nil {
+			break
+		}
+
+		return e.ComplexityRoot.SubtitleTrack.Source(childComplexity), true
 	case "SubtitleTrack.sourceFileId":
 		if e.ComplexityRoot.SubtitleTrack.SourceFileID == nil {
 			break
@@ -3005,8 +3014,9 @@ type SubtitleTrack {
   language: String
   kind: TrackKind!
   origin: TrackOrigin!
-  "The model that produced the text, such as the speech recognition model of an ASR import. Edits have none."
-  model: String
+  "Where the text came from: the speech recognition model of an ASR run (\"nb-whisper-large\") or the system it was taken from (\"Mediabanken\"). Edits have none."
+  source: String
+  model: String @deprecated(reason: "Use source.")
   revision: Int!
   "The revision this one replaced."
   parentId: ID
@@ -3048,8 +3058,10 @@ input ImportSubtitlesInput {
   sourceFileId: ID
   "IMPORT (the default) or ASR. MANUAL revisions come only from editSubtitles."
   origin: TrackOrigin
-  "The model that produced the text, e.g. \"nb-whisper-large\". At most 200 characters."
-  model: String
+  "Where the text came from, e.g. \"nb-whisper-large\" or \"Mediabanken\". At most 200 characters."
+  source: String
+  "The old name of source; source wins when both are given."
+  model: String @deprecated(reason: "Use source.")
 }
 
 input SubtitleCueInput {
@@ -3098,13 +3110,17 @@ type SubtitleCueConnection {
 extend type Mutation {
   """
   Administrators only. Creates an asset from one Vidispine item: its metadata under
-  metadata.vidispine, the item id in legacyIds and, when the item has an original file, a version
-  with a master rendition holding that file. An item can be imported once.
+  metadata.vidispine, the item id in legacyIds and, when the item has files, the version
+  "Vidispine original": a master rendition with the original, an encode rendition with purpose
+  "preview" from lowres_watermarked, and the Transcribed_Subtitle_SRT shape as a Norwegian ASR
+  subtitle track with source "Mediabanken". A preview or transcript that cannot be used is left
+  out. An item can be imported once; refreshFromVidispine re-imports it.
   """
   importFromVidispine(input: VidispineImportInput!): Asset!
   """
-  Administrators only. Replaces metadata.vidispine of an imported asset with Vidispine's current
-  values. Nothing else on the asset changes.
+  Administrators only. Re-imports an imported asset: replaces metadata.vidispine with Vidispine's
+  current values and adds what the asset lacks (the original of a former placeholder, the preview,
+  a new transcript as the next revision). Nothing on the asset is replaced or removed.
   """
   refreshFromVidispine(assetId: ID!): Asset!
 }
@@ -3546,6 +3562,8 @@ func (ec *executionContext) childFields_SubtitleTrack(ctx context.Context, field
 		return ec.fieldContext_SubtitleTrack_kind(ctx, field)
 	case "origin":
 		return ec.fieldContext_SubtitleTrack_origin(ctx, field)
+	case "source":
+		return ec.fieldContext_SubtitleTrack_source(ctx, field)
 	case "model":
 		return ec.fieldContext_SubtitleTrack_model(ctx, field)
 	case "revision":
@@ -11317,6 +11335,29 @@ func (ec *executionContext) fieldContext_SubtitleTrack_origin(_ context.Context,
 	return graphql.NewScalarFieldContext("SubtitleTrack", field, false, false, "TrackOrigin")
 }
 
+func (ec *executionContext) _SubtitleTrack_source(ctx context.Context, field graphql.CollectedField, obj *sqlc.SubtitleTrack) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return ec.fieldContext_SubtitleTrack_source(ctx, field)
+		},
+		func(ctx context.Context) (any, error) {
+			return obj.Source, nil
+		},
+		nil,
+		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
+			return ec.marshalOString2ᚖstring(ctx, selections, v)
+		},
+		true,
+		false,
+	)
+}
+func (ec *executionContext) fieldContext_SubtitleTrack_source(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	return graphql.NewScalarFieldContext("SubtitleTrack", field, false, false, "String")
+}
+
 func (ec *executionContext) _SubtitleTrack_model(ctx context.Context, field graphql.CollectedField, obj *sqlc.SubtitleTrack) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -11326,7 +11367,7 @@ func (ec *executionContext) _SubtitleTrack_model(ctx context.Context, field grap
 			return ec.fieldContext_SubtitleTrack_model(ctx, field)
 		},
 		func(ctx context.Context) (any, error) {
-			return obj.Model, nil
+			return ec.Resolvers.SubtitleTrack().Model(ctx, obj)
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
@@ -11337,7 +11378,7 @@ func (ec *executionContext) _SubtitleTrack_model(ctx context.Context, field grap
 	)
 }
 func (ec *executionContext) fieldContext_SubtitleTrack_model(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	return graphql.NewScalarFieldContext("SubtitleTrack", field, false, false, "String")
+	return graphql.NewScalarFieldContext("SubtitleTrack", field, true, true, "String")
 }
 
 func (ec *executionContext) _SubtitleTrack_revision(ctx context.Context, field graphql.CollectedField, obj *sqlc.SubtitleTrack) (ret graphql.Marshaler) {
@@ -13628,7 +13669,7 @@ func (ec *executionContext) unmarshalInputImportSubtitlesInput(ctx context.Conte
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"versionId", "language", "kind", "format", "content", "sourceFileId", "origin", "model"}
+	fieldsInOrder := [...]string{"versionId", "language", "kind", "format", "content", "sourceFileId", "origin", "source", "model"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -13684,6 +13725,13 @@ func (ec *executionContext) unmarshalInputImportSubtitlesInput(ctx context.Conte
 				return it, err
 			}
 			it.Origin = data
+		case "source":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("source"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Source = data
 		case "model":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("model"))
 			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
@@ -16284,11 +16332,17 @@ func (ec *executionContext) _SubtitleTrack(ctx context.Context, sel ast.Selectio
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
-		case "model":
-			out.Values[i] = ec._SubtitleTrack_model(ctx, field, obj)
+		case "source":
+			out.Values[i] = ec._SubtitleTrack_source(ctx, field, obj)
 			if out.Values[i] == graphql.RequiredNull {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
+		case "model":
+			out.ResolveConcurrently(ec.OperationContext, &deferred, i,
+				true, false,
+				func(ctx context.Context) graphql.Marshaler {
+					return ec._SubtitleTrack_model(ctx, field, obj)
+				})
 		case "revision":
 			out.Values[i] = ec._SubtitleTrack_revision(ctx, field, obj)
 			if out.Values[i] == graphql.Null {

@@ -15,6 +15,9 @@ const (
 	ShapeTagLowAudio          = "lowaudio"
 )
 
+// ShapeTagTranscribedSRT is BCC's own tag: the SRT file that Mediabanken's transcription adds.
+const ShapeTagTranscribedSRT = "Transcribed_Subtitle_SRT"
+
 // FileStateClosed is the state of a file that is completely written.
 const FileStateClosed = "CLOSED"
 

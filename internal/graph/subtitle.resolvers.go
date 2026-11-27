@@ -51,6 +51,11 @@ func (r *subtitleCueResolver) Words(ctx context.Context, obj *sqlc.ListSubtitleC
 	return many(subtitle.DecodeWords(obj.Words))
 }
 
+// Model is the resolver for the model field.
+func (r *subtitleTrackResolver) Model(ctx context.Context, obj *sqlc.SubtitleTrack) (*string, error) {
+	return obj.Source, nil
+}
+
 // Cues is the resolver for the cues field.
 func (r *subtitleTrackResolver) Cues(ctx context.Context, obj *sqlc.SubtitleTrack, first *int, after *string) (*model.SubtitleCueConnection, error) {
 	n, info, err := nodes(r.load(ctx).cuesFor(window(first, after)).Load(ctx, obj.ID))

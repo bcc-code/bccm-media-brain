@@ -10,7 +10,7 @@ authenticationType: null
 body:
   query: |
     mutation($in: ImportSubtitlesInput!) {
-      importSubtitles(input: $in) { id renditionId language kind origin model revision parentId }
+      importSubtitles(input: $in) { id renditionId language kind origin source revision parentId }
     }
   variables: |-
     {
@@ -20,12 +20,12 @@ body:
         "kind": "TRANSCRIPT",
         "format": "JSON",
         "origin": "ASR",
-        "model": "nb-whisper-large",
+        "source": "nb-whisper-large",
         "content": "{\"segments\": [{\"start\": 1.0, \"end\": 3.5, \"text\": \" Welcome back.\", \"words\": [{\"text\": \" Welcome\", \"start\": 1.0, \"end\": 1.6, \"confidence\": 0.97}, {\"text\": \" back.\", \"start\": 1.7, \"end\": 2.4}]}, {\"start\": 4.0, \"end\": 6.0, \"text\": \" Let's begin.\"}]}"
       }
     }
 bodyType: graphql
-description: 'A speech recognition transcript in the transcriber''s Whisper JSON (transcript.json): times in seconds, word timing kept per cue (read it with cues { nodes { words { startMs endMs text confidence } } }). VTT and SRT work too, without words. origin: IMPORT (default) | ASR, never MANUAL. model: the model that produced the text, at most 200 characters; edits have none.'
+description: 'A speech recognition transcript in the transcriber''s Whisper JSON (transcript.json): times in seconds, word timing kept per cue (read it with cues { nodes { words { startMs endMs text confidence } } }). VTT and SRT work too, without words. origin: IMPORT (default) | ASR, never MANUAL. source: where the text came from (the model of an ASR run, or a system such as Mediabanken), at most 200 characters; edits have none. model is its deprecated old name.'
 headers:
 - enabled: true
   name: Content-Type

@@ -36,11 +36,14 @@ type ImportInput struct {
 	Content      string
 	SourceFileID *string
 	Origin       *sqlc.TrackOrigin
-	Model        *string
+	// Source is where the text came from: the model of an ASR run or the system it was taken from.
+	Source *string
+	// Model is the old name of Source, still accepted from the API. Source wins when both are set.
+	Model *string
 }
 
-// MaxModelLength is the longest model name an import accepts, in characters.
-const MaxModelLength = 200
+// MaxSourceLength is the longest source an import accepts, in characters.
+const MaxSourceLength = 200
 
 // provenance checks where imported text came from. MANUAL is refused because only Edit writes
 // manual revisions.
@@ -52,11 +55,14 @@ func provenance(in ImportInput) (sqlc.TrackOrigin, *string, error) {
 	if origin != sqlc.TrackOriginImport && origin != sqlc.TrackOriginAsr {
 		return "", nil, domain.InvalidField("origin", "origin must be IMPORT or ASR; edits are MANUAL")
 	}
-	model := domain.Blank(in.Model)
-	if model != nil && utf8.RuneCountInString(*model) > MaxModelLength {
-		return "", nil, domain.InvalidField("model", "model must be at most %d characters", MaxModelLength)
+	field, source := "source", domain.Blank(in.Source)
+	if source == nil {
+		field, source = "model", domain.Blank(in.Model)
 	}
-	return origin, model, nil
+	if source != nil && utf8.RuneCountInString(*source) > MaxSourceLength {
+		return "", nil, domain.InvalidField(field, "%s must be at most %d characters", field, MaxSourceLength)
+	}
+	return origin, source, nil
 }
 
 // Import parses subtitle text and stores it as the newest revision for its language on the
@@ -74,7 +80,7 @@ func (s *Service) Import(ctx context.Context, in ImportInput) (sqlc.SubtitleTrac
 		return sqlc.SubtitleTrack{}, domain.InvalidField("kind", "unknown kind")
 	}
 	language := domain.Blank(in.Language)
-	origin, model, err := provenance(in)
+	origin, source, err := provenance(in)
 	if err != nil {
 		return sqlc.SubtitleTrack{}, err
 	}
@@ -110,7 +116,7 @@ func (s *Service) Import(ctx context.Context, in ImportInput) (sqlc.SubtitleTrac
 		}
 		track, err = addRevision(ctx, q, sqlc.CreateSubtitleTrackParams{
 			RenditionID: r.ID, AssetID: v.AssetID, SourceFileID: in.SourceFileID, Language: language,
-			Kind: kind, Origin: origin, Model: model, CreatedBy: p.UserRef(),
+			Kind: kind, Origin: origin, Source: source, CreatedBy: p.UserRef(),
 		}, cues)
 		if err != nil || in.SourceFileID == nil {
 			return err

@@ -3,6 +3,7 @@
 package fake
 
 import (
+	"crypto/sha1"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -209,10 +210,13 @@ type VidispineItem struct {
 	ID     string
 	Fields map[string]string
 	Shapes []vidispine.Shape
+	// Files is the content of the files that are read, not only described: file id → content.
+	Files map[string]string
 }
 
 // VidispineItem builds an item whose original file lies on the given Vidispine storage, with a
-// low-resolution shape next to it.
+// low-resolution shape, a watermarked preview and an SRT transcript next to it. Shapes[0] is
+// the original, Shapes[3] the transcript.
 func (x *Faker) VidispineItem(storageID string) VidispineItem {
 	item := x.VidispinePlaceholder()
 	path := "raw/" + x.Path("mxf")
@@ -239,7 +243,20 @@ func (x *Faker) VidispineItem(storageID string) VidispineItem {
 	item.Shapes = []vidispine.Shape{
 		shape(vidispine.ShapeTagOriginal, "application/mxf", "mpeg2video", path, int64(seconds)*int64(x.f.Number(500_000, 6_000_000)), res),
 		shape(vidispine.ShapeTagLowres, "video/mp4", "h264", strings.TrimSuffix(path, ".mxf")+"_lowres.mp4", int64(seconds)*100_000, vidispine.Resolution{Width: 640, Height: 360}),
+		shape(vidispine.ShapeTagLowresWatermarked, "video/mp4", "h264", strings.TrimSuffix(path, ".mxf")+"_lowres_wm.mp4", int64(seconds)*100_000, vidispine.Resolution{Width: 640, Height: 360}),
 	}
+	srt := x.SRT(x.f.Number(3, 30))
+	sum := sha1.Sum([]byte(srt))
+	n++
+	srtPath := strings.TrimSuffix(path, ".mxf") + ".srt"
+	item.Shapes = append(item.Shapes, vidispine.Shape{
+		ID: fmt.Sprintf("VX-%d", n), Tag: []string{vidispine.ShapeTagTranscribedSRT}, MimeType: []string{"text/plain"},
+		BinaryComponent: []vidispine.BinaryComponent{{File: []vidispine.File{{
+			ID: fmt.Sprintf("VX-%d", n+500000), Path: srtPath, URI: []string{"file:///mnt/" + storageID + "/" + srtPath},
+			State: vidispine.FileStateClosed, Size: int64(len(srt)), Hash: hex.EncodeToString(sum[:]), Storage: storageID,
+		}}}},
+	})
+	item.Files = map[string]string{fmt.Sprintf("VX-%d", n+500000): srt}
 	return item
 }
 

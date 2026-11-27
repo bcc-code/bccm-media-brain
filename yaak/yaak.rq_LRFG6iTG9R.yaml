@@ -10,7 +10,7 @@ authenticationType: null
 body:
   query: |
     query($assetId: ID!, $history: Boolean!) {
-      subtitleTracks(assetId: $assetId, history: $history) { id renditionId language kind origin model revision parentId createdBy createdAt }
+      subtitleTracks(assetId: $assetId, history: $history) { id renditionId language kind origin source revision parentId createdBy createdAt }
     }
   variables: |-
     {

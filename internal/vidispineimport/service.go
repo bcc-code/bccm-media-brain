@@ -17,7 +17,6 @@ import (
 	"github.com/bcc-media/mediabrain/internal/db"
 	"github.com/bcc-media/mediabrain/internal/db/sqlc"
 	"github.com/bcc-media/mediabrain/internal/domain"
-	"github.com/bcc-media/mediabrain/internal/file"
 	"github.com/bcc-media/mediabrain/pkg/vidispine"
 )
 
@@ -34,6 +33,7 @@ type Source interface {
 	GetMetadata(ctx context.Context, itemID string) (*vidispine.MetadataResult, error)
 	GetShapes(ctx context.Context, itemID string) (*vidispine.ShapeResult, error)
 	GetStorageMethods(ctx context.Context, storageID string) (*vidispine.StorageResult, error)
+	ReadFile(ctx context.Context, fileID string, limit int64) ([]byte, error)
 }
 
 // NewSource returns a client for the Vidispine API at baseURL, or nil when baseURL is empty:
@@ -97,8 +97,8 @@ func metadataOf(m *vidispine.MetadataResult, itemID string) json.RawMessage {
 	return raw
 }
 
-// Import creates an asset from one Vidispine item: its metadata and, when the item has one, the
-// file of its original shape as a master rendition. An item can be imported once.
+// Import creates an asset from one Vidispine item: its metadata and the files of its shapes (see
+// plan). An item can be imported once; Refresh brings an imported one up to date.
 func (s *Service) Import(ctx context.Context, in ImportInput) (sqlc.Asset, error) {
 	if err := s.ready(ctx); err != nil {
 		return sqlc.Asset{}, err
@@ -107,33 +107,11 @@ func (s *Service) Import(ctx context.Context, in ImportInput) (sqlc.Asset, error
 	if !itemIDPattern.MatchString(itemID) {
 		return sqlc.Asset{}, domain.InvalidField("itemId", "itemId must look like VX-123")
 	}
-
-	// Everything is read from Vidispine before the transaction starts, so that no database
-	// transaction stays open while waiting for another system.
-	meta, err := s.src.GetMetadata(ctx, itemID)
-	if err != nil {
-		return sqlc.Asset{}, upstream(ctx, err, itemID)
-	}
-	shapes, err := s.src.GetShapes(ctx, itemID)
-	if err != nil {
-		return sqlc.Asset{}, upstream(ctx, err, itemID)
-	}
-	orig, err := originalOf(shapes)
+	p, err := s.read(ctx, itemID)
 	if err != nil {
 		return sqlc.Asset{}, err
 	}
-	var location file.LocationInput
-	if orig != nil {
-		storage, err := s.src.GetStorageMethods(ctx, orig.storageID)
-		if err != nil {
-			slog.ErrorContext(ctx, "vidispine: storage request failed", "item", itemID, "storage", orig.storageID, "error", err)
-			return sqlc.Asset{}, domain.Unavailable("Vidispine did not answer")
-		}
-		if location, err = locationOf(orig.storageID, storage); err != nil {
-			return sqlc.Asset{}, err
-		}
-	}
-	assetMeta, _ := json.Marshal(map[string]json.RawMessage{MetadataKey: metadataOf(meta, itemID)})
+	assetMeta, _ := json.Marshal(map[string]json.RawMessage{MetadataKey: p.metadata})
 
 	// The services below run in this transaction, so what they record only happened once it
 	// commits.
@@ -151,46 +129,22 @@ func (s *Service) Import(ctx context.Context, in ImportInput) (sqlc.Asset, error
 		if !errors.Is(domain.FromPG(err), domain.ErrNotFound) {
 			return err
 		}
-
-		// The other services run on this transaction, so their rules apply and a failure
-		// leaves nothing behind.
-		tx := db.SameTx(q)
-		assets, files := asset.NewService(q, tx), file.NewService(q, tx)
-		a, err = assets.Create(ctx, asset.Input{
-			TypeID: in.TypeID, Title: titleOf(meta, itemID), Metadata: assetMeta, LegacyIDs: []string{itemID},
+		a, err = asset.NewService(q, db.SameTx(q)).Create(ctx, asset.Input{
+			TypeID: in.TypeID, Title: titleOf(p.meta, itemID), Metadata: assetMeta, LegacyIDs: []string{itemID},
 		}, in.ProjectID)
-		if err != nil || orig == nil {
-			return err
-		}
-		label := versionLabel
-		v, err := assets.CreateVersion(ctx, a.ID, asset.VersionInput{Label: &label})
 		if err != nil {
 			return err
 		}
-		r, err := assets.CreateRendition(ctx, v.ID, asset.RenditionInput{Kind: sqlc.RenditionKindMaster, Metadata: orig.renditionMetadata()})
-		if err != nil {
-			return err
-		}
-		loc, err := q.GetStorageLocationByName(ctx, location.Name)
-		if errors.Is(domain.FromPG(err), domain.ErrNotFound) {
-			loc, err = files.CreateLocation(ctx, location)
-		}
-		if err != nil {
-			return err
-		}
-		f, err := files.Register(ctx, orig.registerInput(loc.ID))
-		if err != nil {
-			return err
-		}
-		_, err = assets.AttachFile(ctx, r.ID, f.ID, orig.role, 0)
-		return err
+		return p.apply(ctx, q, a)
 	})
 	release(err == nil)
 	return a, access.Audited(caller, err, "vidispine.import", a.ID, "item", itemID)
 }
 
-// Refresh replaces the Vidispine metadata of an imported asset with Vidispine's current values.
-// Title, description and everything else edited in MediaBrain stay as they are.
+// Refresh re-imports an imported asset. It replaces the Vidispine metadata with Vidispine's
+// current values and adds what the asset is missing: an original that a placeholder got since,
+// a preview, a new transcript (as a new revision). Title, description, other metadata and the
+// files already there stay as they are: a shape that was replaced in Vidispine is not swapped.
 func (s *Service) Refresh(ctx context.Context, assetID string) (sqlc.Asset, error) {
 	if err := s.ready(ctx); err != nil {
 		return sqlc.Asset{}, err
@@ -203,12 +157,24 @@ func (s *Service) Refresh(ctx context.Context, assetID string) (sqlc.Asset, erro
 	if itemID == "" {
 		return sqlc.Asset{}, domain.Invalid("the asset was not imported from Vidispine")
 	}
-	meta, err := s.src.GetMetadata(ctx, itemID)
+	p, err := s.read(ctx, itemID)
 	if err != nil {
-		return sqlc.Asset{}, upstream(ctx, err, itemID)
+		return sqlc.Asset{}, err
 	}
-	a, err = s.q.SetAssetMetadataKey(ctx, sqlc.SetAssetMetadataKeyParams{ID: assetID, Key: MetadataKey, Value: metadataOf(meta, itemID)})
-	return a, access.Audited(ctx, domain.FromPG(err), "vidispine.refresh", assetID, "item", itemID)
+	caller := ctx
+	ctx, release := access.HoldAudit(ctx)
+	err = s.tx.InTx(ctx, func(q sqlc.Querier) error {
+		if err := q.LockLegacyID(ctx, itemID); err != nil {
+			return err
+		}
+		a, err = q.SetAssetMetadataKey(ctx, sqlc.SetAssetMetadataKeyParams{ID: assetID, Key: MetadataKey, Value: p.metadata})
+		if err != nil {
+			return domain.FromPG(err)
+		}
+		return p.apply(ctx, q, a)
+	})
+	release(err == nil)
+	return a, access.Audited(caller, err, "vidispine.refresh", assetID, "item", itemID)
 }
 
 // ItemID returns the Vidispine item an asset was imported from, or "".

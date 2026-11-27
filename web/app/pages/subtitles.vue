@@ -70,7 +70,7 @@ async function download() {
 }
 
 function revisionLabel(r: Revision): string {
-  return [`Revision ${r.revision}`, r.origin, r.model, r.createdAt.slice(0, 10)].filter(Boolean).join(' · ')
+  return [`Revision ${r.revision}`, r.origin, r.source, r.createdAt.slice(0, 10)].filter(Boolean).join(' · ')
 }
 
 const input =
@@ -257,7 +257,7 @@ const pane = (p: Pair, s: 'older' | 'newer') => (p.kind === 'change' ? (p[s] ? s
               <span class="text-destructive"> −{{ comparison.removed }}</span> cues
             </template>
             <template v-else>
-              {{ [shown.id, shown.model, shown.createdBy && `by ${shown.createdBy}`, shown.createdAt, `${shownCues.length} cues`].filter(Boolean).join(' · ') }}
+              {{ [shown.id, shown.source, shown.createdBy && `by ${shown.createdBy}`, shown.createdAt, `${shownCues.length} cues`].filter(Boolean).join(' · ') }}
             </template>
           </p>
 
@@ -273,7 +273,7 @@ const pane = (p: Pair, s: 'older' | 'newer') => (p.kind === 'change' ? (p[s] ? s
                 <thead>
                   <tr>
                     <th v-for="(r, k) in [comparison.from, comparison.to]" :key="r.id" :class="[th, { 'border-l border-border': k === 1 }]" colspan="2">
-                      Revision {{ r.revision }}<span v-if="r.model" class="normal-case tracking-normal"> · {{ r.model }}</span>
+                      Revision {{ r.revision }}<span v-if="r.source" class="normal-case tracking-normal"> · {{ r.source }}</span>
                     </th>
                   </tr>
                 </thead>

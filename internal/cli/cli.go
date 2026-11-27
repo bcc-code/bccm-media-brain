@@ -8,7 +8,7 @@
 //	mediabrain admin grant|revoke <user>       make a user a system administrator, or not
 //	mediabrain service create|list             manage machine clients
 //	mediabrain vidispine import [flags] <VX-id>  import one Vidispine item as an asset
-//	mediabrain vidispine refresh <asset id>      refresh an imported asset's Vidispine metadata
+//	mediabrain vidispine refresh <asset id>      re-import an asset: fresh metadata, missing shapes added
 //
 // Configuration comes from the environment and .env (see internal/config).
 package cli
@@ -51,7 +51,7 @@ const usage = `usage:
   mediabrain service list                     list service accounts
   mediabrain vidispine import [-type N] [-project PJ-...] <VX-id>
                                               import one Vidispine item as an asset (type 1 by default)
-  mediabrain vidispine refresh <asset id>       replace an imported asset's Vidispine metadata
+  mediabrain vidispine refresh <asset id>       re-import: fresh metadata, missing shapes added
 `
 
 // Run executes the command line args (without the program name).

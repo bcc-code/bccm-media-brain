@@ -17,7 +17,7 @@ export interface Revision {
   language: string | null
   kind: string
   origin: string
-  model: string | null
+  source: string | null
   revision: number
   createdBy: string | null
   createdAt: string
@@ -40,7 +40,7 @@ export interface Cue {
 }
 
 const ASSET = 'id title legacyIds myLevel'
-const REVISION = 'id renditionId language kind origin model revision createdBy createdAt'
+const REVISION = 'id renditionId language kind origin source revision createdBy createdAt'
 /** The API's largest page of cues. */
 const CUE_PAGE = 5000
 

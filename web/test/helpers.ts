@@ -44,7 +44,7 @@ export function revision(over: Partial<Revision> = {}): Revision {
     language: 'nb',
     kind: 'SUBTITLE',
     origin: 'IMPORT',
-    model: null,
+    source: null,
     revision: 1,
     createdBy: null,
     createdAt: '2026-11-20T08:00:00Z',

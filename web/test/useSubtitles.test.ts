@@ -7,7 +7,7 @@ const asset = { id: 'AS-1', title: 'Evening news', legacyIds: ['VX-123'] }
 const history = [
   revision({ id: 'ST-1', revision: 1 }),
   revision({ id: 'ST-3', revision: 3, origin: 'MANUAL' }),
-  revision({ id: 'ST-2', revision: 2, origin: 'ASR', model: 'nb-whisper' }),
+  revision({ id: 'ST-2', revision: 2, origin: 'ASR', source: 'nb-whisper' }),
   revision({ id: 'ST-9', renditionId: 'RE-en', language: 'en' }),
 ]
 const tracksAnswer = () => json({ data: { subtitleTracks: history } })

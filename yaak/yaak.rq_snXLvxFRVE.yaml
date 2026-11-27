@@ -10,7 +10,7 @@ authenticationType: null
 body:
   query: |
     mutation($trackId: ID!, $cues: [SubtitleCueInput!]!) {
-      editSubtitles(trackId: $trackId, cues: $cues) { id revision parentId origin model }
+      editSubtitles(trackId: $trackId, cues: $cues) { id revision parentId origin source }
     }
   variables: |-
     {

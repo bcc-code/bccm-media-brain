@@ -2,6 +2,24 @@
 
 Newest first. Each entry: what changed, why, and what was left out on purpose.
 
+## 2026-11-27 — Vidispine: preview, Mediabanken transcript, re-import from the web UI
+
+- An import also takes the `lowres_watermarked` shape as the preview (an `encode` rendition with
+  purpose `preview`) and `Transcribed_Subtitle_SRT` as a subtitle revision (`nb`, `ASR`, source
+  `Mediabanken`, the SRT file attached as its source). Both are extras: one that cannot be used
+  is left out and logged, not a reason to refuse the item.
+- `refreshFromVidispine` is now a re-import: besides the metadata it adds what the asset lacks
+  (an original that a placeholder got since, the preview, a new transcript as the next revision).
+  It replaces nothing, so edits and existing files are safe.
+- `subtitle_track.model` is now `source` (migration 00019): one field for where the text came
+  from, a model or a system. GraphQL has `source` on the track and on `importSubtitles`; `model`
+  stays as a deprecated alias both ways so existing clients keep working.
+- `pkg/vidispine`: `ReadFile` reads a file's content with a size limit; the fake server serves it.
+- Web UI: the Assets page has an "Import from Vidispine" panel (administrators): a `VX-…` id is
+  imported with a type and optional project, or re-imported when it was imported before.
+- Left out on purpose: replacing a changed original or preview, other shape tags, and reading
+  the transcript's language from Vidispine (it is always Norwegian today).
+
 ## 2026-11-27 — Web UI: user manager and asset list
 
 - **Users** page (`/admin/users`, administrators): people only, searched by name or email, with

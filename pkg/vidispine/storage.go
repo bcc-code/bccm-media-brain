@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/url"
 	"strconv"
 	"strings"
@@ -39,6 +40,27 @@ func (s *StorageResult) LocalPath() string {
 func (c *Client) GetStorageMethods(ctx context.Context, storageID string) (*StorageResult, error) {
 	out := &StorageResult{}
 	return out, c.get(ctx, out, nil, "storage", storageID, "method")
+}
+
+// ErrTooLarge is returned by ReadFile for a file larger than the limit it was given.
+var ErrTooLarge = errors.New("vidispine: file is larger than the limit")
+
+// ReadFile returns the content of a file, such as a subtitle sidecar. A file larger than limit
+// bytes is not read to its end: the error is ErrTooLarge.
+func (c *Client) ReadFile(ctx context.Context, fileID string, limit int64) ([]byte, error) {
+	u := c.endpoint(nil, "storage", "file", fileID, "data")
+	var data []byte
+	err := c.retrying(ctx, u, "*/*", func(body io.Reader) error {
+		var err error
+		if data, err = io.ReadAll(io.LimitReader(body, limit+1)); err != nil {
+			return fmt.Errorf("vidispine: GET %s: %w", u, err)
+		}
+		if int64(len(data)) > limit {
+			return fmt.Errorf("%w: file %s, limit %d bytes", ErrTooLarge, fileID, limit)
+		}
+		return nil
+	})
+	return data, err
 }
 
 type FileSearchResult struct {

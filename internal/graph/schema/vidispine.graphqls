@@ -9,13 +9,17 @@ input VidispineImportInput {
 extend type Mutation {
   """
   Administrators only. Creates an asset from one Vidispine item: its metadata under
-  metadata.vidispine, the item id in legacyIds and, when the item has an original file, a version
-  with a master rendition holding that file. An item can be imported once.
+  metadata.vidispine, the item id in legacyIds and, when the item has files, the version
+  "Vidispine original": a master rendition with the original, an encode rendition with purpose
+  "preview" from lowres_watermarked, and the Transcribed_Subtitle_SRT shape as a Norwegian ASR
+  subtitle track with source "Mediabanken". A preview or transcript that cannot be used is left
+  out. An item can be imported once; refreshFromVidispine re-imports it.
   """
   importFromVidispine(input: VidispineImportInput!): Asset!
   """
-  Administrators only. Replaces metadata.vidispine of an imported asset with Vidispine's current
-  values. Nothing else on the asset changes.
+  Administrators only. Re-imports an imported asset: replaces metadata.vidispine with Vidispine's
+  current values and adds what the asset lacks (the original of a former placeholder, the preview,
+  a new transcript as the next revision). Nothing on the asset is replaced or removed.
   """
   refreshFromVidispine(assetId: ID!): Asset!
 }

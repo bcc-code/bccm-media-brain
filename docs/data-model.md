@@ -93,8 +93,10 @@ every import and every edit writes a **new revision** that points at its parent,
   given: words may overhang their cue and need not spell out its text. An edit keeps the words
   it is sent; cues sent without them have none.
 - `origin` says where a revision came from: `import` or `asr` from `importSubtitles`, `manual`
-  only from `editSubtitles`. `model` (nullable) names the model that produced the text, such as
-  the Whisper model of an ASR transcript; each revision keeps its own, so an edit has none.
+  only from `editSubtitles`. `source` (nullable) says where the text came from: the Whisper model of
+  an ASR transcript (`nb-whisper-large`) or the system it was taken from (`Mediabanken`). Each
+  revision keeps its own, so an edit has none. It was called `model` until 2026-11-27; the API
+  still accepts and returns `model` as a deprecated name for it.
 - `asset_id` on tracks and cues is a copy kept for permission filtering and later search.
 
 ## Reference data

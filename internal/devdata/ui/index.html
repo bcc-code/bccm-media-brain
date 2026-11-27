@@ -224,7 +224,7 @@ async function loadVidispine() {
   try {
     const { configured } = await api('vidispine');
     status.textContent = configured
-      ? 'Import one item from the configured Vidispine, or refresh the Vidispine metadata of an imported asset.'
+      ? 'Import one item from the configured Vidispine, or re-import an imported asset (fresh metadata, missing shapes added).'
       : 'Vidispine is not configured: set VIDISPINE_URL, VIDISPINE_USERNAME and VIDISPINE_PASSWORD in .env and restart. The "vidispine" scenario below creates assets that look imported.';
     for (const b of document.querySelectorAll('#vidispine-import button, #vidispine-refresh button')) b.disabled = !configured;
   } catch (e) { status.textContent = 'Vidispine: ' + e.message; }
