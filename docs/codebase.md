@@ -40,6 +40,7 @@ code. Keep it to pointers: the code is the detail.
 A new service, or a new dependency of one, must be added to all of them:
 
 1. `internal/app/app.go` (`New`): production wiring, and the `graph.Resolver` fields.
+   `media.Service` is wired here only: it serves `/media/` (`HandlerOptions.Media`), not GraphQL.
 2. `e2e/graph_test.go` (`probedServices`): the same over a fault-injecting database.
 3. `internal/devdata/scenarios.go` (`services`, `newServices`): for scenarios.
 
@@ -195,6 +196,11 @@ requests an administrator's.
   the result into hunks, and marks the changed words of a hunk (`wordDiff`).
   It is a table of the changed middle, so its memory is bounded by `MAX_CELLS`.
 - `make web-check` is separate from `make check`, which does not need Node.
+- `NuxtLink` works in tests through a stub (`test/setup.ts`). A page with a route parameter is
+  a thin file that passes the parameter to a component (`pages/assets/[id].vue` →
+  `components/AssetView.vue`); the component is what is tested.
+- The asset page (`useAsset`) reuses `readCues` and `grouped` from `useSubtitles`. The preview
+  plays from `/media/renditions/{id}`, which the dev server forwards like `/query`.
 
 The Go server serves the build at `/admin/` (`app.baseURL` in `nuxt.config.ts`), from inside the
 binary:

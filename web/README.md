@@ -8,6 +8,12 @@ Pages so far: **Assets** (`/assets`, the start page): the assets the caller may 
 first, 50 at a time with "Load more". For anyone. Administrators also get an "Import from
 Vidispine" panel: a `VX-…` id is imported, or re-imported when it was imported before.
 
+**Asset** (`/assets/{id}`, from the list): the preview, with up to three subtitle revisions on it
+at once, from any track and revision, in different colours; words that differ from the first
+are underlined, to compare speech recognition models. Beside it the asset's details, projects,
+versions and metadata. For anyone who may view the asset. The preview streams from
+`/media/renditions/{id}`, which the dev server forwards to the API like `/query`.
+
 **Users** (`/users`): people (not service accounts), searched by name or email, with their groups;
 make an administrator or not, switch off and on. Not your own account. Administrators only.
 

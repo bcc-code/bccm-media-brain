@@ -13,7 +13,9 @@ HTTP  ->  auth middleware  ->  GraphQL resolvers  ->  domain services  ->  sqlc 
   (`gqlgen.yml`), so there is no mapping layer to keep in sync.
 - **Domain services hold the rules**: validation, permission checks, multi-step writes. One
   package per area: `project`, `file`, `asset`, `subtitle`, `vidispineimport` (import from Vidispine, see
-  [vidispine.md](vidispine.md)), plus `access` for users and grants.
+  [vidispine.md](vidispine.md)), `media` (streams a preview from Vidispine at
+  `/media/renditions/{id}`, the one route besides `/query` that serves data), plus `access` for
+  users and grants.
 - **`pkg/`** holds code other Go projects may import (`pkg/vidispine`). It never imports
   `internal/`.
 - **`internal/access` answers "may this caller do that?"** Services call it; resolvers never do.

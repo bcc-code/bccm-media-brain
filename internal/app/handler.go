@@ -44,6 +44,9 @@ type HandlerOptions struct {
 	// WebUI is the web UI's static build, served at /admin/ if non-nil. The files need no
 	// sign-in: they hold no data, and everything the page shows comes from /query.
 	WebUI fs.FS
+	// Media serves previews at /media/renditions/{id} if non-nil, to signed-in callers. No
+	// deadline: a video streams for as long as it is watched.
+	Media http.Handler
 	// LocalOnly refuses requests whose Host is not localhost or a loopback IP. Debug mode on a
 	// loopback listener sets it: without it, a site whose name is re-pointed at 127.0.0.1 (DNS
 	// rebinding) would be same-origin with the server and could use the token-less sign-in.
@@ -59,6 +62,7 @@ type HandlerOptions struct {
 //	GET  /         GraphQL playground (if enabled)
 //	     /debug/   debug UI + dev-data API (if enabled)
 //	GET  /admin/   web UI (if the binary carries it)
+//	GET  /media/renditions/{id}  a rendition's preview (authenticated)
 func NewHandler(r *graph.Resolver, db Pinger, opts HandlerOptions) http.Handler {
 	mux := http.NewServeMux()
 
@@ -86,6 +90,9 @@ func NewHandler(r *graph.Resolver, db Pinger, opts HandlerOptions) http.Handler 
 	}
 	if opts.Debug != nil {
 		mux.Handle("/debug/", http.StripPrefix("/debug", opts.Debug))
+	}
+	if opts.Media != nil {
+		mux.Handle("GET /media/renditions/{id}", auth.Middleware(opts.Auth, opts.Media))
 	}
 	if opts.WebUI != nil {
 		mux.Handle("GET /admin/", http.StripPrefix("/admin", webui.Handler(opts.WebUI)))

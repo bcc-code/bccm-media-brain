@@ -52,8 +52,9 @@ var registry = []Scenario{
 	},
 	{
 		Name:        "subtitle-revisions",
-		Description: "One asset whose subtitles were transcribed by speech recognition and then edited several times.",
+		Description: "One asset whose subtitles were transcribed by several speech recognition models, then edited several times.",
 		Params: []Param{
+			{Name: "models", Label: "Models", Type: Int, Default: "3", Min: ptr(1), Max: ptr(4)},
 			{Name: "edits", Label: "Edits", Type: Int, Default: "3", Min: ptr(0), Max: ptr(50)},
 			{Name: "cues", Label: "Cues", Type: Int, Default: "40", Min: ptr(1), Max: ptr(5000)},
 		},
@@ -381,21 +382,29 @@ func runSubtitleRevisions(ctx context.Context, env Env, v Values) (string, error
 	if err != nil {
 		return "", err
 	}
-	content := f.TranscriptJSON(v.Int("cues"))
+	// The first model's transcript comes with its file; the others heard the same speech a
+	// little differently, so their revisions can be compared.
+	heard := f.WordCues(v.Int("cues"))
+	content, _ := subtitle.Render(subtitle.JSON, heard)
 	source, err := s.files.Register(ctx, f.SubtitleFile(content))
 	if err != nil {
 		return "", err
 	}
-	language, origin, model := "en", sqlc.TrackOriginAsr, f.TranscriptionModel()
-	track, err := s.subtitles.Import(ctx, subtitle.ImportInput{
-		VersionID: version.ID, Language: &language, Format: subtitle.JSON, Content: content, SourceFileID: &source.ID,
-		Origin: &origin, Source: &model,
-	})
-	if err != nil {
-		return "", err
+	language, origin := "en", sqlc.TrackOriginAsr
+	var track sqlc.SubtitleTrack
+	for i, model := range f.TranscriptionModels(v.Int("models")) {
+		in := subtitle.ImportInput{VersionID: version.ID, Language: &language, Format: subtitle.JSON, Content: content, Origin: &origin, Source: &model}
+		if i == 0 {
+			in.SourceFileID = &source.ID
+		} else {
+			in.Content, _ = subtitle.Render(subtitle.JSON, f.Retranscribed(heard))
+		}
+		if track, err = s.subtitles.Import(ctx, in); err != nil {
+			return "", err
+		}
 	}
 	for range v.Int("edits") {
-		if track, err = s.subtitles.Edit(ctx, track.ID, f.Cues(v.Int("cues"))); err != nil {
+		if track, err = s.subtitles.Edit(ctx, track.ID, f.Retranscribed(heard)); err != nil {
 			return "", err
 		}
 	}

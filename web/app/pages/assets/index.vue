@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
-import VidispineImport from '../components/VidispineImport.vue'
-import { useAssets } from '../composables/useAssets'
+import VidispineImport from '../../components/VidispineImport.vue'
+import { useAssets } from '../../composables/useAssets'
 
 const { assets, loading, loaded, error, hasMore, reload, more } = useAssets()
 
@@ -51,7 +51,12 @@ const td = 'border-t border-border px-4 py-3 align-middle'
               <tr v-for="a in assets" :key="a.id" data-test="asset">
                 <td :class="td">
                   <div class="flex flex-col">
-                    <span class="font-medium">{{ a.title }}</span>
+                    <NuxtLink
+                      :to="`/assets/${a.id}`"
+                      data-test="open"
+                      class="font-medium underline decoration-border underline-offset-2 hover:decoration-current focus-visible:focus-ring"
+                      >{{ a.title }}</NuxtLink
+                    >
                     <span class="font-mono text-xs text-muted-foreground">{{ a.id }}</span>
                   </div>
                 </td>

@@ -2,10 +2,11 @@
 import { Checkbox } from '@ark-ui/vue/checkbox'
 
 const checked = defineModel<boolean>({ required: true })
+defineProps<{ disabled?: boolean }>()
 </script>
 
 <template>
-  <Checkbox.Root v-model:checked="checked" class="flex cursor-pointer items-center gap-2">
+  <Checkbox.Root v-model:checked="checked" :disabled="disabled" class="flex cursor-pointer items-center gap-2 data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50">
     <Checkbox.Control
       class="flex size-4 items-center justify-center rounded-[4px] border border-border-strong data-[state=checked]:border-primary data-[state=checked]:bg-primary data-[focus-visible]:focus-ring"
     >

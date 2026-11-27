@@ -68,6 +68,13 @@ Why these choices:
   transaction through the asset and file services, so their rules apply and a failure leaves
   nothing behind.
 
+## Watching the preview
+
+`GET /media/renditions/{id}` (`internal/media`) streams the preview rendition's file from
+Vidispine, by the file id in the rendition's `metadata.vidispine.fileId`, with byte ranges
+(`vidispine.Client.OpenFile`). Anyone who may view the asset may watch it; see [api.md](api.md).
+The web UI's asset page plays it with subtitles on top.
+
 ## Re-import (refresh)
 
 Replaces `metadata.vidispine` with Vidispine's current field values and **adds what the asset

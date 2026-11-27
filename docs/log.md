@@ -2,6 +2,33 @@
 
 Newest first. Each entry: what changed, why, and what was left out on purpose.
 
+## 2026-11-27 — Asset page: preview with up to three subtitle revisions
+
+- **Web UI:** an asset page at `/admin/assets/{id}`, opened from the asset list. It plays the
+  preview and shows up to three subtitle revisions on it at once, from any track and any
+  revision (`subtitleTracks(history: true)`), so the output of different speech recognition
+  models can be compared on the picture. Each layer has its own colour (white, yellow, sky; they
+  differ in lightness too) and a tag with language, revision and model. Words of layers 2 and 3
+  that differ from layer 1 at that moment are underlined (`wordDiff`). Beside it: the asset's
+  fields, projects, versions with their renditions, and the metadata. Without a playable
+  preview, a timeline stands in for the video so the subtitles can still be compared.
+- **`GET /media/renditions/{id}`** serves a preview. MediaBrain reads no storage, so it streams
+  the file from Vidispine (`/API/storage/file/{id}/data`, the Vidispine file id in the
+  rendition's `metadata.vidispine.fileId`), passing a byte `Range` on so the video can seek.
+  Signed in like `/query`; anyone who may view the asset may watch; only an `encode` rendition
+  with purpose `preview` that came from Vidispine is served, anything else is 404, as is a
+  rendition the caller may not see. Vidispine failing or not configured is 503. Why a proxy:
+  the browser cannot reach Vidispine, which needs credentials, and its one-time URLs name a host
+  the browser does not know. Why no `/query` deadline: a video streams as long as it is watched.
+- `pkg/vidispine`: `OpenFile` streams a file's content (with a range, without the client's
+  overall timeout); the fake server answers ranges.
+- Dev data: `subtitle-revisions` imports the transcript from up to four models (`models`, default
+  3), each hearing the same speech a little differently (`fake.Retranscribed`), and the edits
+  change that speech rather than replace it with unrelated text.
+- Left out on purpose: previews from anywhere but Vidispine, the scrubbing sprite sheets
+  (decided 2026-11-11, still to be built), editing the asset on this page, and marking words a
+  layer leaves out (only words it adds or changes are underlined).
+
 ## 2026-11-27 — Vidispine: redirects stay on the configured host
 
 - Against the real Vidispine every transcript was left out: `GET /API/storage/file/{id}/data`

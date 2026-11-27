@@ -40,7 +40,7 @@ export interface Cue {
 }
 
 const ASSET = 'id title legacyIds myLevel'
-const REVISION = 'id renditionId language kind origin source revision createdBy createdAt'
+export const REVISION = 'id renditionId language kind origin source revision createdBy createdAt'
 /** The API's largest page of cues. */
 const CUE_PAGE = 5000
 
@@ -111,7 +111,8 @@ export function trackLabel(t: { language: string | null; kind: string }): string
   return `${t.language ?? 'No language'} · ${t.kind}`
 }
 
-function grouped(revisions: Revision[]): Track[] {
+/** Revisions grouped into the tracks they belong to, newest revision first. */
+export function grouped(revisions: Revision[]): Track[] {
   const tracks = new Map<string, Track>()
   for (const r of revisions) {
     let t = tracks.get(r.renditionId)
@@ -120,6 +121,30 @@ function grouped(revisions: Revision[]): Track[] {
   }
   for (const t of tracks.values()) t.revisions.sort((x, y) => y.revision - x.revision)
   return [...tracks.values()].sort((x, y) => trackLabel(x).localeCompare(trackLabel(y)))
+}
+
+/** Every cue of a revision, read a page at a time. */
+export async function readCues(id: string, fetcher?: Fetcher): Promise<Cue[]> {
+  const cues: Cue[] = []
+  let after: string | null = null
+  do {
+    const data: {
+      subtitleTrack: { cues: { nodes: Cue[]; pageInfo: { hasNextPage: boolean; endCursor: string | null } } } | null
+    } = await gql(
+      `query SubtitleCues($id: ID!, $first: Int!, $after: String) {
+        subtitleTrack(id: $id) {
+          cues(first: $first, after: $after) { nodes { seq startMs endMs text speaker } pageInfo { hasNextPage endCursor } }
+        }
+      }`,
+      { id, first: CUE_PAGE, after },
+      fetcher,
+    )
+    if (!data.subtitleTrack) throw new ApiError('This revision no longer exists.', 'NOT_FOUND')
+    cues.push(...data.subtitleTrack.cues.nodes)
+    const page = data.subtitleTrack.cues.pageInfo
+    after = page.hasNextPage ? page.endCursor : null
+  } while (after)
+  return cues
 }
 
 export function useSubtitles(fetcher?: Fetcher) {
@@ -208,25 +233,7 @@ export function useSubtitles(fetcher?: Fetcher) {
   async function cuesOf(id: string): Promise<Cue[]> {
     const cached = cache.get(id)
     if (cached) return cached
-    const cues: Cue[] = []
-    let after: string | null = null
-    do {
-      const data: {
-        subtitleTrack: { cues: { nodes: Cue[]; pageInfo: { hasNextPage: boolean; endCursor: string | null } } } | null
-      } = await gql(
-        `query SubtitleCues($id: ID!, $first: Int!, $after: String) {
-          subtitleTrack(id: $id) {
-            cues(first: $first, after: $after) { nodes { seq startMs endMs text speaker } pageInfo { hasNextPage endCursor } }
-          }
-        }`,
-        { id, first: CUE_PAGE, after },
-        fetcher,
-      )
-      if (!data.subtitleTrack) throw new ApiError('This revision no longer exists.', 'NOT_FOUND')
-      cues.push(...data.subtitleTrack.cues.nodes)
-      const page = data.subtitleTrack.cues.pageInfo
-      after = page.hasNextPage ? page.endCursor : null
-    } while (after)
+    const cues = await readCues(id, fetcher)
     cache.set(id, cues)
     return cues
   }

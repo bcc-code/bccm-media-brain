@@ -17,7 +17,7 @@ Guidance for AI coding agents (and humans) working in this repository.
   (`godotenv`; real env vars win; override path with `MEDIABRAIN_ENV_FILE`).
 - **Web UI:** Nuxt (static, no server rendering), Tailwind and Ark UI in `web/`. It talks only to
   `/query`. `make build` and the image embed its build in the binary (`internal/webui`, build tag
-  `webui`), served at `/admin/`. So far: the asset list, the user manager, the service accounts page and the subtitle browser.
+  `webui`), served at `/admin/`. So far: the asset list, the asset page (preview with up to three subtitle revisions on it), the user manager, the service accounts page and the subtitle browser.
 
 **[`docs/`](docs/README.md) records what has been built and why**: architecture, data model, API,
 security, and a dated log. Read it before changing behaviour, and update it in the same change.
@@ -42,6 +42,7 @@ internal/domain/        shared errors, paging and input rules
 internal/access/        principals, permission levels, grants, asset_access refresh; users, groups and service accounts
 internal/auth/          verifies the proxy's JWT and its groups, trusted proxies, debug bypass (authtest/: test issuer)
 internal/<domain>/      domain services over sqlc.Querier: project, file, asset, subtitle, vidispineimport
+internal/media/         GET /media/renditions/{id}: a preview streamed from Vidispine
 internal/graph/         gqlgen resolvers (hand-written), dataloaders, error presenter, server setup
   schema/*.graphqls     GraphQL schema (source of truth)
   loader/, scalar/      generic batching loader; Date and JSON scalars
@@ -61,7 +62,8 @@ web/                    web UI: Nuxt, Tailwind, Ark UI (see web/README.md)
 
 HTTP routes: `POST /query` (GraphQL, authenticated), `GET /` (playground, only when
 `GRAPHQL_PLAYGROUND=true`), `GET /healthz`, `/debug/` (dev-data UI + API, only when `DEBUG=true`),
-`GET /admin/` (web UI, only in a binary built with `-tags webui`).
+`GET /admin/` (web UI, only in a binary built with `-tags webui`), `GET /media/renditions/{id}` (a
+preview streamed from Vidispine, authenticated).
 
 ## Development
 

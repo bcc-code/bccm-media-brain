@@ -21,6 +21,7 @@ import (
 	"github.com/bcc-media/mediabrain/internal/devdata"
 	"github.com/bcc-media/mediabrain/internal/file"
 	"github.com/bcc-media/mediabrain/internal/graph"
+	"github.com/bcc-media/mediabrain/internal/media"
 	"github.com/bcc-media/mediabrain/internal/project"
 	"github.com/bcc-media/mediabrain/internal/subtitle"
 	"github.com/bcc-media/mediabrain/internal/vidispineimport"
@@ -102,6 +103,8 @@ func New(ctx context.Context, cfg config.Config) (*App, error) {
 		opts.Debug = devdata.Handler(store)
 	}
 	opts.WebUI = webui.Files()
+	opener, _ := vidispineSrc.(media.Opener)
+	opts.Media = media.Handler(media.NewService(q, tx, opener))
 	srv := &http.Server{
 		Handler:           NewHandler(resolver, pool, opts),
 		ReadHeaderTimeout: 10 * time.Second,

@@ -3,11 +3,13 @@
 package vidispinetest
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/bcc-media/mediabrain/pkg/vidispine"
 )
@@ -150,8 +152,9 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 			notFound(w, "file", id)
 			return
 		}
+		// Like Vidispine, it answers a Range with that part of the file.
 		w.Header().Set("Content-Type", "application/octet-stream")
-		_, _ = w.Write(data)
+		http.ServeContent(w, r, "", time.Time{}, bytes.NewReader(data))
 		return
 	}
 	if u, p, ok := r.BasicAuth(); !ok || u != Username || p != Password {

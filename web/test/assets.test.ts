@@ -1,6 +1,6 @@
-import { flushPromises, mount } from '@vue/test-utils'
+import { RouterLinkStub, flushPromises, mount } from '@vue/test-utils'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import Page from '../app/pages/assets.vue'
+import Page from '../app/pages/assets/index.vue'
 import { apiError, assetRow, fakeFetch, json, page } from './helpers'
 
 afterEach(() => vi.unstubAllGlobals())
@@ -45,6 +45,7 @@ describe('assets page', () => {
     expect(p.find('[aria-label="Import from Vidispine"]').exists()).toBe(false)
     let rows = p.findAll('[data-test=asset]')
     expect(rows[0]!.text()).toContain('Opening')
+    expect(rows[0]!.getComponent(RouterLinkStub).props('to')).toBe('/assets/AS-1')
     expect(rows[0]!.text()).toContain('AS-1')
     expect(rows[0]!.text()).toContain('Clip')
     expect(rows[0]!.text()).toContain('VX-1')

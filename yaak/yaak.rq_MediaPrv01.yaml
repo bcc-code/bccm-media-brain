@@ -1,0 +1,40 @@
+type: http_request
+model: http_request
+id: rq_MediaPrv01
+createdAt: 2026-11-27T15:00:00
+updatedAt: 2026-11-27T15:00:00
+workspaceId: wk_tPlK1TUEUQ
+folderId: fl_Xz143881TC
+authentication: {}
+authenticationType: null
+body: {}
+bodyType: null
+description: 'Streams the preview of rendition_id from Vidispine: an ENCODE rendition with purpose "preview" that an import from Vidispine made. Add a Range header (bytes=0-1023) for part of it. 404 for any other rendition, 503 when Vidispine fails or is not configured.'
+headers:
+- enabled: false
+  name: Range
+  value: bytes=0-1023
+  id: MediaRng01
+method: GET
+name: Preview of a rendition
+sortPriority: 17000.0
+url: ${[ base_url ]}/media/renditions/${[ rendition_id ]}
+urlParameters: []
+settingSendCookies:
+  enabled: false
+  value: true
+settingStoreCookies:
+  enabled: false
+  value: true
+settingValidateCertificates:
+  enabled: false
+  value: true
+settingFollowRedirects:
+  enabled: false
+  value: true
+settingRequestTimeout:
+  enabled: false
+  value: 0
+settingHttpVersion:
+  enabled: false
+  value: auto

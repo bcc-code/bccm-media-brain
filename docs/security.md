@@ -264,6 +264,11 @@ to every caller. Dev-data scenarios and the CLI run as an explicit system princi
 - Schema introspection and the playground are off unless `GRAPHQL_PLAYGROUND=true`.
 - The web UI at `/admin/` is static files the server gives to anyone who reaches it: they hold
   no data and no secret, and the page gets everything from `/query`, which signs the caller in.
+- `/media/renditions/{id}` signs the caller in as `/query` does and checks VIEW on the asset in
+  `internal/media`; a rendition the caller may not see is a 404 like one that does not exist.
+  It forwards only a `bytes=` Range to Vidispine and passes back only the headers a player needs;
+  `Cache-Control: private` keeps shared caches from holding a preview. It has no deadline (a
+  video streams as long as it is watched); the context ends the stream when the client goes.
 - **Query cost.** One operation may cost at most 1 000 000, where a list counts its selection
   once per item it may return (`internal/graph/complexity.go`; the sums the limit was chosen
   from are in `complexity_test.go`). The number is roughly how many values the answer could

@@ -176,9 +176,16 @@ func (x *Faker) VTT(n int) string {
 // WordCues returns n cues with word timing, spread over each cue as speech recognition would
 // report it; some words have a confidence.
 func (x *Faker) WordCues(n int) []subtitle.Cue {
-	cues := x.Cues(n)
+	return x.withWords(x.Cues(n))
+}
+
+func (x *Faker) withWords(cues []subtitle.Cue) []subtitle.Cue {
 	for i, c := range cues {
 		words := strings.Fields(c.Text)
+		cues[i].Words = nil
+		if len(words) == 0 {
+			continue
+		}
 		span := (c.EndMs - c.StartMs) / int32(len(words))
 		for j, w := range words {
 			start := c.StartMs + int32(j)*span
@@ -191,6 +198,42 @@ func (x *Faker) WordCues(n int) []subtitle.Cue {
 		}
 	}
 	return cues
+}
+
+// Retranscribed returns the same speech as another speech recognition model might hear it: the
+// cues of heard, each a little earlier or later, with about one word in six heard differently
+// or not at all, and word timing of its own. heard is not changed.
+func (x *Faker) Retranscribed(heard []subtitle.Cue) []subtitle.Cue {
+	out := make([]subtitle.Cue, len(heard))
+	for i, c := range heard {
+		shift := int32(x.f.Number(-250, 250))
+		c.StartMs = max(0, c.StartMs+shift)
+		c.EndMs = max(c.StartMs+100, c.EndMs+shift)
+		var words []string
+		for _, w := range strings.Fields(c.Text) {
+			switch x.f.Number(1, 12) {
+			case 1:
+				words = append(words, x.f.Word())
+			case 2:
+				// Not heard.
+			default:
+				words = append(words, w)
+			}
+		}
+		if len(words) == 0 {
+			words = []string{x.f.Word()}
+		}
+		c.Text = strings.Join(words, " ")
+		out[i] = c
+	}
+	return x.withWords(out)
+}
+
+// TranscriptionModels names n different speech recognition models (at most 4) in a random order.
+func (x *Faker) TranscriptionModels(n int) []string {
+	models := []string{"nb-whisper-large", "nb-whisper-medium", "whisper-large-v3", "whisper-large-v3-turbo"}
+	x.f.ShuffleAnySlice(models)
+	return models[:min(n, len(models))]
 }
 
 // TranscriptJSON returns a Whisper JSON transcript with n cues and word timing, as the

@@ -1,6 +1,6 @@
 import tailwindcss from '@tailwindcss/vite'
 
-// Where `make dev` serves the API. The dev server forwards /query there, so the page and the
+// Where `make dev` serves the API. The dev server forwards /query and /media there, so the page and the
 // API share an origin, as they do behind the proxy in a deployment.
 const api = process.env.MEDIABRAIN_API ?? 'http://127.0.0.1:8080'
 
@@ -10,7 +10,7 @@ export default defineNuxtConfig({
   ssr: false,
   css: ['~/assets/css/main.css'],
   vite: { plugins: [tailwindcss()] },
-  nitro: { devProxy: { '/query': { target: `${api}/query` } } },
+  nitro: { devProxy: { '/query': { target: `${api}/query` }, '/media': { target: `${api}/media` } } },
   app: {
     // The Go server serves the build from here (internal/webui); /query stays at the root.
     baseURL: '/admin/',
