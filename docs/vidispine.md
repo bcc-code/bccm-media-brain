@@ -102,6 +102,11 @@ resty, Temporal and flows-internal packages).
   file (`ReadFile`, with a size limit: `ErrTooLarge`), collection items, time code conversion.
 - Every call takes a context. Ids are escaped into the URL. Only GET is retried, on network
   errors and 5xx.
+- **Redirects stay on the configured host.** Vidispine answers a file's `/data` with a redirect to
+  a one-time `/APInoauth/...` URL on the address it was set up with, which is often `localhost`.
+  Followed as is, that reaches whatever listens on localhost where MediaBrain runs (MediaBrain
+  itself, on 8080). The client keeps the path and replaces scheme and host with
+  `VIDISPINE_URL`'s, sends the credentials again, and gives up after 10 redirects.
 - Errors are `*vidispine.Error`; `errors.Is(err, vidispine.ErrNotFound)` and
   `ErrShapeTagNotFound` work.
 - `pkg/vidispine/vidispinetest` is a fake Vidispine server for tests.

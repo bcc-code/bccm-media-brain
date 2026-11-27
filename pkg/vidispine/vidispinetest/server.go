@@ -142,6 +142,18 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, s.failStatus, map[string]any{"internalServer": map[string]string{"message": "induced failure"}})
 		return
 	}
+	// The one-time URL of a file needs no credentials.
+	if rest, ok := strings.CutPrefix(r.URL.Path, "/APInoauth/storage/file/"); ok && r.Method == http.MethodGet {
+		id, _, _ := strings.Cut(rest, "/")
+		data, ok := s.data[id]
+		if !ok {
+			notFound(w, "file", id)
+			return
+		}
+		w.Header().Set("Content-Type", "application/octet-stream")
+		_, _ = w.Write(data)
+		return
+	}
 	if u, p, ok := r.BasicAuth(); !ok || u != Username || p != Password {
 		writeJSON(w, http.StatusUnauthorized, map[string]any{"notAuthorized": map[string]string{}})
 		return
@@ -165,13 +177,13 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 	case len(parts) == 3 && parts[0] == "storage" && parts[2] == "file":
 		s.serveFiles(w, r, parts[1])
 	case len(parts) == 4 && parts[0] == "storage" && parts[1] == "file" && parts[3] == "data":
-		data, ok := s.data[parts[2]]
-		if !ok {
+		if _, ok := s.data[parts[2]]; !ok {
 			notFound(w, "file", parts[2])
 			return
 		}
-		w.Header().Set("Content-Type", "application/octet-stream")
-		_, _ = w.Write(data)
+		// As Vidispine does: a redirect to a one-time URL outside /API, on the address Vidispine
+		// was set up with rather than the one it was asked on.
+		http.Redirect(w, r, "http://localhost:1/APInoauth/storage/file/"+parts[2]+"/0.123/data", http.StatusSeeOther)
 	case len(parts) == 3 && parts[0] == "collection" && parts[2] == "item":
 		ids, ok := s.collections[parts[1]]
 		if !ok {

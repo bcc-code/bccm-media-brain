@@ -60,10 +60,13 @@ func New(cfg Config) (*Client, error) {
 	if base.Scheme == "" || base.Host == "" {
 		return nil, errors.New("vidispine: base URL must be absolute")
 	}
-	c := &Client{base: base, user: cfg.Username, pass: cfg.Password, http: cfg.HTTPClient, retries: cfg.Retries, delay: cfg.RetryDelay}
-	if c.http == nil {
-		c.http = &http.Client{Timeout: defaultTimeout}
+	c := &Client{base: base, user: cfg.Username, pass: cfg.Password, retries: cfg.Retries, delay: cfg.RetryDelay}
+	hc := http.Client{Timeout: defaultTimeout}
+	if cfg.HTTPClient != nil {
+		hc = *cfg.HTTPClient
 	}
+	hc.CheckRedirect = c.redirect
+	c.http = &hc
 	switch {
 	case c.retries == 0:
 		c.retries = defaultRetries
@@ -123,6 +126,24 @@ func newError(method, u string, res *http.Response) *Error {
 		e.NotFoundType, e.NotFoundID = envelope.NotFound.Type, envelope.NotFound.ID
 	}
 	return e
+}
+
+const maxRedirects = 10
+
+// redirect keeps every redirect on the configured host. Vidispine names itself in the Location
+// of a redirect by the address it was set up with, often localhost: a file's data redirects
+// to /APInoauth/... there, which would reach whatever listens on localhost here. The credentials
+// go along again, since the target is the configured host.
+func (c *Client) redirect(req *http.Request, via []*http.Request) error {
+	if len(via) >= maxRedirects {
+		return fmt.Errorf("vidispine: stopped after %d redirects", maxRedirects)
+	}
+	req.URL.Scheme, req.URL.Host = c.base.Scheme, c.base.Host
+	req.Host = ""
+	if c.user != "" || c.pass != "" {
+		req.SetBasicAuth(c.user, c.pass)
+	}
+	return nil
 }
 
 // endpoint builds a URL under the API root, escaping every path segment.

@@ -2,6 +2,14 @@
 
 Newest first. Each entry: what changed, why, and what was left out on purpose.
 
+## 2026-11-27 — Vidispine: redirects stay on the configured host
+
+- Against the real Vidispine every transcript was left out: `GET /API/storage/file/{id}/data`
+  redirects to `/APInoauth/...` on Vidispine's own idea of its address (`localhost:8080`), so the
+  client asked MediaBrain itself and got its 404. The client now follows a redirect on
+  `VIDISPINE_URL`'s scheme and host. This also keeps a redirect from sending a request anywhere
+  else. The fake server redirects the same way, so the tests cover it.
+
 ## 2026-11-27 — Vidispine: preview, Mediabanken transcript, re-import from the web UI
 
 - An import also takes the `lowres_watermarked` shape as the preview (an `encode` rendition with

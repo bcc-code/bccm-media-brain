@@ -42,3 +42,35 @@ func TestReadFileRequest(t *testing.T) {
 		t.Fatalf("path %q, accept %q", path, accept)
 	}
 }
+
+// Vidispine names itself by the address it was set up with in a redirect. The client stays on
+// the configured host, and stops a redirect loop.
+func TestRedirectsStayOnTheConfiguredHost(t *testing.T) {
+	var hits []string
+	hc := &http.Client{}
+	c := clientFor(t, vidispine.Config{Retries: -1, HTTPClient: hc, Username: "u", Password: "p"}, func(w http.ResponseWriter, r *http.Request) {
+		user, _, _ := r.BasicAuth()
+		hits = append(hits, r.URL.Path+" "+user)
+		switch r.URL.Path {
+		case "/API/storage/file/VX-1/data":
+			http.Redirect(w, r, "http://localhost:1/APInoauth/x", http.StatusSeeOther)
+		case "/APInoauth/x":
+			_, _ = w.Write([]byte("content"))
+		default:
+			http.Redirect(w, r, "http://elsewhere.invalid/API/loop", http.StatusFound)
+		}
+	})
+	got, err := c.ReadFile(ctx, "VX-1", 100)
+	if err != nil || string(got) != "content" {
+		t.Fatalf("ReadFile = %q, %v (requests %v)", got, err, hits)
+	}
+	if hits[1] != "/APInoauth/x u" {
+		t.Fatalf("redirect = %q", hits[1])
+	}
+	if hc.CheckRedirect != nil {
+		t.Fatal("the caller's http.Client was changed")
+	}
+	if _, err := c.ReadFile(ctx, "VX-2", 100); err == nil {
+		t.Fatal("a redirect loop ended without an error")
+	}
+}
